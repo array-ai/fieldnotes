@@ -59,7 +59,14 @@ public final class AudioSessionController {
             object: AVAudioSession.sharedInstance(),
             queue: .main
         ) { [weak self] note in
-            MainActor.assumeIsolated { self?.handleInterruption(note) }
+            // Notification is not Sendable, so it cannot cross into a main
+            // actor-isolated closure. Pull the primitives out here and send only
+            // those — they are plain integers.
+            let typeRaw = note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt
+            let optionsRaw = note.userInfo?[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0
+            MainActor.assumeIsolated {
+                self?.handleInterruption(typeRaw: typeRaw, optionsRaw: optionsRaw)
+            }
         })
 
         observers.append(center.addObserver(
@@ -67,7 +74,8 @@ public final class AudioSessionController {
             object: AVAudioSession.sharedInstance(),
             queue: .main
         ) { [weak self] note in
-            MainActor.assumeIsolated { self?.handleRouteChange(note) }
+            let reasonRaw = note.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt
+            MainActor.assumeIsolated { self?.handleRouteChange(reasonRaw: reasonRaw) }
         })
 
         observers.append(center.addObserver(
@@ -84,15 +92,13 @@ public final class AudioSessionController {
         observers.removeAll()
     }
 
-    private func handleInterruption(_ note: Notification) {
-        guard let raw = note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
-              let type = AVAudioSession.InterruptionType(rawValue: raw) else { return }
+    private func handleInterruption(typeRaw: UInt?, optionsRaw: UInt) {
+        guard let typeRaw, let type = AVAudioSession.InterruptionType(rawValue: typeRaw) else { return }
         switch type {
         case .began:
             log.notice("Audio interrupted")
             onEvent?(.interruptionBegan)
         case .ended:
-            let optionsRaw = note.userInfo?[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0
             let shouldResume = AVAudioSession.InterruptionOptions(rawValue: optionsRaw).contains(.shouldResume)
             log.notice("Audio interruption ended, shouldResume=\(shouldResume, privacy: .public)")
             onEvent?(.interruptionEnded(shouldResume: shouldResume))
@@ -101,9 +107,8 @@ public final class AudioSessionController {
         }
     }
 
-    private func handleRouteChange(_ note: Notification) {
-        guard let raw = note.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt,
-              let reason = AVAudioSession.RouteChangeReason(rawValue: raw) else { return }
+    private func handleRouteChange(reasonRaw: UInt?) {
+        guard let reasonRaw, let reason = AVAudioSession.RouteChangeReason(rawValue: reasonRaw) else { return }
         onEvent?(.routeChanged(reason: reason))
     }
 }

@@ -174,6 +174,18 @@ signature change is a one-line fix:
 | FluidAudio model loading | `DiarizationModelProvider` | Pinned package version in `Package.swift` |
 | `BGContinuedProcessingTask` submission | `BackgroundProcessingCoordinator.submit` | Handles a false `supportedResources.contains(.gpu)` rather than assuming broken provisioning |
 
+### Deprecated on iOS 27, still building
+
+The Xcode 27 compiler flags three APIs this code uses. They work, so they are not
+blocking, but they are the next thing to modernise — and the first one changes how
+interruption handling should be written, which is spec 4.1 territory:
+
+| Deprecated | Replacement the compiler names | Used in |
+|---|---|---|
+| `AVAudioSession.InterruptionType` | `AVAudioSessionDidBecomeInactiveNotification` + `AVAudioSessionResumptionRecommendationNotification` | `AudioSessionController` |
+| `AVAudioSession.InterruptionOptions` | `AVAudioSessionResumptionRecommendationNotification` | `AudioSessionController` |
+| `installTap(onBus:bufferSize:format:block:)` | (not named in the diagnostic) | `RecordingController` |
+
 ## Deliberately not here
 
 v1 is six things: capture, transcribe, diarize, summarise, survive backgrounding, hand

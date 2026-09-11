@@ -30,6 +30,19 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # FluidAudio pulls a ~50 MB binary xcframework on every resolve. Caching the
+      # SwiftPM download cache (not .build, which goes stale in confusing ways) keeps
+      # that out of each run — worth it here because macOS minutes on a private repo
+      # bill at 10x the Linux rate.
+      - name: Cache SwiftPM downloads
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Caches/org.swift.swiftpm
+            ~/.swiftpm
+          key: spm-xcode27-${{ hashFiles('Package.swift', 'Core/Package.swift', 'Package.resolved') }}
+          restore-keys: spm-xcode27-
+
       - name: Toolchain versions
         run: |
           xcodebuild -version

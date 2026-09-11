@@ -199,17 +199,18 @@ public final class RecordingController {
                     try await writer?.write(buffer)
                     try await diarization?.append(buffer)
                 } catch {
-                    await self?.recordFailure(error)
+                    self?.recordFailure(error)
                 }
                 await transcription?.append(buffer)
 
-                let peak = buffer.peakLevel
-                await MainActor.run { [weak self] in
-                    guard let self else { return }
-                    // Smooth the meter so it reads as a level, not a strobe.
-                    self.level = self.level * 0.7 + peak * 0.3
-                    self.elapsed = self.currentElapsed
-                }
+                // This task inherits the type's main-actor isolation, so these are
+                // plain assignments — a MainActor.run hop here would be a no-op with
+                // a cost. The writes above still hop to their own actors, which is
+                // where the file I/O belongs.
+                guard let self else { continue }
+                // Smooth the meter so it reads as a level, not a strobe.
+                self.level = self.level * 0.7 + buffer.peakLevel * 0.3
+                self.elapsed = self.currentElapsed
             }
         }
     }
@@ -220,12 +221,10 @@ public final class RecordingController {
                 guard let self else { return }
                 switch update {
                 case .volatile(let text):
-                    await MainActor.run { self.volatileText = text }
+                    self.volatileText = text
                 case .finalized(let segment):
-                    await MainActor.run {
-                        self.volatileText = ""
-                        self.segments.append(segment)
-                    }
+                    self.volatileText = ""
+                    self.segments.append(segment)
                 }
             }
         }
