@@ -78,27 +78,32 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
-      # Temporary: prints the real declarations for the iOS 27 APIs this code
-      # depends on, so they can be matched exactly instead of guessed at one CI
-      # round-trip per attempt. Remove once the app builds clean.
+      # Temporary: prints the real iOS 27 declarations this code depends on, so
+      # they can be matched exactly rather than guessed one CI round-trip at a time.
+      # Remove once the app builds clean.
       - name: Inspect SDK declarations
         run: |
           SDK=$(xcrun -sdk iphoneos --show-sdk-path)
-          for framework in Speech FoundationModels BackgroundTasks; do
-            INTERFACE=$(find "$SDK/System/Library/Frameworks/$framework.framework" \
-              -name "arm64-apple-ios.swiftinterface" | head -1)
-            echo "=================== $framework: $INTERFACE"
+          echo "SDK=$SDK"
+          for module in Speech FoundationModels BackgroundTasks; do
+            echo "=================== $module"
+            find "$SDK" -name "*.swiftinterface" -path "*$module*" 2>/dev/null | head -5
+            INTERFACE=$(find "$SDK" -name "arm64-apple-ios.swiftinterface" -path "*$module*" 2>/dev/null | head -1)
+            if [ -z "$INTERFACE" ]; then
+              INTERFACE=$(find "$SDK" -name "*.swiftinterface" -path "*$module*" 2>/dev/null | head -1)
+            fi
+            echo "--- using: $INTERFACE"
             [ -n "$INTERFACE" ] || continue
-            case "$framework" in
+            case "$module" in
               Speech)
-                echo "--- AssetInventory"
-                grep -n -A2 "AssetInventory" "$INTERFACE" | head -60
-                echo "--- AnalysisContext / contextual strings"
-                grep -n -B2 -A6 "ContextualStringsTag\|contextualStrings" "$INTERFACE" | head -60
+                echo "--- AssetInventory members"
+                grep -n "AssetInventory" "$INTERFACE" | head -40
+                echo "--- contextual strings"
+                grep -n -B3 -A8 "ContextualStringsTag" "$INTERFACE" | head -60
                 ;;
               FoundationModels)
-                echo "--- generation errors"
-                grep -n "GenerationError\|enum .*Error" "$INTERFACE" | head -30
+                echo "--- error types"
+                grep -n "GenerationError\|public enum .*Error\|case guardrail\|case exceededContext" "$INTERFACE" | head -40
                 ;;
               BackgroundTasks)
                 echo "--- submit"
