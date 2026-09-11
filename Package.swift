@@ -16,8 +16,12 @@ let package = Package(
     platforms: [
         // The floor is Apple Intelligence hardware, not iOS 27 (iPhone 15 Pro /
         // iPhone 16 or later). DeviceCapability refuses at launch on anything else.
+        //
+        // iOS only. The spec's macOS target is parked: xtool builds iOS, and this
+        // code uses ActivityKit, BackgroundTasks and AVAudioSession, none of which
+        // exist on macOS. Declaring a platform the sources cannot satisfy only means
+        // the build system tries it and fails. Core still declares both.
         .iOS("27.0"),
-        .macOS("27.0"),
     ],
     products: [
         // The app.

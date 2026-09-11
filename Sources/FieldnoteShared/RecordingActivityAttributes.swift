@@ -1,4 +1,7 @@
-#if canImport(ActivityKit)
+// os(iOS), not canImport(ActivityKit): the module *does* import on macOS, but every
+// type in it is marked unavailable there, so canImport lets the file through and then
+// the compiler rejects the conformance.
+#if os(iOS)
 import ActivityKit
 import FieldnoteKit
 import Foundation
