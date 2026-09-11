@@ -57,7 +57,9 @@ public final class BackgroundProcessingCoordinator: @unchecked Sendable {
             let pending = await provider.pendingJobs()
             guard !pending.isEmpty else { return }
             log.notice("Resuming \(pending.count, privacy: .public) unfinished meetings")
-            submit(title: pending.count == 1 ? "Processing meeting" : "Processing \(pending.count) meetings")
+            await submit(
+                title: pending.count == 1 ? "Processing meeting" : "Processing \(pending.count) meetings"
+            )
         }
     }
 
@@ -65,11 +67,14 @@ public final class BackgroundProcessingCoordinator: @unchecked Sendable {
 
     /// Called when the user presses stop. That press is the foreground user action the
     /// task is anchored to.
-    public func submitAfterRecording(title: String) {
-        submit(title: "Processing \(title)")
+    public func submitAfterRecording(title: String) async {
+        await submit(title: "Processing \(title)")
     }
 
-    private func submit(title: String) {
+    /// Async because iOS 27 deprecated the synchronous `submit`, in its own words,
+    /// "to capture all error conditions" — and this call site depends on catching a
+    /// failed submission to fall back to in-process work.
+    private func submit(title: String) async {
         let request = BGContinuedProcessingTaskRequest(
             identifier: Self.taskIdentifier,
             title: title,
@@ -88,7 +93,7 @@ public final class BackgroundProcessingCoordinator: @unchecked Sendable {
         }
 
         do {
-            try BGTaskScheduler.shared.submit(request)
+            try await BGTaskScheduler.shared.submitTaskRequest(request)
             log.notice("Submitted continued-processing task")
         } catch {
             log.error("Could not submit background task: \(error.localizedDescription, privacy: .public)")

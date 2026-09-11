@@ -72,7 +72,7 @@ public final class AppModel {
         try? await store.finishRecording(result)
         #if os(iOS)
         let title = meetings.first { $0.id == result.meetingID }?.title ?? "meeting"
-        coordinator.submitAfterRecording(title: title)
+        await coordinator.submitAfterRecording(title: title)
         #endif
         await refresh()
     }
