@@ -14,18 +14,24 @@ installed straight to a device.
 
 ## Status
 
-**Not yet compiled.** The code was written on Linux in a container whose egress policy
-blocks `download.swift.org`, so no Swift toolchain could be installed to check it. What
-that means concretely:
+**Compiles against the iOS 27 SDK.** The app and the widget extension build clean for
+`arm64-apple-ios27.0` on Xcode 27 in CI, and the Core suites pass on Linux. Nothing
+here has run on a device yet — building is not working, and every runtime claim in
+this README is still unverified. What that means concretely:
 
 - `Core/` — alignment, chunking, grounding, relative dates, export formats, checkpoint
   bookkeeping — is written to build and test on a plain Linux toolchain with no Apple
   SDK, and CI runs `swift test --package-path Core` on every push. Run it locally and
   it will tell you the truth; nobody has been able to yet.
-- `Sources/Fieldnote` and `Sources/FieldnoteWidgets` need the Darwin SDK. Expect a
-  first-build pass of signature fixes against the real iOS 27 SDK. Everything the SDK
-  might spell differently is isolated behind a marked adapter — see
-  [API surface to verify](#api-surface-to-verify).
+- `Sources/Fieldnote` and `Sources/FieldnoteWidgets` compile, which is not the same as
+  work. The pipeline has never processed a real recording; the device checks under
+  [Testing](#testing) are what would make any of it trustworthy.
+- **`xtool dev build` packaging does not yet succeed.** After a clean compile, the
+  packer fails looking for FluidAudio's resource bundle
+  (`FluidAudio_FluidAudio.bundle`). That looks like a mismatch between xtool's packer
+  and the SwiftPM build system this toolchain defaults to, rather than a problem in
+  the app — but it is unresolved, so the CI step is marked non-blocking and producing
+  an installable `.app` is the next thing to sort out.
 
 `Scripts/policy-check.sh` does run here, and passes. It is pure grep, so it gates every
 push regardless of toolchain.
