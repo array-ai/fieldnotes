@@ -49,6 +49,35 @@ jobs:
           swift --version
           xcrun -sdk iphoneos --show-sdk-version
 
+      # SwiftPM's implicit Darwin SDKs (Swift 6.1+) cross-compile to the device
+      # triple — no Xcode project, no Apple ID, no signing.
+      #
+      # The two extra pieces are not optional, and are lifted from xtool's own
+      # BuildSettings.swift: `/usr/bin/swift` goes through the xcrun trampoline,
+      # which injects SDKROOT=.../MacOSX.sdk and quietly retargets the build at
+      # macOS despite --swift-sdk. Invoking the real swift binary with SDKROOT
+      # removed is what keeps it building for iOS.
+      - name: Build app and widget for device
+        run: env -u SDKROOT "$(xcrun -f swift)" build --swift-sdk arm64-apple-ios
+
+      # Packs the built products into a .app using xtool.yml: catches mistakes in the
+      # Info.plists, the extension declaration and the resource list, which a plain
+      # `swift build` never looks at. `--sign` is omitted on purpose; signing needs an
+      # Apple ID and is not CI's job.
+      - name: Pack unsigned .app with xtool
+        run: |
+          brew install xtool-org/tap/xtool
+          xtool dev build
+
+  sdk:
+    name: SDK declarations
+    # Temporary companion to the build: prints the real iOS 27 declarations this
+    # code depends on. Its own job so the output is not buried under build logs.
+    # Remove once the app builds clean.
+    runs-on: xcode-27
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
       # Temporary: prints the real declarations for the iOS 27 APIs this code
       # depends on, so they can be matched exactly instead of guessed at one CI
       # round-trip per attempt. Remove once the app builds clean.
@@ -77,23 +106,3 @@ jobs:
                 ;;
             esac
           done
-
-      # SwiftPM's implicit Darwin SDKs (Swift 6.1+) cross-compile to the device
-      # triple — no Xcode project, no Apple ID, no signing.
-      #
-      # The two extra pieces are not optional, and are lifted from xtool's own
-      # BuildSettings.swift: `/usr/bin/swift` goes through the xcrun trampoline,
-      # which injects SDKROOT=.../MacOSX.sdk and quietly retargets the build at
-      # macOS despite --swift-sdk. Invoking the real swift binary with SDKROOT
-      # removed is what keeps it building for iOS.
-      - name: Build app and widget for device
-        run: env -u SDKROOT "$(xcrun -f swift)" build --swift-sdk arm64-apple-ios
-
-      # Packs the built products into a .app using xtool.yml: catches mistakes in the
-      # Info.plists, the extension declaration and the resource list, which a plain
-      # `swift build` never looks at. `--sign` is omitted on purpose; signing needs an
-      # Apple ID and is not CI's job.
-      - name: Pack unsigned .app with xtool
-        run: |
-          brew install xtool-org/tap/xtool
-          xtool dev build
