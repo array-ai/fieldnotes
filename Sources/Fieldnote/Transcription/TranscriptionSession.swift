@@ -46,9 +46,12 @@ public actor TranscriptionSession {
     }
 
     public func updates() -> AsyncStream<Update> {
-        AsyncStream { continuation in
-            self.updateContinuation = continuation
-        }
+        // Built with makeStream rather than the closure initialiser: the builder
+        // closure is not actor-isolated, so it cannot assign to the stored
+        // continuation under strict concurrency.
+        let (stream, continuation) = AsyncStream<Update>.makeStream()
+        updateContinuation = continuation
+        return stream
     }
 
     public func start() async throws {

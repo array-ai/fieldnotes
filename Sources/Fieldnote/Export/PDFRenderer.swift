@@ -81,7 +81,7 @@ public struct PDFRenderer: Sendable {
 
         // Transcript lines start "**[0:12] Dave:**". Colour by speaker name.
         if let speaker = Self.speakerName(inTranscriptLine: line), let colour = speakerColours[speaker] {
-            attributes[.foregroundColor] = colour
+            attributes[kCTForegroundColorAttributeName as NSAttributedString.Key] = colour
         }
         return NSAttributedString(string: plain, attributes: attributes)
     }
@@ -97,19 +97,42 @@ public struct PDFRenderer: Sendable {
         return name.trimmingCharacters(in: .whitespaces).nilIfEmpty
     }
 
+    /// CoreText attribute keys, not UIKit ones. `NSAttributedString.Key.font` and
+    /// `.foregroundColor` expect UIFont and UIColor on iOS; CoreText's equivalents
+    /// take CTFont and CGColor, which is what this renderer has and what keeps it
+    /// free of UIKit and AppKit.
     private func attributes(size: CGFloat, bold: Bool) -> [NSAttributedString.Key: Any] {
         let font = CTFontCreateWithName(
             (bold ? "Helvetica-Bold" : "Helvetica") as CFString,
             size,
             nil
         )
-        let paragraph = NSMutableParagraphStyle()
-        paragraph.paragraphSpacing = size * 0.6
-        paragraph.lineSpacing = size * 0.25
         return [
-            .font: font,
-            .paragraphStyle: paragraph
+            kCTFontAttributeName as NSAttributedString.Key: font,
+            kCTParagraphStyleAttributeName as NSAttributedString.Key: paragraphStyle(size: size)
         ]
+    }
+
+    private func paragraphStyle(size: CGFloat) -> CTParagraphStyle {
+        var paragraphSpacing = size * 0.6
+        var lineSpacing = size * 0.25
+        return withUnsafePointer(to: &paragraphSpacing) { spacing in
+            withUnsafePointer(to: &lineSpacing) { line in
+                let settings = [
+                    CTParagraphStyleSetting(
+                        spec: .paragraphSpacing,
+                        valueSize: MemoryLayout<CGFloat>.size,
+                        value: spacing
+                    ),
+                    CTParagraphStyleSetting(
+                        spec: .lineSpacingAdjustment,
+                        valueSize: MemoryLayout<CGFloat>.size,
+                        value: line
+                    )
+                ]
+                return CTParagraphStyleCreate(settings, settings.count)
+            }
+        }
     }
 
     public enum PDFError: Error, LocalizedError {

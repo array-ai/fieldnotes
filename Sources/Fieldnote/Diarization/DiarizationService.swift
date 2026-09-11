@@ -41,7 +41,7 @@ public actor DiarizationService {
         }
 
         progress(0.05)
-        let manager = try await preparedManager()
+        let manager = try preparedManager()
         progress(0.2)
 
         let result = try manager.performCompleteDiarization(samples, sampleRate: 16_000)
@@ -75,7 +75,7 @@ public actor DiarizationService {
         return digits.isEmpty ? speakerID : "S\(digits)"
     }
 
-    private func preparedManager() async throws -> DiarizerManager {
+    private func preparedManager() throws -> DiarizerManager {
         if let manager { return manager }
         let models = try DiarizationModelProvider.bundledModels()
         let created = DiarizerManager()
@@ -87,10 +87,39 @@ public actor DiarizationService {
 
 /// Loads the vendored CoreML models from the app bundle.
 ///
-/// SPEC-API — FluidAudio's model-loading entry point moves between releases. This is
-/// the one place it is called; pin the package version in `Package.swift` and update
-/// here when bumping it.
+/// Deliberately uses FluidAudio's **local-file** loader. Its convenience loader,
+/// `DiarizerModels.load(from:)`, calls `download(to:)` underneath — one network fetch
+/// on first use, which would break constraint 1 silently and only on a fresh install.
+/// `load(localSegmentationModel:localEmbeddingModel:)` touches no network at all: its
+/// own documentation says "No models are downloaded."
 public enum DiarizationModelProvider {
+
+    /// Model filenames, from FluidAudio's `ModelNames.Diarizer`. They are compiled
+    /// CoreML bundles (`.mlmodelc`), not source `.mlmodel` files.
+    static let segmentationFile = "pyannote_segmentation.mlmodelc"
+    static let embeddingFile = "wespeaker_v2.mlmodelc"
+
+    /// Where `xtool.yml` puts `Resources/DiarizationModels`: the bundle root.
+    public static var bundledModelDirectory: URL? {
+        Bundle.main.resourceURL?.appending(path: "DiarizationModels", directoryHint: .isDirectory)
+    }
+
+    public static func bundledModels() throws -> DiarizerModels {
+        guard let directory = bundledModelDirectory else { throw Failure.modelsMissing }
+        let segmentation = directory.appending(path: segmentationFile, directoryHint: .isDirectory)
+        let embedding = directory.appending(path: embeddingFile, directoryHint: .isDirectory)
+
+        let manager = FileManager.default
+        guard manager.fileExists(atPath: segmentation.path(percentEncoded: false)),
+              manager.fileExists(atPath: embedding.path(percentEncoded: false)) else {
+            throw Failure.modelsMissing
+        }
+
+        return try DiarizerModels.load(
+            localSegmentationModel: segmentation,
+            localEmbeddingModel: embedding
+        )
+    }
 
     public enum Failure: Error, LocalizedError {
         case modelsMissing
@@ -98,18 +127,10 @@ public enum DiarizationModelProvider {
         public var errorDescription: String? {
             """
             The speaker-identification models are not in the app bundle. Fieldnote \
-            does not download them, by design. Rebuild with the models vendored — see \
+            does not download them, by design. Vendor them into \
+            Resources/DiarizationModels before building — see \
             Scripts/vendor-diarization-models.sh.
             """
         }
-    }
-
-    public static var bundledModelDirectory: URL? {
-        Bundle.main.url(forResource: "DiarizationModels", withExtension: nil)
-    }
-
-    public static func bundledModels() throws -> DiarizerModels {
-        guard let directory = bundledModelDirectory else { throw Failure.modelsMissing }
-        return try DiarizerModels.load(from: directory)
     }
 }

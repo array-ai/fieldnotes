@@ -101,12 +101,10 @@ public final class BackgroundProcessingCoordinator: @unchecked Sendable {
     // MARK: - Execution
 
     private func handle(_ task: BGContinuedProcessingTask) {
+        let reporter = ProgressReporter(progress: task.progress, task: task)
         let work = Task { [weak self] in
-            guard let self else { return }
-            await self.drain(reporting: task.progress, subtitle: { [weak task] text in
-                task?.updateTitle(task?.title ?? "Processing", subtitle: text)
-            })
-            task.setTaskCompleted(success: true)
+            await self?.drain(reporting: reporter)
+            reporter.complete(success: true)
         }
         runningTask = work
 
@@ -119,31 +117,29 @@ public final class BackgroundProcessingCoordinator: @unchecked Sendable {
     }
 
     private func runInProcess() {
+        let reporter = ProgressReporter(
+            progress: Progress(totalUnitCount: ProcessingStage.totalWeight),
+            task: nil
+        )
         runningTask = Task { [weak self] in
-            await self?.drain(reporting: Progress(totalUnitCount: ProcessingStage.totalWeight), subtitle: { _ in })
+            await self?.drain(reporting: reporter)
         }
     }
 
-    private func drain(reporting progress: Progress, subtitle: @escaping @Sendable (String) -> Void) async {
-        progress.totalUnitCount = ProcessingStage.totalWeight
-
+    private func drain(reporting reporter: ProgressReporter) async {
         for job in await provider.pendingJobs() {
             if Task.isCancelled { return }
-            progress.completedUnitCount = 0
+            reporter.reset()
             let pipeline = pipelineFactory(job.locale)
-            let tracker = StageTracker()
             do {
                 let output = try await pipeline.run(job) { [provider] stage, fraction in
-                    progress.completedUnitCount = stage.precedingWeight
-                        + Int64(Double(stage.progressWeight) * fraction)
-                    subtitle(stage.displayName)
-                    // Surface the stage change in the meeting list too, so a user
-                    // looking at the app sees the same state as the Live Activity.
-                    Task {
-                        if await tracker.enter(stage) {
-                            await provider.markStage(stage, meetingID: job.meetingID)
-                        }
-                    }
+                    // Reported on every fractional update, not once per stage: the
+                    // system prioritises killing tasks that report little progress.
+                    let stageChanged = reporter.report(stage, fraction: fraction)
+                    guard stageChanged else { return }
+                    // Surface the stage in the meeting list too, so a user looking at
+                    // the app sees the same state as the Live Activity.
+                    Task { await provider.markStage(stage, meetingID: job.meetingID) }
                 }
                 await provider.apply(output, to: job.meetingID)
             } catch is CancellationError {
@@ -156,14 +152,53 @@ public final class BackgroundProcessingCoordinator: @unchecked Sendable {
         }
     }
 }
-/// Fires once per stage, however often progress is reported.
-private actor StageTracker {
-    private var current: ProcessingStage?
 
-    func enter(_ stage: ProcessingStage) -> Bool {
-        guard current != stage else { return false }
-        current = stage
+/// Bridges the pipeline's `@Sendable` progress callback to a `Progress` and a
+/// `BGContinuedProcessingTask`, neither of which is `Sendable`.
+///
+/// Both are touched only from here, only ever to write a monotonic counter and a
+/// subtitle string, and every access is behind the lock — so `@unchecked Sendable` is
+/// a claim this type can actually honour rather than a way to silence the compiler.
+private final class ProgressReporter: @unchecked Sendable {
+    private let lock = NSLock()
+    private let progress: Progress
+    private let task: BGContinuedProcessingTask?
+    private let baseTitle: String
+    private var currentStage: ProcessingStage?
+
+    init(progress: Progress, task: BGContinuedProcessingTask?) {
+        self.progress = progress
+        self.task = task
+        self.baseTitle = task?.title ?? "Processing"
+        progress.totalUnitCount = ProcessingStage.totalWeight
+    }
+
+    /// - Returns: true the first time a given stage is seen, so callers can act on a
+    ///   stage change without firing on every fractional update.
+    @discardableResult
+    func report(_ stage: ProcessingStage, fraction: Double) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        progress.completedUnitCount = stage.precedingWeight
+            + Int64(Double(stage.progressWeight) * fraction)
+        guard currentStage != stage else { return false }
+        currentStage = stage
+        task?.updateTitle(baseTitle, subtitle: stage.displayName)
         return true
     }
+
+    func reset() {
+        lock.lock()
+        defer { lock.unlock() }
+        progress.completedUnitCount = 0
+        currentStage = nil
+    }
+
+    func complete(success: Bool) {
+        lock.lock()
+        defer { lock.unlock() }
+        task?.setTaskCompleted(success: success)
+    }
 }
+
 #endif
