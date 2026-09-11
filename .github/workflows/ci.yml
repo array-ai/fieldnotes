@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  policy:
+    name: Policy checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # These are the prohibitions that make Fieldnote what it is: no App Intents, no
+      # semantic indexing, no networking, no unpinned model session. They need no Mac,
+      # so they gate every push rather than waiting on a build machine.
+      - name: Run policy checks
+        run: ./Scripts/policy-check.sh
+
+  build:
+    name: Build and test
+    # Needs Xcode 27 and macOS 27. Enable by setting the repository variable
+    # ENABLE_MAC_CI to "true" once a runner with that toolchain is available;
+    # until then the policy job is the gate.
+    if: ${{ vars.ENABLE_MAC_CI == 'true' }}
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate project
+        run: ./Scripts/generate-project.sh
+      - name: Build and test
+        run: |
+          xcodebuild test \
+            -project Fieldnote.xcodeproj \
+            -scheme Fieldnote \
+            -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
+            -skipPackagePluginValidation \
+            CODE_SIGNING_ALLOWED=NO

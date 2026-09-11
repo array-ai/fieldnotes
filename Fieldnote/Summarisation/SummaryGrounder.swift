@@ -1,0 +1,140 @@
+import Foundation
+
+/// Turns model drafts into persisted summary items, and enforces the rule that makes
+/// the output trustworthy: **every decision, action and open question cites a real
+/// transcript segment, or it does not get saved** (spec 4.5).
+///
+/// Also deduplicates. Chunks overlap on purpose, so the same commitment is genuinely
+/// seen twice and would otherwise appear twice in the action list.
+///
+/// Pure — no frameworks, no model, fully testable.
+public struct SummaryGrounder: Sendable {
+    public var dateResolver: RelativeDateResolver
+    /// The meeting's own date. Relative phrases resolve against this.
+    public var meetingDate: Date
+
+    public init(meetingDate: Date, dateResolver: RelativeDateResolver = RelativeDateResolver()) {
+        self.meetingDate = meetingDate
+        self.dateResolver = dateResolver
+    }
+
+    public struct Outcome: Sendable {
+        public var decisions: [Decision] = []
+        public var actionItems: [ActionItem] = []
+        public var openQuestions: [OpenQuestion] = []
+        public var mentionedSystems: [String] = []
+        /// Claims thrown away because their citations did not resolve. Counted so the
+        /// eval corpus (spec 11.4) has something to measure, and so a prompt change
+        /// that wrecks grounding is visible rather than quiet.
+        public var discardedClaims: Int = 0
+    }
+
+    public func ground(_ notes: [DraftChunkNotes], chunks: [TranscriptChunk]) -> Outcome {
+        var outcome = Outcome()
+        var seenDecisions = Set<String>()
+        var seenActions = Set<String>()
+        var seenQuestions = Set<String>()
+        var seenSystems = Set<String>()
+
+        for (draft, chunk) in zip(notes, chunks) {
+            for decision in draft.decisions {
+                guard let citations = resolve(decision.sourceLines, in: chunk) else {
+                    outcome.discardedClaims += 1
+                    continue
+                }
+                let key = dedupeKey(decision.statement)
+                guard seenDecisions.insert(key).inserted else { continue }
+                outcome.decisions.append(
+                    Decision(
+                        statement: decision.statement.trimmed(),
+                        sourceSegmentID: citations.primary,
+                        supportingSegmentIDs: citations.supporting
+                    )
+                )
+            }
+
+            for action in draft.actionItems {
+                guard let citations = resolve(action.sourceLines, in: chunk) else {
+                    outcome.discardedClaims += 1
+                    continue
+                }
+                let key = dedupeKey(action.task)
+                guard seenActions.insert(key).inserted else { continue }
+                let spoken = action.dueDate.trimmed().nilIfEmpty
+                outcome.actionItems.append(
+                    ActionItem(
+                        task: action.task.trimmed(),
+                        owner: action.owner.trimmed().nilIfEmpty,
+                        dueDate: spoken,
+                        resolvedDueDate: dateResolver.resolve(spoken, relativeTo: meetingDate),
+                        sourceSegmentID: citations.primary,
+                        supportingSegmentIDs: citations.supporting
+                    )
+                )
+            }
+
+            for question in draft.openQuestions {
+                guard let citations = resolve(question.sourceLines, in: chunk) else {
+                    outcome.discardedClaims += 1
+                    continue
+                }
+                let key = dedupeKey(question.text)
+                guard seenQuestions.insert(key).inserted else { continue }
+                outcome.openQuestions.append(
+                    OpenQuestion(text: question.text.trimmed(), sourceSegmentID: citations.primary)
+                )
+            }
+
+            for system in draft.mentionedSystems {
+                let name = system.trimmed()
+                guard !name.isEmpty, seenSystems.insert(name.lowercased()).inserted else { continue }
+                outcome.mentionedSystems.append(name)
+            }
+        }
+
+        outcome.decisions.sort { sortKey(for: $0.sourceSegmentID, chunks: chunks) < sortKey(for: $1.sourceSegmentID, chunks: chunks) }
+        outcome.actionItems.sort { sortKey(for: $0.sourceSegmentID, chunks: chunks) < sortKey(for: $1.sourceSegmentID, chunks: chunks) }
+        return outcome
+    }
+
+    // MARK: - Citation resolution
+
+    struct Citations {
+        var primary: UUID
+        var supporting: [UUID]
+    }
+
+    /// A line number the model made up resolves to nothing, and the claim goes with
+    /// it. This is the check that stops fluent invention from reaching the summary.
+    func resolve(_ lines: [Int], in chunk: TranscriptChunk) -> Citations? {
+        var resolved: [UUID] = []
+        for line in lines {
+            if let id = chunk.segmentID(forLine: line), !resolved.contains(id) {
+                resolved.append(id)
+            }
+        }
+        guard let primary = resolved.first else { return nil }
+        return Citations(primary: primary, supporting: Array(resolved.dropFirst()))
+    }
+
+    private func dedupeKey(_ text: String) -> String {
+        text.lowercased()
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+    }
+
+    private func sortKey(for segmentID: UUID, chunks: [TranscriptChunk]) -> TimeInterval {
+        for chunk in chunks {
+            if let segment = chunk.segments.first(where: { $0.id == segmentID }) {
+                return segment.start
+            }
+        }
+        return .greatestFiniteMagnitude
+    }
+}
+
+extension String {
+    func trimmed() -> String { trimmingCharacters(in: .whitespacesAndNewlines) }
+    var nilIfEmpty: String? { isEmpty ? nil : self }
+}

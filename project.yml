@@ -1,0 +1,78 @@
+name: Fieldnote
+options:
+  bundleIdPrefix: au.com.publicarray
+  deploymentTarget:
+    iOS: "27.0"
+    macOS: "27.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    SWIFT_UPCOMING_FEATURE_EXISTENTIAL_ANY: YES
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    DEAD_CODE_STRIPPING: YES
+    CODE_SIGN_STYLE: Automatic
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+
+packages:
+  FluidAudio:
+    url: https://github.com/FluidInference/FluidAudio
+    from: 0.6.0
+
+targets:
+  Fieldnote:
+    type: application
+    platform: [iOS, macOS]
+    sources:
+      - path: Fieldnote
+        excludes:
+          - "Resources/*.plist"
+          - "Resources/*.entitlements"
+    dependencies:
+      - package: FluidAudio
+      - target: FieldnoteWidgets_${platform}
+        platformFilter: iOS
+    info:
+      path: Fieldnote/Resources/Info.plist
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.publicarray.fieldnotes
+        PRODUCT_NAME: Fieldnote
+        INFOPLIST_FILE: Fieldnote/Resources/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Fieldnote/Resources/Fieldnote.entitlements
+        GENERATE_INFOPLIST_FILE: NO
+        ENABLE_HARDENED_RUNTIME: YES
+    scheme:
+      testTargets:
+        - FieldnoteTests
+      gatherCoverageData: true
+
+  FieldnoteWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - FieldnoteWidgets
+      - path: Fieldnote/Shared
+    info:
+      path: FieldnoteWidgets/Info.plist
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.publicarray.fieldnotes.widgets
+        INFOPLIST_FILE: FieldnoteWidgets/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+
+  FieldnoteTests:
+    type: bundle.unit-test
+    platform: [iOS, macOS]
+    sources:
+      - Tests/FieldnoteTests
+    dependencies:
+      - target: Fieldnote
+    settings:
+      base:
+        # Policy tests read the checked-in sources. Give them the repo root.
+        OTHER_SWIFT_FLAGS: "-DFIELDNOTE_POLICY_TESTS"
