@@ -26,12 +26,8 @@ this README is still unverified. What that means concretely:
 - `Sources/Fieldnote` and `Sources/FieldnoteWidgets` compile, which is not the same as
   work. The pipeline has never processed a real recording; the device checks under
   [Testing](#testing) are what would make any of it trustworthy.
-- **`xtool dev build` packaging does not yet succeed.** After a clean compile, the
-  packer fails looking for FluidAudio's resource bundle
-  (`FluidAudio_FluidAudio.bundle`). That looks like a mismatch between xtool's packer
-  and the SwiftPM build system this toolchain defaults to, rather than a problem in
-  the app — but it is unresolved, so the CI step is marked non-blocking and producing
-  an installable `.app` is the next thing to sort out.
+- Both toolchains build it: `Scripts/xtool.sh dev build` packs an unsigned `.app`,
+  and the generated Xcode workspace builds with `xcodebuild`. CI runs both.
 
 `Scripts/policy-check.sh` does run here, and passes. It is pure grep, so it gates every
 push regardless of toolchain.
@@ -58,11 +54,31 @@ Per [xtool's Linux install guide](https://xtool.sh/documentation/xtooldocs/insta
 xtool setup                                   # Apple ID + Darwin SDK, once
 Scripts/vendor-diarization-models.sh ~/Downloads/fluidaudio-models
 swift test --package-path Core                # cross-platform half, no device needed
-xtool dev run                                 # build, sign, install, launch
+./Scripts/xtool.sh dev run                    # build, sign, install, launch
 ```
 
-On a Mac, `xtool dev generate-xcode-project` produces an Xcode project from the same
-package if you want the debugger and Instruments.
+### Xcode
+
+The same package builds in Xcode — one manifest, two toolchains, no second project to
+keep in sync:
+
+```sh
+./Scripts/generate-xcode-project.sh
+open xtool/Fieldnote.xcworkspace
+```
+
+The workspace is generated from `Package.swift` and `xtool.yml` and is gitignored.
+Edit the manifests, not the project.
+
+### Why `Scripts/xtool.sh` rather than `xtool` directly
+
+xtool's packer copies products out of `.build/<triple>/<config>` — SwiftPM's *native*
+build-system layout. Swift 6.4 (Xcode 27) defaults to the `swiftbuild` system, which
+writes to `.build/out/Products/...`, so a clean compile is followed by the packer
+failing on a missing resource bundle. xtool exposes no flag for build options, but it
+honours `SWIFTPM_CUSTOM_BIN_DIR`, so the wrapper points that at shims that add
+`--build-system native`. Drop the wrapper when xtool learns the newer layout — nothing
+in the app depends on it.
 
 ### Signing caveat worth knowing before you start
 
