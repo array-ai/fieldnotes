@@ -81,7 +81,8 @@ public actor TranscriptionSession {
         }
     }
 
-    public func append(_ buffer: AVAudioPCMBuffer) {
+    public func append(_ audio: CapturedAudio) {
+        guard let buffer = audio.makeBuffer() else { return }
         inputContinuation?.yield(AnalyzerInput(buffer: buffer))
     }
 

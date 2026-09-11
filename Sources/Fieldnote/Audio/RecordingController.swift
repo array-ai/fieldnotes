@@ -47,7 +47,7 @@ public final class RecordingController {
     private var transcription: TranscriptionSession?
     private var pump: Task<Void, Never>?
     private var updates: Task<Void, Never>?
-    private var bufferContinuation: AsyncStream<AVAudioPCMBuffer>.Continuation?
+    private var bufferContinuation: AsyncStream<CapturedAudio>.Continuation?
     private var liveActivity: RecordingActivityController?
     private var startDate = Date()
     private var accumulated: TimeInterval = 0
@@ -175,16 +175,17 @@ public final class RecordingController {
 
         let continuation = bufferContinuation
         input.installTap(onBus: 0, bufferSize: 4096, format: format) { buffer, _ in
-            // Audio render thread. Copy, hand off, return. Nothing else.
-            guard let copy = buffer.deepCopy() else { return }
-            continuation?.yield(copy)
+            // Audio render thread. Copy the samples out, hand them off, return.
+            // Nothing else: the engine reuses this buffer immediately.
+            guard let captured = CapturedAudio(buffer) else { return }
+            continuation?.yield(captured)
         }
         engine.prepare()
         try engine.start()
     }
 
     private func startPump() {
-        let (stream, continuation) = AsyncStream<AVAudioPCMBuffer>.makeStream(
+        let (stream, continuation) = AsyncStream<CapturedAudio>.makeStream(
             bufferingPolicy: .bufferingNewest(64)
         )
         bufferContinuation = continuation
@@ -198,30 +199,17 @@ public final class RecordingController {
         // region — and routing an hour of audio through the main actor to reach the
         // file writer would be wrong even if the compiler allowed it.
         pump = Task.detached(priority: .userInitiated) { [weak self] in
-            for await buffer in stream {
-                // Measured before the buffer is handed on, while it is still ours.
-                let peak = buffer.peakLevel
-
-                // Each consumer is a separate actor, so each gets its own copy.
-                // Passing one buffer to three actors would send a single
-                // non-Sendable value into three isolation regions, which is the
-                // race the compiler is describing — and the copies are a few
-                // hundred KB a second, against file I/O and speech recognition.
+            for await captured in stream {
+                // CapturedAudio is Sendable, so the same slice can go to all three
+                // actors without any of them taking ownership of the others' copy.
                 do {
-                    if let writer, let copy = buffer.deepCopy() {
-                        try await writer.write(copy)
-                    }
-                    if let diarization, let copy = buffer.deepCopy() {
-                        try await diarization.append(copy)
-                    }
+                    try await writer?.write(captured)
+                    try await diarization?.append(captured)
                 } catch {
                     await self?.recordFailure(error)
                 }
-                if let transcription, let copy = buffer.deepCopy() {
-                    await transcription.append(copy)
-                }
-
-                await self?.meter(peak: peak)
+                await transcription?.append(captured)
+                await self?.meter(peak: captured.peakLevel)
             }
         }
     }

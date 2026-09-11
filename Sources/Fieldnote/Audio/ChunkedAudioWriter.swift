@@ -9,6 +9,10 @@ import OSLog
 /// chunks that made it are a complete recording up to that point (spec 4.1).
 public actor ChunkedAudioWriter {
 
+    public enum WriterError: Error {
+        case unsupportedFormat
+    }
+
     public struct Chunk: Codable, Hashable, Sendable {
         public var index: Int
         public var url: URL
@@ -44,10 +48,11 @@ public actor ChunkedAudioWriter {
 
     public var totalDuration: TimeInterval { currentStart + currentDuration }
 
-    public func write(_ buffer: AVAudioPCMBuffer) throws {
+    public func write(_ audio: CapturedAudio) throws {
+        guard let buffer = audio.makeBuffer() else { throw WriterError.unsupportedFormat }
         let file = try fileForWriting(format: buffer.format)
         try file.write(from: buffer)
-        currentDuration += Double(buffer.frameLength) / buffer.format.sampleRate
+        currentDuration += audio.duration
         if currentDuration >= chunkDuration {
             try rollChunk()
         }

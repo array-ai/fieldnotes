@@ -36,7 +36,10 @@ public actor DiarizationBuffer {
 
     public var fileURL: URL { url }
 
-    public func append(_ buffer: AVAudioPCMBuffer) throws {
+    public func append(_ audio: CapturedAudio) throws {
+        guard let buffer = audio.makeBuffer() else {
+            throw DiarizationBufferError.unsupportedFormat
+        }
         let converted = try convert(buffer)
         guard let channel = converted.floatChannelData?[0] else { return }
         let frames = Int(converted.frameLength)
@@ -109,4 +112,5 @@ public actor DiarizationBuffer {
 
 public enum DiarizationBufferError: Error {
     case cannotConvert(AVAudioFormat)
+    case unsupportedFormat
 }

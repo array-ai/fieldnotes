@@ -55,7 +55,8 @@ public actor FileTranscriptionService {
             guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCapacity) else { break }
             try file.read(into: buffer)
             if buffer.frameLength == 0 { break }
-            await session.append(buffer)
+            guard let captured = CapturedAudio(buffer) else { break }
+            await session.append(captured)
         }
     }
 }
