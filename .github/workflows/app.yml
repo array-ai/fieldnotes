@@ -1,0 +1,53 @@
+name: App build (iOS)
+
+# Separate from ci.yml, and deliberately not on every push.
+#
+# Two reasons. This repository is private, so macOS runner minutes bill at 10x the
+# Linux rate. And the image needed here is a preview image, so it can queue.
+# ci.yml (policy + Core, on Linux) stays the every-push gate; this job runs when the
+# iOS-only code or the packaging actually changes, and on demand.
+on:
+  push:
+    paths:
+      - "Sources/**"
+      - "Core/**"
+      - "Package.swift"
+      - "Config/**"
+      - "xtool.yml"
+      - ".github/workflows/app.yml"
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build for iOS 27
+    # `macos-latest` is macOS 26 with Xcode 26.6 — an iOS 26 SDK, which cannot build
+    # a target deploying to iOS 27. The `xcode-27` image (public preview, arm64) is
+    # the only GitHub-hosted runner carrying Xcode 27 and the iOS 27.0 SDK.
+    # See https://github.com/actions/runner-images/issues/14404
+    runs-on: xcode-27
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Toolchain versions
+        run: |
+          xcodebuild -version
+          swift --version
+          xcrun -sdk iphoneos --show-sdk-version
+
+      # This is what xtool itself runs on macOS: SwiftPM's implicit Darwin SDKs
+      # (Swift 6.1+) cross-compile to the device triple, no Xcode project and no
+      # Apple ID involved. Signing is a separate step in xtool and is not done here,
+      # so this needs no credentials.
+      - name: Build app and widget for device
+        run: swift build --swift-sdk arm64-apple-ios
+
+      # Packs the built products into a .app using xtool.yml: catches mistakes in the
+      # Info.plists, the extension declaration and the resource list, which a plain
+      # `swift build` never looks at. `--sign` is omitted on purpose; signing needs an
+      # Apple ID and is not CI's job.
+      - name: Pack unsigned .app with xtool
+        run: |
+          brew install xtool-org/tap/xtool
+          xtool dev build

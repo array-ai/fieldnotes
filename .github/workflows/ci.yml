@@ -30,15 +30,3 @@ jobs:
         run: swift build --package-path Core
       - name: Test
         run: swift test --package-path Core
-
-  app:
-    name: App build (xtool)
-    # Needs the Darwin Swift SDK, which xtool generates from an Xcode xip that cannot
-    # be redistributed — so this job only runs on a self-hosted runner that already
-    # has `swift sdk list` showing `darwin`. Set ENABLE_XTOOL_CI to "true" there.
-    if: ${{ vars.ENABLE_XTOOL_CI == 'true' }}
-    runs-on: self-hosted
-    steps:
-      - uses: actions/checkout@v5
-      - name: Build app bundle
-        run: xtool dev build
