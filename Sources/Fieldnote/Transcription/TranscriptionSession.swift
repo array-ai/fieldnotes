@@ -173,8 +173,12 @@ public actor TranscriptionSession {
     /// (spec 11.1). Do not build half of that here.
     private func applyContextualStrings(to analyzer: SpeechAnalyzer) {
         guard !contextualStrings.isEmpty else { return }
-        var context = AnalysisContext()
-        context.contextualStrings = contextualStrings
+        let context = AnalysisContext()
+        // iOS 27 keys contextual strings by tag rather than taking a flat list.
+        // `.general` is the untagged bucket; if tagging turns out to be what makes
+        // this work on the long-form path, that is exactly what the spec 4.3
+        // benchmark should compare.
+        context.contextualStrings = [.general: contextualStrings]
         Task { try? await analyzer.setContext(context) }
     }
 }

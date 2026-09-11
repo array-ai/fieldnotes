@@ -188,10 +188,21 @@ public actor SummarizationService {
     }
 
     static func classify(_ error: Error) -> DegradedChunk.Reason {
+        // iOS 27 introduced LanguageModelError and deprecated GenerationError.
+        if let modelError = error as? LanguageModelError {
+            switch modelError {
+            case .guardrailViolation: return .guardrail
+            default: return .modelError
+            }
+        }
+        // Still the deprecated type, on purpose: the context-overflow case has no
+        // identified equivalent on LanguageModelError yet, and losing that
+        // distinction would hide the one signal that says the chunk budget is wrong
+        // — which matters while ContextBudget is still on its fallback constant.
         if let generation = error as? LanguageModelSession.GenerationError {
             switch generation {
-            case .guardrailViolation: return .guardrail
             case .exceededContextWindowSize: return .contextOverflow
+            case .guardrailViolation: return .guardrail
             default: return .modelError
             }
         }

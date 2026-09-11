@@ -29,6 +29,7 @@ INTERESTING = (
     "AssetInventory", "ContextualStrings", "AnalysisContext",
     "GenerationError", "guardrail", "exceededContext",
     "submitTaskRequest", "reserve", "allocate", "deallocate",
+    "LanguageModelError",
 )
 # Only real declarations. The digester also emits a node per function *type*, whose
 # printed name is the whole signature — that is what flooded the log last time.
@@ -51,7 +52,10 @@ def walk(node, path=()):
             seen.add(line)
             print(line)
     # Also surface members of an interesting container, so enum cases show up.
-    elif kind in KINDS and any(n.lower() in ".".join(here).lower() for n in ("ContextualStrings", "AssetInventory")):
+    elif kind in KINDS and any(
+        n.lower() in ".".join(here).lower()
+        for n in ("ContextualStrings", "AssetInventory", "LanguageModelError")
+    ):
         line = f"  {kind:<12} {'.'.join(here[-3:])}"
         if line not in seen:
             seen.add(line)

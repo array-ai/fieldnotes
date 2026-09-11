@@ -2,11 +2,16 @@ import Foundation
 import OSLog
 import Speech
 
-/// Gets the Speech model assets installed and the locale allocated, in that order.
+/// Gets the Speech model assets installed and the locale reserved, in that order.
 ///
-/// The order is the whole point. Allocating before the installation request finishes
-/// gives you "cannot use modules with unallocated locales", which reads like a
-/// permissions problem and is not (spec 4.3).
+/// The order is the whole point. Reserving before the installation request finishes
+/// gives you an unallocated-locale error, which reads like a permissions problem and
+/// is not (spec 4.3).
+///
+/// Reservation is a limited resource: `AssetInventory.maximumReservedLocales` caps how
+/// many locales an app may hold, and the Speech error codes include
+/// `tooManyAssetLocalesAllocated`. v1 uses one locale at a time, so this reserves on
+/// demand and releases on request rather than holding several.
 ///
 /// The model is OS-managed and adds nothing to the bundle, but it does download on
 /// first use, so the UI has a state for it rather than a spinner that never ends.
@@ -21,15 +26,15 @@ public actor SpeechAssetProvisioner {
     }
 
     private let log = Logger(subsystem: "com.publicarray.fieldnotes", category: "speech.assets")
-    private var allocatedLocales: Set<String> = []
+    private var reservedLocaleIdentifiers: Set<String> = []
     private(set) public var state: State = .idle
 
     public init() {}
 
-    /// Installs assets for `transcriber` and allocates `locale`, once per locale.
+    /// Installs assets for `transcriber` and reserves `locale`, once per locale.
     public func prepare(transcriber: SpeechTranscriber, locale: Locale) async throws {
         let identifier = locale.identifier(.bcp47)
-        if allocatedLocales.contains(identifier) { return }
+        if reservedLocaleIdentifiers.contains(identifier) { return }
 
         state = .downloading(0)
         do {
@@ -38,9 +43,9 @@ public actor SpeechAssetProvisioner {
                 log.notice("Downloading speech assets for \(identifier, privacy: .public)")
                 try await request.downloadAndInstall()
             }
-            // 2. Only now allocate.
-            try await AssetInventory.allocate(locale: locale)
-            allocatedLocales.insert(identifier)
+            // 2. Only now reserve.
+            try await AssetInventory.reserve(locale: locale)
+            reservedLocaleIdentifiers.insert(identifier)
             state = .ready
         } catch {
             state = .failed(error.localizedDescription)
@@ -49,8 +54,8 @@ public actor SpeechAssetProvisioner {
     }
 
     public func release(locale: Locale) async {
-        await AssetInventory.deallocate(locale: locale)
-        allocatedLocales.remove(locale.identifier(.bcp47))
+        await AssetInventory.release(reservedLocale: locale)
+        reservedLocaleIdentifiers.remove(locale.identifier(.bcp47))
     }
 
     public static func supportedLocales() async -> [Locale] {
