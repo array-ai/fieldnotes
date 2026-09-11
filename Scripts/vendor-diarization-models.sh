@@ -12,7 +12,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 SOURCE="${1:-}"
-DEST="Fieldnote/Resources/DiarizationModels"
+DEST="Resources/DiarizationModels"
 
 if [[ -z "$SOURCE" ]]; then
   cat <<'USAGE'
@@ -23,7 +23,8 @@ own README for the pinned version, then:
 
   Scripts/vendor-diarization-models.sh ~/Downloads/fluidaudio-models
 
-The script copies them into the app bundle resources and writes a checksum manifest.
+The script copies them to Resources/DiarizationModels, which xtool.yml copies into
+the app bundle, and writes a checksum manifest.
 USAGE
   exit 1
 fi

@@ -11,30 +11,34 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      # These are the prohibitions that make Fieldnote what it is: no App Intents, no
-      # semantic indexing, no networking, no unpinned model session. They need no Mac,
-      # so they gate every push rather than waiting on a build machine.
+      # The prohibitions that make Fieldnote what it is: no App Intents, no semantic
+      # indexing, no networking, no unpinned model session. Pure grep, so they gate
+      # every push without a toolchain.
       - name: Run policy checks
         run: ./Scripts/policy-check.sh
 
-  build:
-    name: Build and test
-    # Needs Xcode 27 and macOS 27. Enable by setting the repository variable
-    # ENABLE_MAC_CI to "true" once a runner with that toolchain is available;
-    # until then the policy job is the gate.
-    if: ${{ vars.ENABLE_MAC_CI == 'true' }}
-    runs-on: macos-15
+  core:
+    name: Core build and test (Linux)
+    runs-on: ubuntu-latest
+    # The cross-platform half of the codebase: alignment, chunking, grounding, dates,
+    # export formats. No Apple SDK, no device, no Xcode — so the parts where a bug is
+    # silent are actually compiled and tested on every push.
+    container: swift:6.1
     steps:
       - uses: actions/checkout@v4
-      - name: Install XcodeGen
-        run: brew install xcodegen
-      - name: Generate project
-        run: ./Scripts/generate-project.sh
-      - name: Build and test
-        run: |
-          xcodebuild test \
-            -project Fieldnote.xcodeproj \
-            -scheme Fieldnote \
-            -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
-            -skipPackagePluginValidation \
-            CODE_SIGNING_ALLOWED=NO
+      - name: Build
+        run: swift build --package-path Core
+      - name: Test
+        run: swift test --package-path Core
+
+  app:
+    name: App build (xtool)
+    # Needs the Darwin Swift SDK, which xtool generates from an Xcode xip that cannot
+    # be redistributed — so this job only runs on a self-hosted runner that already
+    # has `swift sdk list` showing `darwin`. Set ENABLE_XTOOL_CI to "true" there.
+    if: ${{ vars.ENABLE_XTOOL_CI == 'true' }}
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build app bundle
+        run: xtool dev build

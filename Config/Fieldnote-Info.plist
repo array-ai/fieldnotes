@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- xtool supplies CFBundleIdentifier, CFBundleName, CFBundleExecutable,
+	     CFBundlePackageType and MinimumOSVersion from Package.swift and xtool.yml,
+	     and merges the keys below over them. Do not use $(BUILD_SETTING) syntax
+	     here: nothing substitutes it outside Xcode. -->
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en_AU</string>
+	<key>CFBundleDisplayName</key>
+	<string>Fieldnote</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.1.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Fieldnote records meetings on this device. Audio, transcripts and summaries never leave the device unless you share them yourself.</string>
+	<key>NSRemindersFullAccessUsageDescription</key>
+	<string>Fieldnote can add action items from a meeting to a Reminders list you choose. Off by default, and asked for only when you use it.</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Fieldnote can add a follow-up from a meeting to your calendar. Off by default, and asked for only when you use it.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+		<string>processing</string>
+	</array>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>com.publicarray.fieldnotes.processing</string>
+	</array>
+	<key>NSSupportsLiveActivities</key>
+	<true/>
+	<key>NSSupportsLiveActivitiesFrequentUpdates</key>
+	<true/>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<true/>
+	<key>UIFileSharingEnabled</key>
+	<true/>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+</dict>
+</plist>

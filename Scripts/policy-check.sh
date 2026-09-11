@@ -7,7 +7,7 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
-SOURCES=(Fieldnote FieldnoteWidgets)
+SOURCES=(Sources/Fieldnote Sources/FieldnoteShared Sources/FieldnoteWidgets)
 FAILED=0
 
 # Greps source lines, ignoring whole-line comments so a rule can be described in a
@@ -42,7 +42,7 @@ check_absent() {
 echo "== Constraint 6: every Foundation Models session is pinned on-device"
 check_absent "LanguageModelSession(" \
   "sessions are constructed only in OnDeviceModel" \
-  "Fieldnote/Summarisation/OnDeviceModel.swift"
+  "Sources/Fieldnote/Summarisation/OnDeviceModel.swift"
 
 echo
 echo "== Constraint 7: no third-party model providers"
@@ -66,7 +66,7 @@ done
 
 echo
 echo "== Entitlements"
-ENTITLEMENTS=Fieldnote/Resources/Fieldnote.entitlements
+ENTITLEMENTS=Config/Fieldnote.entitlements
 if grep -q "com.apple.developer.background-tasks.continued-processing.inference" "$ENTITLEMENTS"; then
   echo "ok: continued-processing inference entitlement present"
 else

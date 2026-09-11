@@ -1,0 +1,22 @@
+# xtool project configuration. See https://xtool.sh
+#
+# Fieldnote builds with xtool rather than Xcode: SwiftPM on Linux, signed and
+# installed straight to a device. The app and the Live Activity widget are both
+# SwiftPM library products, which is the shape xtool expects.
+version: 1
+bundleID: com.publicarray.fieldnotes
+product: Fieldnote
+infoPath: Config/Fieldnote-Info.plist
+entitlementsPath: Config/Fieldnote.entitlements
+
+# Copied into the app bundle root. The diarization CoreML models are vendored
+# rather than downloaded, because the app makes no outbound requests at runtime.
+# Populate with Scripts/vendor-diarization-models.sh before the first build;
+# the directory is gitignored.
+resources:
+  - Resources/DiarizationModels
+
+extensions:
+  - product: FieldnoteWidgets
+    bundleID: com.publicarray.fieldnotes.widgets
+    infoPath: Config/FieldnoteWidgets-Info.plist

@@ -1,68 +1,92 @@
 # Fieldnote
 
-On-device meeting recorder, transcriber, diarizer and summariser for iOS 27 / macOS 27.
+On-device meeting recorder, transcriber, diarizer and summariser for iOS 27.
 Built for MSP field work: in-person site visits, scoping calls, incident reviews.
 
 Everything stays on the device. There is no Fieldnote server, no account, no
 subscription, and no third-party SDK. Content leaves only when the user drives the
 system share sheet themselves.
 
+Built with [xtool](https://xtool.sh), not Xcode: SwiftPM on Linux, signed and
+installed straight to a device.
+
 ---
 
 ## Status
 
-**v1 scaffold, not yet compiled.** Every file here was written on Linux, where there
-is no Swift toolchain, no Xcode and no Apple SDK. So:
+**Not yet compiled.** The code was written on Linux in a container whose egress policy
+blocks `download.swift.org`, so no Swift toolchain could be installed to check it. What
+that means concretely:
 
-- the pure logic (alignment, chunking, grounding, date resolution, export formats,
-  checkpoint bookkeeping) is complete and covered by unit tests;
-- the framework-facing code (Speech, Foundation Models, FluidAudio, BackgroundTasks,
-  ActivityKit, SwiftData) is complete in shape but **has never been through a
-  compiler**. Expect a first-build pass of signature fixes;
-- everything the SDK might spell differently is isolated behind a marked adapter, so
-  those fixes are one-line and local rather than a hunt. See
+- `Core/` — alignment, chunking, grounding, relative dates, export formats, checkpoint
+  bookkeeping — is written to build and test on a plain Linux toolchain with no Apple
+  SDK, and CI runs `swift test --package-path Core` on every push. Run it locally and
+  it will tell you the truth; nobody has been able to yet.
+- `Sources/Fieldnote` and `Sources/FieldnoteWidgets` need the Darwin SDK. Expect a
+  first-build pass of signature fixes against the real iOS 27 SDK. Everything the SDK
+  might spell differently is isolated behind a marked adapter — see
   [API surface to verify](#api-surface-to-verify).
 
-The policy checks in `Scripts/policy-check.sh` do run, here and in CI, and they pass.
+`Scripts/policy-check.sh` does run here, and passes. It is pure grep, so it gates every
+push regardless of toolchain.
 
 ## Build
 
-Requires macOS 27, Xcode 27, and a physical iPhone 15 Pro / iPhone 16 or later. The
-Speech live-audio path does not run in Simulator, and the Apple Intelligence stack is
-not present on older hardware.
+### Prerequisites
+
+Per [xtool's Linux install guide](https://xtool.sh/documentation/xtooldocs/installation-linux):
+
+- **Swift 6.3** toolchain — <https://swift.org/install/linux>
+- **usbmuxd** — `sudo apt-get install usbmuxd libimobiledevice-utils`
+- **xtool** — the `xtool.AppImage` from the latest GitHub release, on your `PATH`
+- **An Xcode xip**, which `xtool setup` unpacks into a Darwin Swift SDK. Use the
+  **Xcode 27** xip: the xtool docs say Xcode 26, but this project deploys to iOS 27
+  and needs that SDK for AFM 3, `BGContinuedProcessingTask` inference and
+  `CaptureInputSequenceProvider`.
+- **An iPhone 15 Pro / iPhone 16 or later.** The floor is Apple Intelligence hardware,
+  not iOS 27, and the app refuses at launch on anything below it.
+
+### First run
 
 ```sh
-brew install xcodegen
-./Scripts/generate-project.sh     # writes Fieldnote.xcodeproj from project.yml
-open Fieldnote.xcodeproj
+xtool setup                                   # Apple ID + Darwin SDK, once
+Scripts/vendor-diarization-models.sh ~/Downloads/fluidaudio-models
+swift test --package-path Core                # cross-platform half, no device needed
+xtool dev run                                 # build, sign, install, launch
 ```
 
-Before first run, vendor the diarization models into the bundle — Fieldnote will not
-download them (see [Decisions](docs/decisions.md#diarization-models-are-vendored-not-downloaded)):
+On a Mac, `xtool dev generate-xcode-project` produces an Xcode project from the same
+package if you want the debugger and Instruments.
 
-```sh
-./Scripts/vendor-diarization-models.sh ~/Downloads/fluidaudio-models
-```
+### Signing caveat worth knowing before you start
+
+`Config/Fieldnote.entitlements` requests
+`com.apple.developer.background-tasks.continued-processing.inference`. A free personal
+team cannot sign that entitlement, and a paid team needs the capability enabled on the
+App ID. If signing refuses it, the pipeline still runs — `BackgroundProcessingCoordinator`
+falls back to in-process work and the checkpoints make the next launch resume — but
+processing will not survive the app being backgrounded, which is the whole point of
+that stage. Fix the provisioning rather than living with it.
 
 ## The rules, and how they are held
 
-These are not style preferences. Each one is a way client meeting audio could leave
-the device, and each is enforced by something that fails a build rather than by
-someone remembering.
+These are not style preferences. Each one is a way client meeting audio could leave the
+device, and each is enforced by something that fails a build rather than by someone
+remembering.
 
 | Rule | Enforced by |
 |---|---|
 | Every Foundation Models session is pinned to the on-device model | `PolicyTests.sessionsOnlyFromFactory` + `policy-check.sh`. `OnDeviceModel` is the only file allowed to construct a session |
 | No third-party `LanguageModel` provider (Claude, Gemini, anything conforming) | `PolicyTests.noThirdPartyProviders` + CI grep |
 | No App Intents at all; nothing in the Spotlight semantic index | `PolicyTests.noAppIntents` + CI grep |
-| No networking code anywhere in the app | `PolicyTests.noNetworking` + CI grep; no network entitlements in `Fieldnote.entitlements` |
+| No networking code anywhere in the app | `PolicyTests.noNetworking` + CI grep; no network entitlements in `Config/Fieldnote.entitlements` |
 | Background inference entitlement present | `PolicyTests.inferenceEntitlement` |
 
 **Fieldnote is invisible to Siri's content search, deliberately.** iOS 27 rebuilt Siri
 on a cloud Gemini model, and App Intents 2.0 contributes app content to the Spotlight
-semantic index so Siri can answer questions about it. For most apps that is a
-discovery win. For an app holding client meeting transcripts it is a data-exfiltration
-path with a friendly name. Do not "fix" this later.
+semantic index so Siri can answer questions about it. For most apps that is a discovery
+win. For an app holding client meeting transcripts it is a data-exfiltration path with
+a friendly name. Do not "fix" this later.
 
 ## Architecture
 
@@ -80,23 +104,38 @@ mic ──┬── TranscriptionSession (SpeechAnalyzer)  → live transcript
                               share sheet
 ```
 
+### Layout
+
+```
+Package.swift            app + widget, built by xtool
+xtool.yml                bundle ID, Info.plist paths, entitlements, extensions
+Config/                  Info.plists and entitlements (no Xcode build settings in them)
+Resources/               copied into the bundle; vendored CoreML models live here
+Core/                    FieldnoteCore package: cross-platform, Linux-testable
+Sources/Fieldnote/       the app: Apple frameworks live here
+Sources/FieldnoteShared/ types the app and the widget share (ActivityKit attributes)
+Sources/FieldnoteWidgets/ Live Activity extension
+Tests/FieldnoteTests/    Darwin-only tests (CryptoKit); Core holds the rest
+```
+
 | Area | Files |
 |---|---|
-| Capture | `Fieldnote/Audio/` — engine, chunked writer, diarization buffer, session interruptions, Live Activity |
-| Transcription | `Fieldnote/Transcription/` — asset provisioning, live session, file-based recovery path, MSP vocabulary |
-| Diarization | `Fieldnote/Diarization/` — FluidAudio wrapper, overlap-based alignment |
-| Summarisation | `Fieldnote/Summarisation/` — on-device pin, chunker, prompts, grounding, templates |
-| Pipeline | `Fieldnote/Pipeline/` — checkpoints, three-stage run, background coordinator |
-| Data | `Fieldnote/Data/` — SwiftData models, store, storage locations |
-| Export | `Fieldnote/Export/` — Markdown, plain text, PDF, WebVTT/SRT, audio join, Reminders, encrypted backup |
-| UI | `Fieldnote/UI/` — list, recorder, detail, share, settings |
+| Capture | `Sources/Fieldnote/Audio/` — engine, chunked writer, diarization buffer, interruptions, Live Activity |
+| Transcription | `Sources/Fieldnote/Transcription/` — asset provisioning, live session, file-based recovery, MSP vocabulary |
+| Diarization | `Sources/Fieldnote/Diarization/` — FluidAudio wrapper; alignment is in Core |
+| Summarisation | `Sources/Fieldnote/Summarisation/` — on-device pin, drafts, context budget; prompts, chunking and grounding are in Core |
+| Pipeline | `Sources/Fieldnote/Pipeline/` — checkpoint store, three-stage run, background coordinator |
+| Data | `Sources/Fieldnote/Data/` — SwiftData models, store, storage locations |
+| Export | `Sources/Fieldnote/Export/` — PDF, audio join, Reminders, encrypted backup; Markdown, plain text and subtitles are in Core |
+| UI | `Sources/Fieldnote/UI/` |
 
 Two design points worth knowing before reading the code:
 
 **The model never emits UUIDs.** The prompt numbers the transcript lines it is given,
 the model cites line numbers, and `SummaryGrounder` maps them back to segment IDs —
-discarding any claim whose citation does not resolve. An unresolvable citation is
-worse than none, because it looks like grounding.
+discarding any claim whose citation does not resolve. An unresolvable citation is worse
+than none, because it looks like grounding. The grounder takes plain `ChunkNotes`
+values rather than `@Generable` drafts, which is what lets it be tested on Linux.
 
 **Every stage checkpoints before the next one starts.** The system kills
 continued-processing tasks under pressure, prioritising those reporting little
@@ -106,13 +145,11 @@ its last completed stage, never from raw audio.
 ## Testing
 
 ```sh
-./Scripts/policy-check.sh                    # runs anywhere, including Linux
-xcodebuild test -scheme Fieldnote -destination 'platform=iOS,name=<your device>'
+./Scripts/policy-check.sh          # anywhere, no toolchain needed
+swift test --package-path Core     # Linux, no Apple SDK, no device
 ```
 
-The unit suites cover speaker alignment, chunking, grounding, relative dates, export
-formats, checkpoint bookkeeping and backup encryption. What they cannot cover, and
-what has to be checked by hand on a device:
+What those cannot cover, and what has to be checked by hand on a device:
 
 - Airplane Mode end to end: record 10 minutes, stop, get a speaker-labelled transcript
   and a summary.
@@ -133,8 +170,8 @@ signature change is a one-line fix:
 |---|---|---|
 | On-device tier selection and the pin | `OnDeviceModel.pinnedModel(for:)` | Fix here only. Both tiers currently resolve to the on-device default; Core Advanced gets its own selector when confirmed |
 | Context size and token counting | `ContextBudget.measure` | Returns the documented fallback until wired; `isMeasured` records which path ran |
-| `AnalysisContext.contextualStrings` | `TranscriptionSession.applyContextualStrings` | Measure its effect on the long-form path, then keep or drop it (spec 4.3) |
-| FluidAudio model loading | `DiarizationModelProvider` | Pinned package version in `project.yml` |
+| `AnalysisContext.contextualStrings` | `TranscriptionSession.applyContextualStrings` | Measure its effect on the long-form path, then keep or drop it |
+| FluidAudio model loading | `DiarizationModelProvider` | Pinned package version in `Package.swift` |
 | `BGContinuedProcessingTask` submission | `BackgroundProcessingCoordinator.submit` | Handles a false `supportedResources.contains(.gpu)` rather than assuming broken provisioning |
 
 ## Deliberately not here
@@ -143,13 +180,17 @@ v1 is six things: capture, transcribe, diarize, summarise, survive backgrounding
 off. Everything else was specified and cut, and is recorded in
 [docs/decisions.md](docs/decisions.md) and section 11 of the build spec:
 
-- persistent speaker identity across meetings (embeddings are stored from day one so
-  it can be built against real history);
+- persistent speaker identity across meetings (embeddings are stored from day one so it
+  can be built against real history);
 - terminology correction;
 - consent logging, the consent badge and the share gate;
 - speaker analytics and cross-meeting profiles;
 - the Evaluations harness;
 - HaloPSA and Hudu integrations.
+
+The macOS target in the spec is also parked: xtool builds iOS only. The `#if os(macOS)`
+branches in the code are kept but unbuilt, so they are stale until someone opens the
+package in Xcode on a Mac and fixes them.
 
 ## Licence
 

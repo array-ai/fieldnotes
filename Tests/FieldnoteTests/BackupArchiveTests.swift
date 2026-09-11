@@ -1,5 +1,10 @@
+import FieldnoteKit
 import Foundation
 import Testing
+
+// @testable: BackupArchive's payload types are app-internal, and giving them public
+// memberwise initialisers just to satisfy a test would be the tail wagging the dog.
+@testable import Fieldnote
 
 @Suite("Backup archive")
 struct BackupArchiveTests {

@@ -6,6 +6,45 @@ purpose rather than by accident.
 
 ---
 
+## Built with xtool, and split into two packages because of it
+
+**What changed.** The project was scaffolded for Xcode (XcodeGen + a `project.yml`).
+It now builds with [xtool](https://xtool.sh): SwiftPM on Linux, signed and installed
+to a device without a Mac. `project.yml` and the generator script are gone — on a Mac,
+`xtool dev generate-xcode-project` produces a project from the same package.
+
+**What xtool imposes.** The app must be a SwiftPM *library* product, and so must each
+extension; the rest (bundle ID, Info.plist path, entitlements, extensions) lives in
+`xtool.yml`. Info.plists are merged over xtool's defaults, so `$(PRODUCT_NAME)` style
+build settings had to come out of them: nothing substitutes those outside Xcode.
+
+**The split.** The codebase is now two packages:
+
+- `Core/` (`FieldnoteCore`, product `FieldnoteKit`) — no AVFoundation, no Speech, no
+  FoundationModels, no SwiftData, no CoreGraphics. Builds and tests on a plain Linux
+  toolchain.
+- the root package — the app, the widget, and everything that needs an Apple SDK.
+
+Two packages rather than two targets in one, because `swift test` builds every test
+target in a package: with one package, running the Core tests on Linux would drag the
+iOS-only targets into the build and fail. `swift test --package-path Core` sidesteps
+that cleanly.
+
+**What this buys.** The parts where a bug is silent — a speaker label off by one span,
+a citation resolving to the wrong line, a chunk boundary eating a decision — are now
+compiled and tested on every push, with no Mac, no device and no Apple SDK. That is
+most of the reasoning in this codebase.
+
+**What it costs.** `ChunkNotes` in FieldnoteKit mirrors the `@Generable` draft types in
+the app, because `@Generable` only exists where FoundationModels does. The app converts
+drafts into notes in a dozen lines at the bottom of `DraftTypes.swift`. That mirroring
+is the price of testing grounding without a device, and grounding is the single thing
+most worth testing.
+
+**Still Apple-shaped.** xtool replaces Xcode, not Apple: `xtool setup` needs an Xcode
+xip to build the Darwin SDK, and signing needs an Apple ID. And it builds iOS only, so
+the spec's macOS target is parked.
+
 ## Diarization models are vendored, not downloaded
 
 **The conflict.** Constraint 1 says the app makes zero outbound requests. Constraint 2
