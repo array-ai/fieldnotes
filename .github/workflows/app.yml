@@ -59,7 +59,25 @@ jobs:
       # macOS despite --swift-sdk. Invoking the real swift binary with SDKROOT
       # removed is what keeps it building for iOS.
       - name: Build app and widget for device
-        run: env -u SDKROOT "$(xcrun -f swift)" build --swift-sdk arm64-apple-ios
+        run: |
+          set +e
+          env -u SDKROOT "$(xcrun -f swift)" build --swift-sdk arm64-apple-ios \
+            > /tmp/build.log 2>&1
+          status=$?
+          tail -40 /tmp/build.log
+          if [ $status -ne 0 ]; then
+            # A failing frontend command echoes its whole (enormous) invocation,
+            # which buries the diagnostics. Repeat just the errors at the end.
+            echo "================== ERRORS =================="
+            grep -E "error: " /tmp/build.log \
+              | grep -vE "swift-frontend|Failed frontend|SwiftCompile normal" \
+              | head -40
+            echo "================== CONTEXT ================="
+            grep -A4 -E "error: " /tmp/build.log \
+              | grep -vE "swift-frontend|/Applications/Xcode" \
+              | head -60
+          fi
+          exit $status
 
       # Packs the built products into a .app using xtool.yml: catches mistakes in the
       # Info.plists, the extension declaration and the resource list, which a plain
