@@ -49,6 +49,35 @@ jobs:
           swift --version
           xcrun -sdk iphoneos --show-sdk-version
 
+      # Temporary: prints the real declarations for the iOS 27 APIs this code
+      # depends on, so they can be matched exactly instead of guessed at one CI
+      # round-trip per attempt. Remove once the app builds clean.
+      - name: Inspect SDK declarations
+        run: |
+          SDK=$(xcrun -sdk iphoneos --show-sdk-path)
+          for framework in Speech FoundationModels BackgroundTasks; do
+            INTERFACE=$(find "$SDK/System/Library/Frameworks/$framework.framework" \
+              -name "arm64-apple-ios.swiftinterface" | head -1)
+            echo "=================== $framework: $INTERFACE"
+            [ -n "$INTERFACE" ] || continue
+            case "$framework" in
+              Speech)
+                echo "--- AssetInventory"
+                grep -n -A2 "AssetInventory" "$INTERFACE" | head -60
+                echo "--- AnalysisContext / contextual strings"
+                grep -n -B2 -A6 "ContextualStringsTag\|contextualStrings" "$INTERFACE" | head -60
+                ;;
+              FoundationModels)
+                echo "--- generation errors"
+                grep -n "GenerationError\|enum .*Error" "$INTERFACE" | head -30
+                ;;
+              BackgroundTasks)
+                echo "--- submit"
+                grep -n "func submit" "$INTERFACE" | head -20
+                ;;
+            esac
+          done
+
       # SwiftPM's implicit Darwin SDKs (Swift 6.1+) cross-compile to the device
       # triple — no Xcode project, no Apple ID, no signing.
       #
