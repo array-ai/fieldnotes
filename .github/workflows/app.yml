@@ -36,12 +36,16 @@ jobs:
           swift --version
           xcrun -sdk iphoneos --show-sdk-version
 
-      # This is what xtool itself runs on macOS: SwiftPM's implicit Darwin SDKs
-      # (Swift 6.1+) cross-compile to the device triple, no Xcode project and no
-      # Apple ID involved. Signing is a separate step in xtool and is not done here,
-      # so this needs no credentials.
+      # SwiftPM's implicit Darwin SDKs (Swift 6.1+) cross-compile to the device
+      # triple — no Xcode project, no Apple ID, no signing.
+      #
+      # The two extra pieces are not optional, and are lifted from xtool's own
+      # BuildSettings.swift: `/usr/bin/swift` goes through the xcrun trampoline,
+      # which injects SDKROOT=.../MacOSX.sdk and quietly retargets the build at
+      # macOS despite --swift-sdk. Invoking the real swift binary with SDKROOT
+      # removed is what keeps it building for iOS.
       - name: Build app and widget for device
-        run: swift build --swift-sdk arm64-apple-ios
+        run: env -u SDKROOT "$(xcrun -f swift)" build --swift-sdk arm64-apple-ios
 
       # Packs the built products into a .app using xtool.yml: catches mistakes in the
       # Info.plists, the extension declaration and the resource list, which a plain
