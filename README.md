@@ -38,7 +38,8 @@ push regardless of toolchain.
 
 Per [xtool's Linux install guide](https://xtool.sh/documentation/xtooldocs/installation-linux):
 
-- **Swift 6.3** toolchain — <https://swift.org/install/linux>
+- **A Swift toolchain that matches the SDK** — see below. As of writing that means a
+  Swift **6.4** snapshot, not the 6.3.3 stable release.
 - **usbmuxd** — `sudo apt-get install usbmuxd libimobiledevice-utils`
 - **xtool** — the `xtool.AppImage` from the latest GitHub release, on your `PATH`
 - **An Xcode xip**, which `xtool setup` unpacks into a Darwin Swift SDK. Use the
@@ -47,6 +48,36 @@ Per [xtool's Linux install guide](https://xtool.sh/documentation/xtooldocs/insta
   `CaptureInputSequenceProvider`.
 - **An iPhone 15 Pro / iPhone 16 or later.** The floor is Apple Intelligence hardware,
   not iOS 27, and the app refuses at launch on anything below it.
+
+### Toolchain and SDK must match
+
+The Darwin SDK is generated from an Xcode xip, and it carries that Xcode's Swift
+module interfaces. The host toolchain has to be at least that version, or every build
+fails before it reaches your code:
+
+```
+error: failed to build module 'Swift'; this SDK is not supported by the compiler
+(the SDK is built with 'Apple Swift version 6.4 ...', while this compiler is
+'Swift version 6.3.3 (swift-6.3.3-RELEASE)')
+```
+
+Xcode 27 ships Swift 6.4, and Swift 6.4 is not GA for Linux yet, so the pairing today
+is an Xcode 27 SDK plus a 6.4 snapshot:
+
+```sh
+swiftly list-available | grep 6.4      # find the current 6.4 snapshot tag
+swiftly install 6.4.x-snapshot
+swiftly use 6.4.x-snapshot
+swift --version                        # must report 6.4, not 6.3.x
+```
+
+xtool's own docs say Swift 6.3, which is correct for an Xcode 26 SDK — but an Xcode 26
+SDK cannot build this project, because the deployment target is iOS 27. The versions
+move together: newer Xcode xip, newer host toolchain.
+
+If a 6.4 snapshot is not usable on your machine, the Mac path still works — the
+project builds with Xcode as well (see below) — and `swift test --package-path Core`
+is unaffected either way, since Core needs no Apple SDK.
 
 ### First run
 
