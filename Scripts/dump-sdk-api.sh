@@ -22,25 +22,36 @@ for module in "${MODULES[@]}"; do
   if xcrun swift-api-digester -dump-sdk -module "$module" \
       -target "$TARGET" -sdk "$SDK" -o "$OUT" 2>"/tmp/$module.err"; then
     echo "--- dumped $(wc -c < "$OUT") bytes"
-    python3 - "$OUT" <<'PY'
+    python3 - "$OUT" <<'PYEOF'
 import json, sys
 
 INTERESTING = (
     "AssetInventory", "ContextualStrings", "AnalysisContext",
     "GenerationError", "guardrail", "exceededContext",
-    "submit", "reserve", "allocate", "deallocate",
+    "submitTaskRequest", "reserve", "allocate", "deallocate",
 )
 
-def walk(node, depth=0):
+data = json.load(open(sys.argv[1]))
+# swift-api-digester wraps everything in ABIRoot; starting above it walks nothing
+# and prints nothing, which looks identical to "no such API".
+root = data.get("ABIRoot", data)
+
+matches = 0
+
+def walk(node, path=()):
+    global matches
     name = node.get("printedName") or node.get("name") or ""
     kind = node.get("declKind", "")
+    here = path + (name,) if name else path
     if any(needle.lower() in name.lower() for needle in INTERESTING):
-        print(f"{'  ' * min(depth, 4)}{kind or '?'}: {name}")
+        matches += 1
+        print(f"  {kind or '?':<12} {' > '.join(here[-3:])}")
     for child in node.get("children", []) or []:
-        walk(child, depth + 1)
+        walk(child, here)
 
-walk(json.load(open(sys.argv[1])))
-PY
+walk(root)
+print(f"--- {matches} matching declarations")
+PYEOF
   else
     echo "--- swift-api-digester failed; falling back to strings"
     tail -3 "/tmp/$module.err"
