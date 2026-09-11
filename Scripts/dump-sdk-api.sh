@@ -30,27 +30,37 @@ INTERESTING = (
     "GenerationError", "guardrail", "exceededContext",
     "submitTaskRequest", "reserve", "allocate", "deallocate",
 )
+# Only real declarations. The digester also emits a node per function *type*, whose
+# printed name is the whole signature — that is what flooded the log last time.
+KINDS = {"EnumElement", "Func", "Var", "Constructor", "TypeDecl", "Struct", "Enum", "Class", "Protocol"}
 
 data = json.load(open(sys.argv[1]))
 # swift-api-digester wraps everything in ABIRoot; starting above it walks nothing
 # and prints nothing, which looks identical to "no such API".
 root = data.get("ABIRoot", data)
 
-matches = 0
+seen = set()
 
 def walk(node, path=()):
-    global matches
-    name = node.get("printedName") or node.get("name") or ""
+    name = node.get("name") or ""
     kind = node.get("declKind", "")
     here = path + (name,) if name else path
-    if any(needle.lower() in name.lower() for needle in INTERESTING):
-        matches += 1
-        print(f"  {kind or '?':<12} {' > '.join(here[-3:])}")
+    if kind in KINDS and any(n.lower() in name.lower() for n in INTERESTING):
+        line = f"  {kind:<12} {'.'.join(here[-3:])}"
+        if line not in seen:
+            seen.add(line)
+            print(line)
+    # Also surface members of an interesting container, so enum cases show up.
+    elif kind in KINDS and any(n.lower() in ".".join(here).lower() for n in ("ContextualStrings", "AssetInventory")):
+        line = f"  {kind:<12} {'.'.join(here[-3:])}"
+        if line not in seen:
+            seen.add(line)
+            print(line)
     for child in node.get("children", []) or []:
         walk(child, here)
 
 walk(root)
-print(f"--- {matches} matching declarations")
+print(f"--- {len(seen)} declarations")
 PYEOF
   else
     echo "--- swift-api-digester failed; falling back to strings"

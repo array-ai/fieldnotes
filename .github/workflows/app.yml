@@ -81,5 +81,10 @@ jobs:
       - uses: actions/checkout@v5
       # Temporary: prints the real iOS 27 declarations this code depends on.
       # Remove, with the script, once the app builds clean.
-      - name: Inspect SDK declarations
-        run: ./Scripts/dump-sdk-api.sh
+      # One step per module: a single step's output gets truncated when read back.
+      - name: Speech declarations
+        run: ./Scripts/dump-sdk-api.sh Speech
+      - name: FoundationModels declarations
+        run: ./Scripts/dump-sdk-api.sh FoundationModels
+      - name: BackgroundTasks declarations
+        run: ./Scripts/dump-sdk-api.sh BackgroundTasks
