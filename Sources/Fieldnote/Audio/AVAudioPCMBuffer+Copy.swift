@@ -12,9 +12,27 @@ extension AVAudioPCMBuffer {
     /// was derived from — and once that region has been sent to one actor, every
     /// later copy is rejected too, which is exactly what happened here.
     func deepCopy() -> sending AVAudioPCMBuffer? {
-        guard let copy = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCapacity) else { return nil }
+        // The format is rebuilt from scalars rather than reused. Passing `self.format`
+        // into the new buffer would tie the copy to this buffer's isolation region —
+        // AVAudioFormat is a class, so it carries the region with it — and the result
+        // could then never be a `sending` value, however fresh its samples are.
+        //
+        // A format the initialiser cannot describe (commonFormat .otherFormat) yields
+        // nil here. The engine's input is Float32, so that is not a path this app
+        // takes; returning nil is still better than a copy sharing state.
+        guard let independentFormat = AVAudioFormat(
+            commonFormat: format.commonFormat,
+            sampleRate: format.sampleRate,
+            channels: format.channelCount,
+            interleaved: format.isInterleaved
+        ) else { return nil }
+
+        guard let copy = AVAudioPCMBuffer(
+            pcmFormat: independentFormat,
+            frameCapacity: frameCapacity
+        ) else { return nil }
         copy.frameLength = frameLength
-        let channels = Int(format.channelCount)
+        let channels = Int(independentFormat.channelCount)
         let frames = Int(frameLength)
 
         if let source = floatChannelData, let destination = copy.floatChannelData {
