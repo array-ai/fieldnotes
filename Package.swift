@@ -33,6 +33,9 @@ let package = Package(
         ),
     ],
     dependencies: [
+        // A path dependency's identity is its directory name ("Core"), not the name
+        // declared in its manifest ("FieldnoteCore") — so that is what the product
+        // references below have to say.
         .package(path: "Core"),
         .package(url: "https://github.com/FluidInference/FluidAudio", from: "0.6.0"),
     ],
@@ -42,7 +45,7 @@ let package = Package(
         .target(
             name: "FieldnoteShared",
             dependencies: [
-                .product(name: "FieldnoteKit", package: "FieldnoteCore"),
+                .product(name: "FieldnoteKit", package: "Core"),
             ],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
@@ -50,7 +53,7 @@ let package = Package(
             name: "Fieldnote",
             dependencies: [
                 "FieldnoteShared",
-                .product(name: "FieldnoteKit", package: "FieldnoteCore"),
+                .product(name: "FieldnoteKit", package: "Core"),
                 .product(name: "FluidAudio", package: "FluidAudio"),
             ],
             swiftSettings: [.swiftLanguageMode(.v6)]
