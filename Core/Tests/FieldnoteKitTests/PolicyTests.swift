@@ -10,6 +10,51 @@ import Testing
 @Suite("Policy")
 struct PolicyTests {
 
+    // MARK: - Controls
+    //
+    // Every rule below is of the form "this string does not appear in the app
+    // sources". That shape has one catastrophic failure: if the scan finds no
+    // sources at all, every rule passes and the suite goes green while enforcing
+    // nothing. That is not hypothetical — it happened when the package was split
+    // into two for xtool and the scanner's root moved with it.
+    //
+    // These two tests are the controls. They fail when the scan is empty or blind,
+    // so the absence-based rules below can be trusted.
+
+    @Test("The scanner can see the app sources")
+    func scannerSeesTheAppSources() {
+        let sources = PolicySourceScanner.appSources()
+        #expect(
+            sources.count > 20,
+            "Scanned only \(sources.count) files. The policy rules below are all \"this does not appear\" rules, so a scan that finds nothing passes them all."
+        )
+        #expect(
+            sources.contains { $0.path.hasSuffix("/Summarisation/OnDeviceModel.swift") },
+            "OnDeviceModel.swift was not scanned, so the on-device pin is not actually being checked."
+        )
+        #expect(
+            sources.contains { $0.path.hasSuffix("/FieldnoteWidgets/RecordingLiveActivity.swift") },
+            "The widget extension was not scanned. Its sources ship in the app too."
+        )
+    }
+
+    @Test("The scanner detects a symbol that is genuinely present")
+    func scannerDetectsWhatIsThere() {
+        // A positive control: proves the matcher works, not merely that files were
+        // read. SpeechAnalyzer is central to the app and is not going away.
+        #expect(
+            !PolicySourceScanner.filesContaining("SpeechAnalyzer").isEmpty,
+            "The scanner found no SpeechAnalyzer usage, so it is not matching source lines at all."
+        )
+        // And that the comment-stripping does not swallow real code: the pinned
+        // factory does construct a session, on a line that is not a comment.
+        #expect(
+            PolicySourceScanner.filesContaining("LanguageModelSession(")
+                == ["Sources/Fieldnote/Summarisation/OnDeviceModel.swift"],
+            "The one sanctioned session construction site was not found where expected."
+        )
+    }
+
     /// Constraint 6: no Foundation Models session exists that is not pinned to the
     /// on-device model.
     ///
@@ -20,7 +65,7 @@ struct PolicyTests {
     func sessionsOnlyFromFactory() {
         let offenders = PolicySourceScanner.filesContaining(
             "LanguageModelSession(",
-            excluding: ["/Sources/Fieldnote/Summarisation/OnDeviceModel.swift"]
+            excluding: ["Sources/Fieldnote/Summarisation/OnDeviceModel.swift"]
         )
         #expect(
             offenders.isEmpty,

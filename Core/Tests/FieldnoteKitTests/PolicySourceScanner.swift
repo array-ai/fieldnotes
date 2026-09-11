@@ -14,13 +14,22 @@ enum PolicySourceScanner {
         var contents: String
     }
 
-    /// Repo root, derived from this file's own location.
-    static var repositoryRoot: URL {
-        URL(filePath: #filePath)
-            .deletingLastPathComponent()   // FieldnoteTests
-            .deletingLastPathComponent()   // Tests
-            .deletingLastPathComponent()   // repo root
-    }
+    /// Repo root, found by walking up from this file until `xtool.yml` appears.
+    ///
+    /// Walking beats counting directories. Counting broke the first time the package
+    /// was split for xtool — the root landed on `Core/`, the scan found no files, and
+    /// four policy tests went green on an empty set. A rule that passes because it
+    /// scanned nothing is worse than one that fails, so `scannerSeesTheAppSources`
+    /// and `scannerDetectsWhatIsThere` below exist to make that impossible to repeat.
+    static let repositoryRoot: URL = {
+        var directory = URL(filePath: #filePath).deletingLastPathComponent()
+        for _ in 0..<8 {
+            let marker = directory.appending(path: "xtool.yml").path(percentEncoded: false)
+            if FileManager.default.fileExists(atPath: marker) { return directory }
+            directory = directory.deletingLastPathComponent()
+        }
+        fatalError("Could not locate the repository root from \(#filePath)")
+    }()
 
     /// Every Swift file shipped in the app and the widget extension. Test sources are
     /// deliberately excluded: they name the forbidden symbols in order to forbid them.
@@ -43,9 +52,17 @@ enum PolicySourceScanner {
         return enumerator.compactMap { $0 as? URL }.filter { $0.pathExtension == "swift" }
     }
 
+    /// Repo-relative, with no leading slash: `Sources/Fieldnote/...`.
+    ///
+    /// Normalised rather than left to chance, because whether the root's path carries
+    /// a trailing slash is a Foundation detail, and every exclusion and expectation in
+    /// the policy suite compares these strings.
     static func relativePath(_ url: URL) -> String {
-        url.path(percentEncoded: false)
-            .replacingOccurrences(of: repositoryRoot.path(percentEncoded: false), with: "")
+        let root = repositoryRoot.path(percentEncoded: false)
+        var path = url.path(percentEncoded: false)
+        if path.hasPrefix(root) { path.removeFirst(root.count) }
+        while path.hasPrefix("/") { path.removeFirst() }
+        return path
     }
 
     /// Files containing `needle`, ignoring comment lines so a rule can be *described*
