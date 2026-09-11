@@ -78,36 +78,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
-      # Temporary: prints the real iOS 27 declarations this code depends on, so
-      # they can be matched exactly rather than guessed one CI round-trip at a time.
-      # Remove once the app builds clean.
+      # Temporary: prints the real iOS 27 declarations this code depends on.
+      # Remove, with the script, once the app builds clean.
       - name: Inspect SDK declarations
-        run: |
-          SDK=$(xcrun -sdk iphoneos --show-sdk-path)
-          echo "SDK=$SDK"
-          for module in Speech FoundationModels BackgroundTasks; do
-            echo "=================== $module"
-            find "$SDK" -name "*.swiftinterface" -path "*$module*" 2>/dev/null | head -5
-            INTERFACE=$(find "$SDK" -name "arm64-apple-ios.swiftinterface" -path "*$module*" 2>/dev/null | head -1)
-            if [ -z "$INTERFACE" ]; then
-              INTERFACE=$(find "$SDK" -name "*.swiftinterface" -path "*$module*" 2>/dev/null | head -1)
-            fi
-            echo "--- using: $INTERFACE"
-            [ -n "$INTERFACE" ] || continue
-            case "$module" in
-              Speech)
-                echo "--- AssetInventory members"
-                grep -n "AssetInventory" "$INTERFACE" | head -40
-                echo "--- contextual strings"
-                grep -n -B3 -A8 "ContextualStringsTag" "$INTERFACE" | head -60
-                ;;
-              FoundationModels)
-                echo "--- error types"
-                grep -n "GenerationError\|public enum .*Error\|case guardrail\|case exceededContext" "$INTERFACE" | head -40
-                ;;
-              BackgroundTasks)
-                echo "--- submit"
-                grep -n "func submit" "$INTERFACE" | head -20
-                ;;
-            esac
-          done
+        run: ./Scripts/dump-sdk-api.sh
