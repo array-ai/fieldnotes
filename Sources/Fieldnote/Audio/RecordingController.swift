@@ -193,26 +193,44 @@ public final class RecordingController {
         let diarization = diarizationBuffer
         let transcription = transcription
 
-        pump = Task { [weak self] in
+        // Detached on purpose. A Task created here would inherit this type's
+        // main-actor isolation, putting every audio buffer in the main actor's
+        // region — and routing an hour of audio through the main actor to reach the
+        // file writer would be wrong even if the compiler allowed it.
+        pump = Task.detached(priority: .userInitiated) { [weak self] in
             for await buffer in stream {
-                do {
-                    try await writer?.write(buffer)
-                    try await diarization?.append(buffer)
-                } catch {
-                    self?.recordFailure(error)
-                }
-                await transcription?.append(buffer)
+                // Measured before the buffer is handed on, while it is still ours.
+                let peak = buffer.peakLevel
 
-                // This task inherits the type's main-actor isolation, so these are
-                // plain assignments — a MainActor.run hop here would be a no-op with
-                // a cost. The writes above still hop to their own actors, which is
-                // where the file I/O belongs.
-                guard let self else { continue }
-                // Smooth the meter so it reads as a level, not a strobe.
-                self.level = self.level * 0.7 + buffer.peakLevel * 0.3
-                self.elapsed = self.currentElapsed
+                // Each consumer is a separate actor, so each gets its own copy.
+                // Passing one buffer to three actors would send a single
+                // non-Sendable value into three isolation regions, which is the
+                // race the compiler is describing — and the copies are a few
+                // hundred KB a second, against file I/O and speech recognition.
+                do {
+                    if let writer, let copy = buffer.deepCopy() {
+                        try await writer.write(copy)
+                    }
+                    if let diarization, let copy = buffer.deepCopy() {
+                        try await diarization.append(copy)
+                    }
+                } catch {
+                    await self?.recordFailure(error)
+                }
+                if let transcription, let copy = buffer.deepCopy() {
+                    await transcription.append(copy)
+                }
+
+                await self?.meter(peak: peak)
             }
         }
+    }
+
+    /// The meter and clock live on the main actor; the pump does not.
+    private func meter(peak: Double) {
+        // Smooth the meter so it reads as a level, not a strobe.
+        level = level * 0.7 + peak * 0.3
+        elapsed = currentElapsed
     }
 
     private func observe(_ session: TranscriptionSession) {
