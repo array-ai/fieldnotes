@@ -4,47 +4,25 @@ import SwiftUI
 import UIKit
 #endif
 
-/// The four independent payloads, as a menu (spec 6.1).
+/// The four independent payloads, as menu content (spec 6.1).
 ///
-/// Files are built on demand — a PDF or a joined audio file is not worth generating
-/// until someone asks for it — so this goes through `UIActivityViewController` rather
-/// than `ShareLink`, which wants its payload up front.
+/// This builds *only* the menu items and reports the choice back. The sheet that
+/// actually presents lives on the view that owns the menu, via
+/// `.sharePresentation(_:)` below — SwiftUI tears down a context menu's content when
+/// the menu dismisses, so a `.sheet` attached in here would be deallocated before it
+/// could ever present. That mistake shows up as a menu item that does nothing.
 struct SharePayloadMenu: View {
     let meeting: MeetingSnapshot
-    @State private var sharing: ShareRequest?
-    @State private var confirmingAudio: ShareRequest?
+    var onSelect: (SharePayload, ShareFormat) -> Void
 
     var body: some View {
         ForEach(SharePayload.allCases) { payload in
             Menu(payload.displayName, systemImage: icon(for: payload)) {
                 ForEach(payload.formats) { format in
-                    Button(format.displayName) {
-                        let request = ShareRequest(meeting: meeting, payload: payload, format: format)
-                        if payload.warnsBeforeSharing {
-                            confirmingAudio = request
-                        } else {
-                            sharing = request
-                        }
-                    }
+                    Button(format.displayName) { onSelect(payload, format) }
                 }
             }
             .disabled(payload != .audio && meeting.state != .complete)
-        }
-        .sheet(item: $sharing) { request in
-            ShareSheet(request: request)
-        }
-        .alert(item: $confirmingAudio) { request in
-            Alert(
-                title: Text("Share the raw audio?"),
-                message: Text(
-                    """
-                    This is the rawest form of client data. Once it is in the share \
-                    sheet it is out of Fieldnote's control.
-                    """
-                ),
-                primaryButton: .destructive(Text("Share audio")) { sharing = request },
-                secondaryButton: .cancel()
-            )
         }
     }
 
@@ -55,6 +33,63 @@ struct SharePayloadMenu: View {
         case .transcript: "text.alignleft"
         case .audio: "waveform"
         }
+    }
+}
+
+/// Presentation state for sharing, owned by the view that hosts the menu.
+@Observable
+final class SharePresentation {
+    var active: ShareRequest?
+    /// Audio is the rawest form of client data, so it gets a confirmation first
+    /// (spec 6.1).
+    var pendingAudio: ShareRequest?
+
+    func select(meeting: MeetingSnapshot, payload: SharePayload, format: ShareFormat) {
+        let request = ShareRequest(meeting: meeting, payload: payload, format: format)
+        if payload.warnsBeforeSharing {
+            pendingAudio = request
+        } else {
+            active = request
+        }
+    }
+}
+
+extension View {
+    /// Hosts the share sheet and the audio warning for a `SharePayloadMenu`.
+    func sharePresentation(_ presentation: SharePresentation) -> some View {
+        modifier(SharePresentationModifier(presentation: presentation))
+    }
+}
+
+private struct SharePresentationModifier: ViewModifier {
+    @Bindable var presentation: SharePresentation
+
+    func body(content: Content) -> some View {
+        content
+            .sheet(item: $presentation.active) { request in
+                ShareSheet(request: request)
+            }
+            .confirmationDialog(
+                "Share the raw audio?",
+                isPresented: Binding(
+                    get: { presentation.pendingAudio != nil },
+                    set: { if !$0 { presentation.pendingAudio = nil } }
+                ),
+                titleVisibility: .visible
+            ) {
+                Button("Share audio", role: .destructive) {
+                    presentation.active = presentation.pendingAudio
+                    presentation.pendingAudio = nil
+                }
+                Button("Cancel", role: .cancel) { presentation.pendingAudio = nil }
+            } message: {
+                Text(
+                    """
+                    This is the rawest form of client data. Once it is in the share \
+                    sheet it is out of Fieldnote's control.
+                    """
+                )
+            }
     }
 }
 

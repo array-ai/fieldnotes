@@ -5,6 +5,7 @@ struct MeetingListView: View {
     @Environment(AppModel.self) private var model
     @State private var showingRecorder = false
     @State private var showingSettings = false
+    @State private var share = SharePresentation()
 
     var body: some View {
         @Bindable var model = model
@@ -16,8 +17,11 @@ struct MeetingListView: View {
                     }
                     .contextMenu {
                         // Each payload is independently shareable from here as well as
-                        // from the detail view (spec 6.1).
-                        SharePayloadMenu(meeting: meeting)
+                        // from the detail view (spec 6.1). The sheet itself is hosted
+                        // on the list, not in here — see SharePayloadMenu.
+                        SharePayloadMenu(meeting: meeting) { payload, format in
+                            share.select(meeting: meeting, payload: payload, format: format)
+                        }
                     }
                 }
                 .onDelete(perform: delete)
@@ -50,6 +54,7 @@ struct MeetingListView: View {
             }
             .refreshable { await model.refresh() }
         }
+        .sharePresentation(share)
         .sheet(isPresented: $showingRecorder) { RecorderView() }
         .sheet(isPresented: $showingSettings) { SettingsView() }
     }

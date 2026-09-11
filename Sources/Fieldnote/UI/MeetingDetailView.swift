@@ -11,6 +11,7 @@ struct MeetingDetailView: View {
     @State private var relabelling: TranscriptSegment?
     @State private var scrollTarget: UUID?
     @State private var composing = false
+    @State private var share = SharePresentation()
 
     enum Tab: String, CaseIterable { case summary, transcript }
 
@@ -30,7 +31,9 @@ struct MeetingDetailView: View {
             if let meeting {
                 ToolbarItem(placement: .primaryAction) {
                     Menu {
-                        SharePayloadMenu(meeting: meeting)
+                        SharePayloadMenu(meeting: meeting) { payload, format in
+                            share.select(meeting: meeting, payload: payload, format: format)
+                        }
                         Divider()
                         Button("Share meeting…", systemImage: "square.and.arrow.up.on.square") {
                             composing = true
@@ -41,6 +44,7 @@ struct MeetingDetailView: View {
                 }
             }
         }
+        .sharePresentation(share)
         .sheet(isPresented: $composing) {
             if let meeting { ComposedShareView(meeting: meeting) }
         }
