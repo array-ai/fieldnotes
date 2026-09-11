@@ -31,7 +31,7 @@ public actor DiarizationBuffer {
             atPath: url.path(percentEncoded: false)
         )[.size] as? Int) ?? 0
         // Resuming after a kill: the samples already on disk still count.
-        self.frameCount = (existingBytes ?? 0) / MemoryLayout<Float>.size
+        self.frameCount = existingBytes / MemoryLayout<Float>.size
     }
 
     public var fileURL: URL { url }

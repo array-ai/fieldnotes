@@ -34,7 +34,9 @@ struct RecordingLiveActivity: Widget {
                 }
             } compactLeading: {
                 Image(systemName: context.state.isPaused ? "pause.circle" : "record.circle")
-                    .foregroundStyle(context.state.isPaused ? .secondary : .red)
+                    // Spelled out: `.secondary` is a HierarchicalShapeStyle and
+                    // `.red` is a Color, so the ternary has no common type.
+                    .foregroundStyle(context.state.isPaused ? Color.secondary : Color.red)
             } compactTrailing: {
                 Text(timerText(context)).font(.caption2.monospacedDigit())
             } minimal: {
