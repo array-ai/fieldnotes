@@ -12,13 +12,17 @@ struct SettingsView: View {
         @Bindable var settings = model.settings
         NavigationStack {
             Form {
-                Section("Transcription") {
+                // Section takes a title string *or* a footer, not both: with a
+                // trailing footer the content closure has to be the labelled one.
+                Section {
                     Picker("Language", selection: $settings.localeIdentifier) {
                         ForEach(locales, id: \.identifier) { locale in
                             Text(locale.localizedString(forIdentifier: locale.identifier) ?? locale.identifier)
                                 .tag(locale.identifier)
                         }
                     }
+                } header: {
+                    Text("Transcription")
                 } footer: {
                     Text("One language per recording. Changing this affects the next meeting, not existing ones.")
                 }
