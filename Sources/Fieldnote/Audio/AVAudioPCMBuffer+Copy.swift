@@ -5,7 +5,13 @@ extension AVAudioPCMBuffer {
     /// callback returns. Anything that leaves the callback must be a copy, or you get
     /// audio that is intermittently someone else's — usually a few seconds later,
     /// usually only on a real device, usually in a long meeting.
-    func deepCopy() -> AVAudioPCMBuffer? {
+    ///
+    /// Returns `sending`: the result is a brand-new buffer that nothing else
+    /// references, so it belongs to no isolation region and may be handed to any
+    /// actor. Without this the compiler infers the copy's region from the buffer it
+    /// was derived from — and once that region has been sent to one actor, every
+    /// later copy is rejected too, which is exactly what happened here.
+    func deepCopy() -> sending AVAudioPCMBuffer? {
         guard let copy = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCapacity) else { return nil }
         copy.frameLength = frameLength
         let channels = Int(format.channelCount)
