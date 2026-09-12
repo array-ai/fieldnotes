@@ -27,6 +27,7 @@ public actor TranscriptionSession {
 
     private var analyzer: SpeechAnalyzer?
     private var transcriber: SpeechTranscriber?
+    private var inputConverter: AnalyzerInputConverter?
     private var inputContinuation: AsyncStream<AnalyzerInput>.Continuation?
     private var resultsTask: Task<Void, Never>?
     private var updateContinuation: AsyncStream<Update>.Continuation?
@@ -68,6 +69,7 @@ public actor TranscriptionSession {
         let analyzer = SpeechAnalyzer(modules: [transcriber])
         self.transcriber = transcriber
         self.analyzer = analyzer
+        self.inputConverter = try await AnalyzerInputConverter.converter(compatibleWith: [transcriber])
 
         applyContextualStrings(to: analyzer)
 
@@ -82,8 +84,21 @@ public actor TranscriptionSession {
     }
 
     public func append(_ audio: CapturedAudio) {
-        guard let buffer = audio.makeBuffer() else { return }
-        inputContinuation?.yield(AnalyzerInput(buffer: buffer))
+        // AnalyzerInput(buffer:) requires the buffer already be in the analyzer's
+        // own format -- the mic's raw format (whatever AVAudioSession negotiated)
+        // almost never matches, and handing it a mismatched buffer hits a Swift
+        // runtime precondition failure inside AnalyzerInput.data(from:), not a
+        // catchable Swift error. AnalyzerInputConverter is Apple's sanctioned way
+        // to convert arbitrary-format audio into valid AnalyzerInputs -- same
+        // reason DiarizationBuffer converts before writing (AudioFormats.swift).
+        guard let buffer = audio.makeBuffer(), let inputConverter else { return }
+        do {
+            for input in try inputConverter.convert(buffer, at: nil) {
+                inputContinuation?.yield(input)
+            }
+        } catch {
+            log.error("Audio conversion for transcription failed: \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     /// Ends the run and returns everything finalized.
@@ -100,6 +115,7 @@ public actor TranscriptionSession {
         resultsTask = nil
         analyzer = nil
         transcriber = nil
+        inputConverter = nil
         updateContinuation?.finish()
         updateContinuation = nil
         return segments
@@ -115,6 +131,7 @@ public actor TranscriptionSession {
         try? await analyzer?.finalizeAndFinishThroughEndOfInput()
         analyzer = nil
         transcriber = nil
+        inputConverter = nil
         updateContinuation?.finish()
         updateContinuation = nil
     }
