@@ -83,6 +83,31 @@ WIDGET_APPEX=$(find "$APP/PlugIns" -maxdepth 1 -name "*.appex" | head -1)
 [ -n "$WIDGET_APPEX" ] || { echo "no .appex found under $APP/PlugIns" >&2; exit 1; }
 embed_profile PROVISION_WIDGET_BASE64 "$WIDGET_APPEX" "$WORKDIR/widget.entitlements.plist"
 
+# --- Patch Info.plist metadata Xcode normally stamps in, which a bare `swift build`
+# never produces -- App Store Connect's binary validator requires both. Must happen
+# before codesign: editing a plist after signing invalidates the signature.
+IOS_SDK_VERSION=$(xcrun -sdk iphoneos --show-sdk-version)
+
+set_plist_string() {
+  local plist="$1" key="$2" value="$3"
+  /usr/libexec/PlistBuddy -c "Add :$key string $value" "$plist" 2>/dev/null || \
+    /usr/libexec/PlistBuddy -c "Set :$key $value" "$plist"
+}
+
+for plist in "$APP/Info.plist" "$WIDGET_APPEX/Info.plist"; do
+  set_plist_string "$plist" DTPlatformName iphoneos
+  set_plist_string "$plist" DTPlatformVersion "$IOS_SDK_VERSION"
+  set_plist_string "$plist" DTSDKName "iphoneos$IOS_SDK_VERSION"
+done
+
+# PackLib/Packer.swift (xtool) only sets UIRequiredDeviceCapabilities on the main
+# app product (gated on `product.type == .application`), never on extensions --
+# App Store Connect requires it on every 64-bit binary in the bundle.
+/usr/libexec/PlistBuddy -c "Print :UIRequiredDeviceCapabilities" "$WIDGET_APPEX/Info.plist" >/dev/null 2>&1 || {
+  /usr/libexec/PlistBuddy -c "Add :UIRequiredDeviceCapabilities array" "$WIDGET_APPEX/Info.plist"
+  /usr/libexec/PlistBuddy -c "Add :UIRequiredDeviceCapabilities:0 string arm64" "$WIDGET_APPEX/Info.plist"
+}
+
 # --- Sign innermost-out: nested frameworks, then the extension, then the app ---
 if [ -d "$APP/Frameworks" ]; then
   find "$APP/Frameworks" -maxdepth 1 \( -name "*.framework" -o -name "*.dylib" \) | while read -r fw; do
