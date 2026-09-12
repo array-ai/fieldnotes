@@ -148,6 +148,7 @@ cat > "$ICON_DIR/Contents.json" <<'JSON'
 }
 JSON
 
+mkdir -p "$WORKDIR/compiled-assets"
 xcrun actool \
   --output-format human-readable-text \
   --notices --warnings \
