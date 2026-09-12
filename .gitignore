@@ -22,3 +22,7 @@ xcuserdata/
 .netrc
 *.mobileprovision
 *.p12
+*.p8
+*.key
+*.pem
+*.cer
