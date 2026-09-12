@@ -174,7 +174,14 @@ public final class RecordingController {
         guard format.sampleRate > 0 else { throw RecordingError.noInput }
 
         let continuation = bufferContinuation
-        input.installTap(onBus: 0, bufferSize: 4096, format: format) { buffer, _ in
+        // @Sendable is load-bearing, not decoration: this closure is written inside a
+        // @MainActor method, so without it Swift infers MainActor isolation from the
+        // lexical context and compiles a `dispatch_assert_queue` fast path instead of
+        // a real hop, trusting the closure only ever runs on the main actor. The
+        // engine calls this block on its own realtime audio thread, so that
+        // assertion fires and crashes (EXC_BREAKPOINT in
+        // swift_task_isCurrentExecutorWithFlagsImpl) the moment recording starts.
+        input.installTap(onBus: 0, bufferSize: 4096, format: format) { @Sendable buffer, _ in
             // Audio render thread. Copy the samples out, hand them off, return.
             // Nothing else: the engine reuses this buffer immediately.
             guard let captured = CapturedAudio(buffer) else { return }
