@@ -21,6 +21,12 @@
 	<array>
 		<integer>1</integer>
 	</array>
+	<!-- Fieldnote makes no outbound network requests (see xtool.yml's comment on
+	     Fieldnote.entitlements), so it doesn't use exempt or non-exempt encryption --
+	     this skips the export-compliance question App Store Connect otherwise asks
+	     on every single upload. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Fieldnote records meetings on this device. Audio, transcripts and summaries never leave the device unless you share them yourself.</string>
 	<key>NSRemindersFullAccessUsageDescription</key>

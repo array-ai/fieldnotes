@@ -49,6 +49,30 @@ jobs:
           [ -d "$APP/PlugIns" ] || { echo "no PlugIns: the widget extension was not packed"; exit 1; }
           echo "APP_PATH=$APP" >> "$GITHUB_ENV"
 
+      # xtool's packer never produces dSYMs, so every crash report from a build it
+      # packed comes back from Apple with raw hex offsets instead of symbols -- this
+      # has been true of every crash report so far. Generate them here so they can be
+      # kept as an artifact and used to symbolicate with atos (macOS-only, hence
+      # doing it in CI rather than after download).
+      - name: Generate dSYMs
+        run: |
+          set -euo pipefail
+          dsymutil "$APP_PATH/Fieldnote" -o Fieldnote.dSYM
+          WIDGET=$(find "$APP_PATH/PlugIns" -maxdepth 1 -name "*.appex" | head -1)
+          dsymutil "$WIDGET/FieldnoteWidgets" -o FieldnoteWidgets.dSYM
+
+          echo "--- symbolicating the record-crash addresses from builds 7 and 8 ---"
+          echo "(identical offsets in both crash reports -- same call site, unaffected by the @Sendable change)"
+          xcrun atos -o Fieldnote.dSYM/Contents/Resources/DWARF/Fieldnote -l 0x1042e0000 \
+            0x00000001043eec5c 0x00000001043eee50
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dSYMs-${{ github.run_number }}
+          path: |
+            Fieldnote.dSYM
+            FieldnoteWidgets.dSYM
+
       - name: Sign and upload to TestFlight
         env:
           DIST_CERT_P12_BASE64: ${{ secrets.DIST_CERT_P12_BASE64 }}
