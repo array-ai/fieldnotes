@@ -20,9 +20,10 @@ struct MeetingDetailView: View {
             if let meeting {
                 content(meeting)
             } else {
-                ProgressView().task { await load() }
+                ProgressView()
             }
         }
+        .task { await loadAndPollWhileProcessing() }
         .navigationTitle(meeting?.title ?? "Meeting")
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
@@ -125,6 +126,23 @@ struct MeetingDetailView: View {
 
     private func load() async {
         meeting = try? await model.store.meetingSnapshot(meetingID)
+    }
+
+    /// Background processing (diarization, summarisation — including speaker-name
+    /// inference) runs well after `stopRecording()` returns, inside a
+    /// `BGContinuedProcessingTask` with no reference back to this view or to
+    /// `AppModel`. Nothing else re-fetches this screen's snapshot when that finishes,
+    /// so a meeting opened while still processing would otherwise show `.recording`/
+    /// `.summarising`-era data (raw "S1" labels, no summary) forever, even after the
+    /// pipeline completes. Poll gently until the state is terminal, then stop.
+    private func loadAndPollWhileProcessing() async {
+        await load()
+        while !Task.isCancelled {
+            guard let meeting, !meeting.state.isTerminal else { return }
+            try? await Task.sleep(for: .seconds(2))
+            if Task.isCancelled { return }
+            await load()
+        }
     }
 }
 
