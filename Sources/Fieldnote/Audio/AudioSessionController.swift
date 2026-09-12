@@ -54,19 +54,29 @@ public final class AudioSessionController {
         stopObserving()
         let center = NotificationCenter.default
 
+        // iOS 27 splits the old single interruption notification (.began/.ended) into
+        // two independent ones. didBecomeInactive also fires for our own deactivate()
+        // call (source == .app), which the old notification never did — only a
+        // system-caused deactivation is an interruption worth reacting to.
         observers.append(center.addObserver(
-            forName: AVAudioSession.interruptionNotification,
+            forName: AVAudioSession.didBecomeInactiveNotification,
             object: AVAudioSession.sharedInstance(),
             queue: .main
         ) { [weak self] note in
             // Notification is not Sendable, so it cannot cross into a main
-            // actor-isolated closure. Pull the primitives out here and send only
-            // those — they are plain integers.
-            let typeRaw = note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt
-            let optionsRaw = note.userInfo?[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0
-            MainActor.assumeIsolated {
-                self?.handleInterruption(typeRaw: typeRaw, optionsRaw: optionsRaw)
-            }
+            // actor-isolated closure. Pull the primitive out here and send only
+            // that — DeactivationSource is a plain enum.
+            let source = (note.userInfo?[AVAudioSession.deactivationContextKey] as? AVAudioSession.DeactivationContext)?.source
+            MainActor.assumeIsolated { self?.handleDeactivation(source: source) }
+        })
+
+        observers.append(center.addObserver(
+            forName: AVAudioSession.resumptionRecommendationNotification,
+            object: AVAudioSession.sharedInstance(),
+            queue: .main
+        ) { [weak self] note in
+            let recommendation = (note.userInfo?[AVAudioSession.resumptionContextKey] as? AVAudioSession.ResumptionContext)?.recommendation
+            MainActor.assumeIsolated { self?.handleResumptionRecommendation(recommendation) }
         })
 
         observers.append(center.addObserver(
@@ -92,19 +102,17 @@ public final class AudioSessionController {
         observers.removeAll()
     }
 
-    private func handleInterruption(typeRaw: UInt?, optionsRaw: UInt) {
-        guard let typeRaw, let type = AVAudioSession.InterruptionType(rawValue: typeRaw) else { return }
-        switch type {
-        case .began:
-            log.notice("Audio interrupted")
-            onEvent?(.interruptionBegan)
-        case .ended:
-            let shouldResume = AVAudioSession.InterruptionOptions(rawValue: optionsRaw).contains(.shouldResume)
-            log.notice("Audio interruption ended, shouldResume=\(shouldResume, privacy: .public)")
-            onEvent?(.interruptionEnded(shouldResume: shouldResume))
-        @unknown default:
-            break
-        }
+    private func handleDeactivation(source: AVAudioSession.DeactivationSource?) {
+        guard source == .system else { return }
+        log.notice("Audio interrupted")
+        onEvent?(.interruptionBegan)
+    }
+
+    private func handleResumptionRecommendation(_ recommendation: AVAudioSession.ResumptionRecommendation?) {
+        guard let recommendation else { return }
+        let shouldResume = recommendation == .shouldResume
+        log.notice("Resumption recommendation: shouldResume=\(shouldResume, privacy: .public)")
+        onEvent?(.interruptionEnded(shouldResume: shouldResume))
     }
 
     private func handleRouteChange(reasonRaw: UInt?) {
