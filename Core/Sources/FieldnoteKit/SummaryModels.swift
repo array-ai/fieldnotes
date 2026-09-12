@@ -13,6 +13,11 @@ public struct MeetingSummary: Codable, Hashable, Sendable {
     /// Chunks whose summarisation tripped a guardrail and fell back to a shorter
     /// neutral prompt, or failed outright. Surfaced in the UI; never silently dropped.
     public var degradedChunks: [DegradedChunk]
+    /// Speaker label ("S1") to a name grounded in something actually said -- a
+    /// self-introduction or another speaker addressing them by name. Applied where a
+    /// meeting has no existing name for that label already (manual renames always win;
+    /// see `MeetingStore.apply`).
+    public var speakerNames: [String: String]
 
     public init(
         overview: String = "",
@@ -20,7 +25,8 @@ public struct MeetingSummary: Codable, Hashable, Sendable {
         actionItems: [ActionItem] = [],
         openQuestions: [OpenQuestion] = [],
         mentionedSystems: [String] = [],
-        degradedChunks: [DegradedChunk] = []
+        degradedChunks: [DegradedChunk] = [],
+        speakerNames: [String: String] = [:]
     ) {
         self.overview = overview
         self.decisions = decisions
@@ -28,6 +34,7 @@ public struct MeetingSummary: Codable, Hashable, Sendable {
         self.openQuestions = openQuestions
         self.mentionedSystems = mentionedSystems
         self.degradedChunks = degradedChunks
+        self.speakerNames = speakerNames
     }
 }
 

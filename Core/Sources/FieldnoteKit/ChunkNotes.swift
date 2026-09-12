@@ -22,19 +22,27 @@ public struct ChunkNotes: Sendable, Hashable {
     public var actionItems: [NoteActionItem]
     public var openQuestions: [NoteClaim]
     public var mentionedSystems: [String]
+    /// A name claimed for a speaker, cited the same way as everything else: `text` is
+    /// the name, `sourceLines` is where it was said or where someone was addressed by
+    /// it. Grounding resolves the citation to a real segment and takes that segment's
+    /// *actual* speaker label as ground truth — never whatever label the model itself
+    /// might restate — so a hallucinated pairing has nothing to attach to.
+    public var speakerNames: [NoteClaim]
 
     public init(
         points: [String] = [],
         decisions: [NoteDecision] = [],
         actionItems: [NoteActionItem] = [],
         openQuestions: [NoteClaim] = [],
-        mentionedSystems: [String] = []
+        mentionedSystems: [String] = [],
+        speakerNames: [NoteClaim] = []
     ) {
         self.points = points
         self.decisions = decisions
         self.actionItems = actionItems
         self.openQuestions = openQuestions
         self.mentionedSystems = mentionedSystems
+        self.speakerNames = speakerNames
     }
 }
 

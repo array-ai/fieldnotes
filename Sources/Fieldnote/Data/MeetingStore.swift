@@ -68,7 +68,15 @@ public actor MeetingStore {
         meeting.speakers = []
         let labels = Set(output.segments.compactMap(\.speakerID)).sorted()
         for label in labels {
-            let speaker = Speaker(label: label, embedding: output.embeddings[label])
+            // Grounded in something a participant actually said (SummaryGrounder) --
+            // never a guess. A user's own rename always wins over this because it can
+            // only ever start unset: it is applied at the same point everything else
+            // about this speaker is (re)created from scratch.
+            let speaker = Speaker(
+                label: label,
+                displayName: output.summary.speakerNames[label],
+                embedding: output.embeddings[label]
+            )
             speaker.meeting = meeting
             modelContext.insert(speaker)
         }

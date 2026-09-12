@@ -93,7 +93,8 @@ public actor SummarizationService {
             actionItems: grounded.actionItems,
             openQuestions: grounded.openQuestions,
             mentionedSystems: grounded.mentionedSystems,
-            degradedChunks: degraded
+            degradedChunks: degraded,
+            speakerNames: grounded.speakerNames
         )
     }
 

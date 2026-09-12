@@ -103,4 +103,58 @@ struct SummaryGrounderTests {
         let outcome = SummaryGrounder(meetingDate: meetingDate).ground([notes], chunks: [chunk])
         #expect(outcome.mentionedSystems == ["UniFi", "Huntress"])
     }
+
+    private func chunkWithSpeakers(_ speakerIDs: [String?]) -> TranscriptChunk {
+        let segments = speakerIDs.enumerated().map { index, speakerID in
+            TranscriptSegment(
+                start: Double(index) * 10,
+                end: Double(index) * 10 + 10,
+                text: "line \(index + 1)",
+                speakerID: speakerID
+            )
+        }
+        return TranscriptChunk(
+            index: 0,
+            lineNumbers: Array(1...speakerIDs.count),
+            segments: segments,
+            overlapCount: 0
+        )
+    }
+
+    @Test("A stated name grounds to the real speaker of the cited line, not a restated label")
+    func speakerNameGroundsToRealSpeaker() {
+        let chunk = chunkWithSpeakers(["S1", "S1", "S2"])
+        let notes = ChunkNotes(speakerNames: [NoteClaim(text: "Priya", sourceLines: [2])])
+        let outcome = SummaryGrounder(meetingDate: meetingDate).ground([notes], chunks: [chunk])
+        #expect(outcome.speakerNames == ["S1": "Priya"])
+    }
+
+    @Test("A name whose citation resolves to no speaker is discarded, not guessed")
+    func speakerNameWithoutSpeakerIsDiscarded() {
+        let chunk = chunkWithSpeakers([nil, nil])
+        let notes = ChunkNotes(speakerNames: [NoteClaim(text: "Priya", sourceLines: [1])])
+        let outcome = SummaryGrounder(meetingDate: meetingDate).ground([notes], chunks: [chunk])
+        #expect(outcome.speakerNames.isEmpty)
+        #expect(outcome.discardedClaims == 1)
+    }
+
+    @Test("The first name claimed for a speaker wins over a later, different one")
+    func firstSpeakerNameWins() {
+        let chunk = chunkWithSpeakers(["S1", "S1"])
+        let notes = ChunkNotes(speakerNames: [
+            NoteClaim(text: "Priya", sourceLines: [1]),
+            NoteClaim(text: "Pri", sourceLines: [2])
+        ])
+        let outcome = SummaryGrounder(meetingDate: meetingDate).ground([notes], chunks: [chunk])
+        #expect(outcome.speakerNames == ["S1": "Priya"])
+    }
+
+    @Test("A hallucinated citation for a speaker name is discarded like any other claim")
+    func speakerNameHallucinatedCitationIsDiscarded() {
+        let chunk = chunkWithSpeakers(["S1"])
+        let notes = ChunkNotes(speakerNames: [NoteClaim(text: "Priya", sourceLines: [99])])
+        let outcome = SummaryGrounder(meetingDate: meetingDate).ground([notes], chunks: [chunk])
+        #expect(outcome.speakerNames.isEmpty)
+        #expect(outcome.discardedClaims == 1)
+    }
 }

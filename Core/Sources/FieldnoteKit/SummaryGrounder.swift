@@ -23,6 +23,11 @@ public struct SummaryGrounder: Sendable {
         public var actionItems: [ActionItem] = []
         public var openQuestions: [OpenQuestion] = []
         public var mentionedSystems: [String] = []
+        /// Speaker label ("S1") to a name grounded in the real speaker of the cited
+        /// line, not whatever label the model itself claimed. First name claimed for a
+        /// given label wins -- a self-introduction early on outranks a mis-hearing
+        /// later.
+        public var speakerNames: [String: String] = [:]
         /// Claims thrown away because their citations did not resolve. Counted so the
         /// eval corpus (spec 11.4) has something to measure, and so a prompt change
         /// that wrecks grounding is visible rather than quiet.
@@ -89,6 +94,20 @@ public struct SummaryGrounder: Sendable {
                 let name = system.trimmed()
                 guard !name.isEmpty, seenSystems.insert(name.lowercased()).inserted else { continue }
                 outcome.mentionedSystems.append(name)
+            }
+
+            for claim in draft.speakerNames {
+                let name = claim.text.trimmed()
+                guard !name.isEmpty else { continue }
+                guard let citations = resolve(claim.sourceLines, in: chunk),
+                      let segment = chunk.segments.first(where: { $0.id == citations.primary }),
+                      let label = segment.speakerID else {
+                    outcome.discardedClaims += 1
+                    continue
+                }
+                if outcome.speakerNames[label] == nil {
+                    outcome.speakerNames[label] = name
+                }
             }
         }
 

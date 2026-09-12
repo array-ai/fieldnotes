@@ -30,6 +30,15 @@ struct DraftChunkNotes {
         mentioned; an empty list is a normal, correct answer.
         """)
     var mentionedSystems: [String]
+
+    @Guide(description: """
+        A speaker's real name, only when a participant actually said it -- someone \
+        introducing themselves ("My name is X", "This is X"), or another speaker \
+        addressing them by name ("Thanks, X"). Cite the line where the name was said \
+        or where they were addressed, not where they merely spoke. Do not guess a name \
+        from context, tone, or how someone talks. Empty if no name was ever stated.
+        """)
+    var speakerNames: [DraftClaim]
 }
 
 @Generable
@@ -90,7 +99,8 @@ extension DraftChunkNotes {
                 NoteActionItem(task: $0.task, owner: $0.owner, dueDate: $0.dueDate, sourceLines: $0.sourceLines)
             },
             openQuestions: openQuestions.map { NoteClaim(text: $0.text, sourceLines: $0.sourceLines) },
-            mentionedSystems: mentionedSystems
+            mentionedSystems: mentionedSystems,
+            speakerNames: speakerNames.map { NoteClaim(text: $0.text, sourceLines: $0.sourceLines) }
         )
     }
 }
