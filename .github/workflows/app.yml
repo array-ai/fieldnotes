@@ -79,6 +79,26 @@ jobs:
           fi
           exit $status
 
+      # xtool.yml's resources: list copies this directory into the bundle root at
+      # pack time. Without it, DiarizationModelProvider.bundledModels() throws at
+      # runtime (see Resources/README.md) -- the pack step below succeeds either
+      # way, since copying an empty directory isn't an error, so this has to be
+      # populated before packing rather than asserted after.
+      - name: Cache diarization models
+        id: diarization-cache
+        uses: actions/cache@v4
+        with:
+          path: Resources/DiarizationModels
+          key: diarization-models-1ed7a662fdc7109e36d822db793ee6eebdaf8594
+
+      - name: Vendor diarization models
+        if: steps.diarization-cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          TMP=$(mktemp -d)
+          ./Scripts/fetch-diarization-models.sh "$TMP"
+          ./Scripts/vendor-diarization-models.sh "$TMP"
+
       # Packs the built products into a .app using xtool.yml: catches mistakes in the
       # Info.plists, the extension declaration and the resource list, which a plain
       # `swift build` never looks at. `--sign` is omitted on purpose; signing needs an
@@ -101,6 +121,9 @@ jobs:
           ls "$APP"
           [ -d "$APP/PlugIns" ] || { echo "no PlugIns: the widget extension was not packed"; exit 1; }
           ls "$APP/PlugIns"
+          [ -d "$APP/DiarizationModels/pyannote_segmentation.mlmodelc" ] \
+            && [ -d "$APP/DiarizationModels/wespeaker_v2.mlmodelc" ] \
+            || { echo "diarization models missing from the packed app"; exit 1; }
 
       # The other half of "works with both toolchains": the same package, built the
       # way Xcode builds it. Catches anything that depends on xtool's own build path.

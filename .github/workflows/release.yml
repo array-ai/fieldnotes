@@ -35,6 +35,24 @@ jobs:
           /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${{ github.run_number }}" Config/Fieldnote-Info.plist
           /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${{ github.run_number }}" Config/FieldnoteWidgets-Info.plist
 
+      # Without this, DiarizationModelProvider.bundledModels() throws at runtime --
+      # see app.yml for the full explanation. Every build shipped before this step
+      # existed was missing these models.
+      - name: Cache diarization models
+        id: diarization-cache
+        uses: actions/cache@v4
+        with:
+          path: Resources/DiarizationModels
+          key: diarization-models-1ed7a662fdc7109e36d822db793ee6eebdaf8594
+
+      - name: Vendor diarization models
+        if: steps.diarization-cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          TMP=$(mktemp -d)
+          ./Scripts/fetch-diarization-models.sh "$TMP"
+          ./Scripts/vendor-diarization-models.sh "$TMP"
+
       # Same shim as app.yml: xtool's packer reads .build/<triple>/<config>, which is
       # only where SwiftPM's native build system (not swiftbuild, Swift 6.4's default)
       # puts things.
@@ -52,6 +70,9 @@ jobs:
           APP=$(find xtool -maxdepth 2 -name "*.app" | head -1)
           [ -n "$APP" ] || { echo "xtool produced no .app"; exit 1; }
           [ -d "$APP/PlugIns" ] || { echo "no PlugIns: the widget extension was not packed"; exit 1; }
+          [ -d "$APP/DiarizationModels/pyannote_segmentation.mlmodelc" ] \
+            && [ -d "$APP/DiarizationModels/wespeaker_v2.mlmodelc" ] \
+            || { echo "diarization models missing from the packed app"; exit 1; }
           echo "APP_PATH=$APP" >> "$GITHUB_ENV"
 
       # xtool's packer never produces dSYMs, so every crash report from a build it
