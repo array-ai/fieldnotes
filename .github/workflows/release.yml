@@ -1,0 +1,66 @@
+name: Release to TestFlight
+
+# Manual only: uploading a build to TestFlight is not something a push should
+# trigger by accident. Needs the same xcode-27 preview image as app.yml, because
+# it's building the same iOS 27 SDK-only target -- see app.yml for why.
+on:
+  workflow_dispatch:
+    inputs:
+      validate_only:
+        description: "Validate with App Store Connect but don't publish (first run should be true)"
+        type: boolean
+        default: true
+
+jobs:
+  release:
+    name: Build, sign, and upload
+    runs-on: xcode-27
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Cache SwiftPM downloads
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Caches/org.swift.swiftpm
+            ~/.swiftpm
+          key: spm-xcode27-${{ hashFiles('Package.swift', 'Core/Package.swift', 'Package.resolved') }}
+          restore-keys: spm-xcode27-
+
+      # TestFlight rejects a re-upload with a build number it has already seen, so
+      # the run number (unique and monotonic per workflow) goes in before packing.
+      - name: Bump CFBundleVersion
+        run: |
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${{ github.run_number }}" Config/Fieldnote-Info.plist
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${{ github.run_number }}" Config/FieldnoteWidgets-Info.plist
+
+      # Same shim as app.yml: xtool's packer reads .build/<triple>/<config>, which is
+      # only where SwiftPM's native build system (not swiftbuild, Swift 6.4's default)
+      # puts things.
+      - name: Pack unsigned .app with xtool
+        run: |
+          set -euo pipefail
+          brew install xtool-org/tap/xtool
+          ./Scripts/xtool.sh dev build
+
+          APP=$(find xtool -maxdepth 2 -name "*.app" | head -1)
+          [ -n "$APP" ] || { echo "xtool produced no .app"; exit 1; }
+          [ -d "$APP/PlugIns" ] || { echo "no PlugIns: the widget extension was not packed"; exit 1; }
+          echo "APP_PATH=$APP" >> "$GITHUB_ENV"
+
+      - name: Sign and upload to TestFlight
+        env:
+          DIST_CERT_P12_BASE64: ${{ secrets.DIST_CERT_P12_BASE64 }}
+          DIST_CERT_PASSWORD: ${{ secrets.DIST_CERT_PASSWORD }}
+          PROVISION_APP_BASE64: ${{ secrets.PROVISION_APP_BASE64 }}
+          PROVISION_WIDGET_BASE64: ${{ secrets.PROVISION_WIDGET_BASE64 }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+        run: |
+          if [ "${{ inputs.validate_only }}" = "true" ]; then
+            ./Scripts/sign-and-upload.sh "$APP_PATH" --validate-only
+          else
+            ./Scripts/sign-and-upload.sh "$APP_PATH"
+          fi
