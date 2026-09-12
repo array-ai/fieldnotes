@@ -111,43 +111,13 @@ done
 # --- App icon -----------------------------------------------------------
 # App Store Connect requires CFBundleIconName plus a compiled asset catalog for
 # any iOS 11+ SDK build; xtool's iconPath support only emits the legacy
-# CFBundleIconFile (a loose PNG, no catalog), which no longer satisfies ASC's
-# validator. xtool.yml has no iconPath configured at all yet -- there's no real
-# icon in this repo -- so this generates a flat placeholder purely to unblock the
-# pipeline. Swap for real artwork by adding a proper Assets.xcassets/AppIcon
-# source and pointing this at it instead.
+# CFBundleIconFile (a loose PNG, no catalog), which doesn't satisfy ASC's
+# validator. xtool.yml has no iconPath support wired up at all, so this compiles
+# Resources/AppIcon.xcassets (checked into the repo) straight with actool
+# instead, independent of xtool's own packing.
 #
 # Uses the modern single-size icon format (Xcode 14+/actool auto-scales from one
 # 1024x1024 source) rather than enumerating every legacy @2x/@3x combination.
-ICON_DIR="$WORKDIR/Assets.xcassets/AppIcon.appiconset"
-mkdir -p "$ICON_DIR"
-
-python3 - "$ICON_DIR/icon-1024.png" <<'PYEOF'
-import struct, sys, zlib
-path = sys.argv[1]
-size = 1024
-color = (28, 28, 30)  # placeholder only -- flat dark square, no alpha (ASC rejects alpha on the 1024 marketing icon)
-row = bytes([0]) + bytes(color) * size  # filter-type byte + RGB pixels
-raw = row * size
-def chunk(tag, data):
-    c = tag + data
-    return struct.pack(">I", len(data)) + c + struct.pack(">I", zlib.crc32(c) & 0xffffffff)
-with open(path, "wb") as f:
-    f.write(b"\x89PNG\r\n\x1a\n")
-    f.write(chunk(b"IHDR", struct.pack(">IIBBBBB", size, size, 8, 2, 0, 0, 0)))
-    f.write(chunk(b"IDAT", zlib.compress(raw, 9)))
-    f.write(chunk(b"IEND", b""))
-PYEOF
-
-cat > "$ICON_DIR/Contents.json" <<'JSON'
-{
-  "images" : [
-    { "filename" : "icon-1024.png", "idiom" : "universal", "platform" : "ios", "size" : "1024x1024" }
-  ],
-  "info" : { "author" : "xcode", "version" : 1 }
-}
-JSON
-
 mkdir -p "$WORKDIR/compiled-assets"
 xcrun actool \
   --output-format human-readable-text \
@@ -158,7 +128,7 @@ xcrun actool \
   --app-icon AppIcon \
   --output-partial-info-plist "$WORKDIR/icon-partial.plist" \
   --compile "$WORKDIR/compiled-assets" \
-  "$WORKDIR/Assets.xcassets"
+  Resources/AppIcon.xcassets
 
 cp "$WORKDIR/compiled-assets/Assets.car" "$APP/Assets.car"
 /usr/libexec/PlistBuddy -c "Merge $WORKDIR/icon-partial.plist :" "$APP/Info.plist"

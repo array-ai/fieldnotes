@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1024" y2="1024" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#232838"/>
+      <stop offset="1" stop-color="#12141d"/>
+    </linearGradient>
+    <linearGradient id="wave" x1="0" y1="0" x2="1024" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffb35c"/>
+      <stop offset="1" stop-color="#ff8a3d"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="0" y="0" width="1024" height="1024" fill="url(#bg)"/>
+
+  <!-- notebook page, folded top-right corner -->
+  <path d="M 260 172
+           L 692 172
+           L 764 244
+           L 764 852
+           Q 764 876 740 876
+           L 284 876
+           Q 260 876 260 852
+           Z"
+        fill="#f6f1e6"/>
+  <path d="M 692 172 L 692 220 Q 692 244 716 244 L 764 244 Z" fill="#ddd4bf"/>
+
+  <!-- note lines -->
+  <rect x="332" y="336" width="264" height="26" rx="13" fill="#c7bda3"/>
+  <rect x="332" y="392" width="200" height="26" rx="13" fill="#c7bda3"/>
+
+  <!-- waveform -->
+  <g fill="url(#wave)">
+    <rect x="352" y="588" width="30" height="72"  rx="15"/>
+    <rect x="398" y="548" width="30" height="152" rx="15"/>
+    <rect x="444" y="500" width="30" height="248" rx="15"/>
+    <rect x="490" y="466" width="30" height="316" rx="15"/>
+    <rect x="536" y="500" width="30" height="248" rx="15"/>
+    <rect x="582" y="548" width="30" height="152" rx="15"/>
+    <rect x="628" y="588" width="30" height="72"  rx="15"/>
+  </g>
+</svg>
