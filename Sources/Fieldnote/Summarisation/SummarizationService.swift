@@ -156,7 +156,14 @@ public actor SummarizationService {
         } catch {
             log.error("Chunk \(chunk.index, privacy: .public) failed on the neutral prompt as well")
             return ChunkOutcome(
-                draft: DraftChunkNotes(points: [], decisions: [], actionItems: [], openQuestions: [], mentionedSystems: []),
+                draft: DraftChunkNotes(
+                    points: [],
+                    decisions: [],
+                    actionItems: [],
+                    openQuestions: [],
+                    mentionedSystems: [],
+                    speakerNames: []
+                ),
                 degraded: DegradedChunk(
                     chunkIndex: chunk.index,
                     reason: reason,
