@@ -14,6 +14,13 @@
 	<string>0.1.0</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
+	<!-- iPhone only: xtool's packer defaults UIDeviceFamily to [1, 2] (iPhone + iPad)
+	     when this key is absent, which pulls in iPad-specific App Store icon
+	     requirements Fieldnote doesn't need. -->
+	<key>UIDeviceFamily</key>
+	<array>
+		<integer>1</integer>
+	</array>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Fieldnote records meetings on this device. Audio, transcripts and summaries never leave the device unless you share them yourself.</string>
 	<key>NSRemindersFullAccessUsageDescription</key>
