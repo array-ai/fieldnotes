@@ -87,6 +87,16 @@ public actor SummarizationService {
         )
         progress(1.0)
 
+        // Deterministic self-introduction detection ("My name is X") runs regardless
+        // of whether the LLM's own speakerNames extraction caught it -- there is no
+        // way to verify on-device model compliance from outside a real device, and
+        // this covers the highest-confidence case without depending on it. Detected
+        // introductions take priority over the model's own claims.
+        var speakerNames = SpeakerNameHeuristics.selfIntroductions(in: finalized)
+        for (speakerID, name) in grounded.speakerNames where speakerNames[speakerID] == nil {
+            speakerNames[speakerID] = name
+        }
+
         return MeetingSummary(
             overview: overview,
             decisions: grounded.decisions,
@@ -94,7 +104,7 @@ public actor SummarizationService {
             openQuestions: grounded.openQuestions,
             mentionedSystems: grounded.mentionedSystems,
             degradedChunks: degraded,
-            speakerNames: grounded.speakerNames
+            speakerNames: speakerNames
         )
     }
 
