@@ -22,7 +22,13 @@ struct DraftChunkNotes {
     @Guide(description: "Questions raised in this excerpt that nobody answered.")
     var openQuestions: [DraftClaim]
 
-    @Guide(description: "Product, vendor, system and site names mentioned. Copy them exactly as transcribed, even if they look misspelt.")
+    @Guide(description: """
+        Product, vendor, system and site names a participant actually said. Copy them \
+        exactly as transcribed, even if they look misspelt. Never include a speaker \
+        label (like 'S1' or 'Unknown' — those are formatting, not content), a person's \
+        name, or a word just because it looks distinctive. Empty if none were \
+        mentioned; an empty list is a normal, correct answer.
+        """)
     var mentionedSystems: [String]
 }
 
@@ -62,7 +68,14 @@ struct DraftClaim {
 /// The roll-up pass. Runs over the chunk notes, not over the raw transcript.
 @Generable
 struct DraftRollup {
-    @Guide(description: "A 3-6 sentence overview of the whole meeting. No preamble, no 'in this meeting'.")
+    @Guide(description: """
+        An overview of the whole meeting, using only the notes given -- never anything \
+        from your own instructions (recording conditions, meeting type framing, etc.), \
+        since those describe the setup, not what happened. Match the length to how much \
+        the notes actually contain: a one- or two-sentence answer is correct and \
+        preferred over padding when the notes are thin. No preamble, no 'in this \
+        meeting'.
+        """)
     var overview: String
 }
 

@@ -9,9 +9,13 @@ public enum SpeakerAlignment {
 
     /// Each segment takes the speaker ID with the greatest overlap against it.
     ///
-    /// - A segment with no overlap at all keeps `speakerID == nil`. It is shown as
-    ///   "Unknown" and is one long-press away from being fixed by hand. Guessing here
-    ///   would be worse: a confident wrong label does not invite correction.
+    /// - A segment with no overlap at all keeps `speakerID == nil`, *unless* diarization
+    ///   only ever detected one speaker for the whole recording — a gap in coverage (a
+    ///   quiet or very short utterance the model missed) then has exactly one honest
+    ///   answer, not a guess among several. With two or more speakers detected, a
+    ///   segment with no overlap is shown as "Unknown" and is one long-press away from
+    ///   being fixed by hand: guessing among genuine candidates would be worse, because
+    ///   a confident wrong label does not invite correction.
     /// - A segment the user has already relabelled is left alone. Re-running
     ///   diarization must not silently undo manual work.
     /// - Ties break on the lower speaker ID so re-running on the same input gives the
@@ -22,14 +26,17 @@ public enum SpeakerAlignment {
     ) -> [TranscriptSegment] {
         guard !spans.isEmpty else { return segments }
         let sortedSpans = spans.sorted { $0.start < $1.start }
+        let distinctSpeakers = Set(spans.map(\.speakerID))
+        let soleSpeaker = distinctSpeakers.count == 1 ? distinctSpeakers.first : nil
 
         return segments.map { segment in
             guard !segment.editedByUser else { return segment }
             var updated = segment
-            let assignment = bestSpeaker(for: segment, in: sortedSpans)
-            updated.speakerID = assignment?.speakerID
-            if let assignment {
+            if let assignment = bestSpeaker(for: segment, in: sortedSpans) {
+                updated.speakerID = assignment.speakerID
                 updated.confidence = min(segment.confidence, assignment.share)
+            } else {
+                updated.speakerID = soleSpeaker
             }
             return updated
         }

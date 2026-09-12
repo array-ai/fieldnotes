@@ -46,7 +46,10 @@ public enum PromptTemplates {
         look misspelt. They were transcribed from speech and the spelling is the \
         user's to fix.
         - Do not describe people. No traits, no tone, no judgements about anyone.
-        - If the excerpt contains nothing of substance, return empty lists.
+        - Speaker labels (like "S1" or "Unknown") are line formatting, not something \
+        anyone said. Never report one as a name, a system, or a point of its own.
+        - If the excerpt contains nothing of substance, return empty lists and say so \
+        plainly rather than padding with detail the transcript does not contain.
         """
 
     public static func builtIn(for type: MeetingType) -> SummaryTemplate {
@@ -128,7 +131,9 @@ public enum PromptTemplates {
     ) -> String {
         """
         Excerpt \(chunkIndex + 1) of \(chunkCount) from a meeting transcript. Each \
-        line is numbered and prefixed with the speaker label. Cite these line numbers.
+        line is numbered and prefixed with the speaker label, as "N | Speaker: text". \
+        Cite these line numbers. The speaker label before the colon is formatting, not \
+        something anyone said — never report it as a name, system, or point of its own.
 
         \(template.focus)
 
@@ -158,9 +163,12 @@ public enum PromptTemplates {
         Below are notes taken from consecutive excerpts of one \
         \(type.displayName.lowercased()) titled "\(meetingTitle)".
 
-        Write a 3 to 6 sentence overview of the meeting as a whole. State what was \
-        discussed and what came of it. Do not open with "In this meeting" or similar. \
-        Do not add anything the notes do not contain.
+        Write an overview of the meeting as a whole, using only what is in the notes \
+        below. State what was discussed and what came of it. If the notes are thin, a \
+        short one- or two-sentence overview is correct — do not pad it out, and do not \
+        describe recording conditions or the meeting type instead of content. Do not \
+        open with "In this meeting" or similar. Do not add anything the notes do not \
+        contain.
 
         Notes:
         \(points.map { "- \($0)" }.joined(separator: "\n"))

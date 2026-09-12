@@ -20,12 +20,27 @@ struct SpeakerAlignmentTests {
         #expect(result[0].speakerID == "S2")
     }
 
-    @Test("A segment with no overlapping span stays unknown rather than being guessed")
-    func noOverlapStaysNil() {
+    @Test("A segment with no overlapping span stays unknown when more than one speaker is genuinely possible")
+    func noOverlapStaysNilWhenAmbiguous() {
+        let segments = [segment(100, 105)]
+        let spans = [
+            DiarizedSpan(start: 0, end: 10, speakerID: "S1"),
+            DiarizedSpan(start: 20, end: 30, speakerID: "S2")
+        ]
+        let result = SpeakerAlignment.apply(spans: spans, to: segments)
+        #expect(result[0].speakerID == nil)
+    }
+
+    @Test("A segment with no overlapping span falls back to the sole speaker when only one was ever detected")
+    func noOverlapFallsBackToSoleSpeaker() {
+        // Matches a real report: a solo test recording where a short, quiet utterance
+        // after a gap (starting with "Um,") wasn't covered by any diarized span, and
+        // came back "Unknown" even though the whole rest of the recording was one
+        // person. There is no second candidate to guess wrong about.
         let segments = [segment(100, 105)]
         let spans = [DiarizedSpan(start: 0, end: 10, speakerID: "S1")]
         let result = SpeakerAlignment.apply(spans: spans, to: segments)
-        #expect(result[0].speakerID == nil)
+        #expect(result[0].speakerID == "S1")
     }
 
     @Test("Ties resolve the same way every run")
