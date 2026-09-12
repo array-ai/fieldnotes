@@ -42,7 +42,12 @@ jobs:
         run: |
           set -euo pipefail
           brew install xtool-org/tap/xtool
-          ./Scripts/xtool.sh dev build
+          # xtool defaults to --configuration debug (DevCommand.swift), which was
+          # silently shipping debug binaries to TestFlight: dynamic actor-isolation
+          # assertions (dispatch_assert_queue, backing swift_task_isCurrentExecutor's
+          # checkIsolated) are debug-only diagnostics that a release build strips.
+          # That's what crashed on record, not anything about the tap closure itself.
+          ./Scripts/xtool.sh dev build --configuration release
 
           APP=$(find xtool -maxdepth 2 -name "*.app" | head -1)
           [ -n "$APP" ] || { echo "xtool produced no .app"; exit 1; }
