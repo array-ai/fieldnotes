@@ -165,9 +165,13 @@ public final class BackgroundProcessingCoordinator: @unchecked Sendable {
         repeat {
             await drain(reporting: reporter)
         } while consumeRedriveRequest() && !Task.isCancelled
+        clearRunningTask()
+    }
+
+    private func clearRunningTask() {
         stateLock.lock()
+        defer { stateLock.unlock() }
         runningTask = nil
-        stateLock.unlock()
     }
 
     private func consumeRedriveRequest() -> Bool {
