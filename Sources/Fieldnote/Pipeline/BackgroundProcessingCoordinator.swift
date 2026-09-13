@@ -26,7 +26,16 @@ public final class BackgroundProcessingCoordinator: @unchecked Sendable {
     private let log = Logger(subsystem: "com.publicarray.fieldnotes", category: "background")
     private let provider: any ProcessingJobProvider
     private let pipelineFactory: @Sendable (Locale) -> ProcessingPipeline
+
+    // A submit can land while a drain from an earlier submit is still running --
+    // `resumeUnfinishedWork` at launch and `submitAfterRecording` on stop can fire close
+    // together. Both would otherwise start their own `ProcessingPipeline` run over the
+    // same pending jobs, racing to write the same meeting's checkpoint/segments files.
+    // Only one drain runs at a time; a submit that arrives mid-drain just asks the
+    // running one to loop again once it's done, rather than starting a second one.
+    private let stateLock = NSLock()
     private var runningTask: Task<Void, Never>?
+    private var redriveRequested = false
 
     public init(
         provider: any ProcessingJobProvider,
@@ -107,11 +116,21 @@ public final class BackgroundProcessingCoordinator: @unchecked Sendable {
 
     private func handle(_ task: BGContinuedProcessingTask) {
         let reporter = ProgressReporter(progress: task.progress, task: task)
+
+        stateLock.lock()
+        guard runningTask == nil else {
+            redriveRequested = true
+            stateLock.unlock()
+            log.notice("Continued-processing task submitted while a drain is already running; the running drain will pick up its work")
+            task.setTaskCompleted(success: true)
+            return
+        }
         let work = Task { [weak self] in
-            await self?.drain(reporting: reporter)
+            await self?.drainUntilIdle(reporting: reporter)
             reporter.complete(success: true)
         }
         runningTask = work
+        stateLock.unlock()
 
         task.expirationHandler = { [weak self] in
             // Expiry is normal on long runs. Stop promptly; the last completed stage is
@@ -126,9 +145,36 @@ public final class BackgroundProcessingCoordinator: @unchecked Sendable {
             progress: Progress(totalUnitCount: ProcessingStage.totalWeight),
             task: nil
         )
-        runningTask = Task { [weak self] in
-            await self?.drain(reporting: reporter)
+
+        stateLock.lock()
+        guard runningTask == nil else {
+            redriveRequested = true
+            stateLock.unlock()
+            log.notice("In-process drain requested while one is already running; the running drain will pick up its work")
+            return
         }
+        runningTask = Task { [weak self] in
+            await self?.drainUntilIdle(reporting: reporter)
+        }
+        stateLock.unlock()
+    }
+
+    /// Drains pending jobs, then drains again if a submit arrived while draining,
+    /// repeating until nothing new showed up.
+    private func drainUntilIdle(reporting reporter: ProgressReporter) async {
+        repeat {
+            await drain(reporting: reporter)
+        } while consumeRedriveRequest() && !Task.isCancelled
+        stateLock.lock()
+        runningTask = nil
+        stateLock.unlock()
+    }
+
+    private func consumeRedriveRequest() -> Bool {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        defer { redriveRequested = false }
+        return redriveRequested
     }
 
     private func drain(reporting reporter: ProgressReporter) async {

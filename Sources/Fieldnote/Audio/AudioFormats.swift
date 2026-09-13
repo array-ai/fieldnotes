@@ -26,16 +26,4 @@ public enum AudioFormats {
         ]
     }
 
-    /// Builds a converter for the diarization tap.
-    ///
-    /// `primeMethod = .none` is not optional. With priming on, the converter inserts
-    /// leading frames, every subsequent timestamp drifts, and diarization alignment
-    /// degrades quietly — the transcript still reads fine, the speaker labels are just
-    /// wrong by a growing margin (spec 4.3).
-    public static func makeDiarizationConverter(from input: AVAudioFormat) -> AVAudioConverter? {
-        guard let converter = AVAudioConverter(from: input, to: diarization) else { return nil }
-        converter.primeMethod = .none
-        converter.sampleRateConverterQuality = AVAudioQuality.high.rawValue
-        return converter
-    }
 }

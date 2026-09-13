@@ -28,7 +28,8 @@ echo "--- checking altool is present before the expensive part runs"
 xcrun altool --version
 
 WORKDIR=$(mktemp -d)
-trap 'security delete-keychain "$WORKDIR/signing.keychain-db" 2>/dev/null || true; rm -rf "$WORKDIR"' EXIT
+ASC_KEY_PATH="$HOME/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8"
+trap 'security delete-keychain "$WORKDIR/signing.keychain-db" 2>/dev/null || true; rm -f "$ASC_KEY_PATH"; rm -rf "$WORKDIR"' EXIT
 
 # --- Temporary keychain for the distribution identity ---------------------
 KEYCHAIN="$WORKDIR/signing.keychain-db"
@@ -43,7 +44,11 @@ security import "$WORKDIR/dist.p12" -k "$KEYCHAIN" -P "$DIST_CERT_PASSWORD" \
 security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" >/dev/null
 
 # Old keychains stay in the search list on a fresh runner, but be explicit anyway.
-security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+existing_keychains=()
+while read -r keychain; do
+  existing_keychains+=("$keychain")
+done < <(security list-keychains -d user | tr -d '"')
+security list-keychains -d user -s "$KEYCHAIN" "${existing_keychains[@]}"
 
 IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN" | grep -o '"Apple Distribution:[^"]*"' | head -1 | tr -d '"')
 [ -n "$IDENTITY" ] || { echo "no Apple Distribution identity found in the imported .p12" >&2; exit 1; }
@@ -161,8 +166,8 @@ IPA_PATH="$WORKDIR/Fieldnote.ipa"
 echo "--- packaged $IPA_PATH ($(du -h "$IPA_PATH" | cut -f1))"
 
 # --- Upload (or validate) with TestFlight -----------------------------------
-mkdir -p ~/.appstoreconnect/private_keys
-echo "$ASC_KEY_P8_BASE64" | openssl base64 -d -A -out ~/.appstoreconnect/private_keys/AuthKey_"$ASC_KEY_ID".p8
+mkdir -p "$(dirname "$ASC_KEY_PATH")"
+echo "$ASC_KEY_P8_BASE64" | openssl base64 -d -A -out "$ASC_KEY_PATH"
 
 ALTOOL_ACTION="--upload-app"
 if [ "$VALIDATE_ONLY" = "--validate-only" ]; then

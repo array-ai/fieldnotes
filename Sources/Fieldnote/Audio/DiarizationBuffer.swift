@@ -13,8 +13,7 @@ public actor DiarizationBuffer {
 
     private let url: URL
     private var handle: FileHandle?
-    private var converter: AVAudioConverter?
-    private var sourceFormat: AVAudioFormat?
+    private let converter = FormatConverter(targetFormat: AudioFormats.diarization)
     private(set) public var frameCount: Int = 0
 
     public init(meetingID: UUID) throws {
@@ -40,7 +39,7 @@ public actor DiarizationBuffer {
         guard let buffer = audio.makeBuffer() else {
             throw DiarizationBufferError.unsupportedFormat
         }
-        let converted = try convert(buffer)
+        let converted = try converter.convert(buffer)
         guard let channel = converted.floatChannelData?[0] else { return }
         let frames = Int(converted.frameLength)
         guard frames > 0 else { return }
@@ -73,44 +72,8 @@ public actor DiarizationBuffer {
         try? FileManager.default.removeItem(at: url)
         frameCount = 0
     }
-
-    // MARK: - Conversion
-
-    private func convert(_ buffer: AVAudioPCMBuffer) throws -> AVAudioPCMBuffer {
-        if buffer.format == AudioFormats.diarization { return buffer }
-
-        if converter == nil || sourceFormat != buffer.format {
-            guard let made = AudioFormats.makeDiarizationConverter(from: buffer.format) else {
-                throw DiarizationBufferError.cannotConvert(buffer.format)
-            }
-            converter = made
-            sourceFormat = buffer.format
-        }
-        guard let converter else { throw DiarizationBufferError.cannotConvert(buffer.format) }
-
-        let ratio = AudioFormats.diarization.sampleRate / buffer.format.sampleRate
-        let capacity = AVAudioFrameCount(Double(buffer.frameLength) * ratio + 64)
-        guard let output = AVAudioPCMBuffer(pcmFormat: AudioFormats.diarization, frameCapacity: capacity) else {
-            throw DiarizationBufferError.cannotConvert(buffer.format)
-        }
-
-        var consumed = false
-        var conversionError: NSError?
-        converter.convert(to: output, error: &conversionError) { _, status in
-            if consumed {
-                status.pointee = .noDataNow
-                return nil
-            }
-            consumed = true
-            status.pointee = .haveData
-            return buffer
-        }
-        if let conversionError { throw conversionError }
-        return output
-    }
 }
 
 public enum DiarizationBufferError: Error {
-    case cannotConvert(AVAudioFormat)
     case unsupportedFormat
 }

@@ -25,6 +25,11 @@ public actor ChunkedAudioWriter {
     private let directory: URL
     private let chunkDuration: TimeInterval
     private let settings: [String: Any]
+    /// `AVAudioFile.write(from:)` requires the buffer to exactly match the file's
+    /// processing format -- no implicit conversion. The mic tap hands out whatever
+    /// format `AVAudioSession` negotiated (commonly 48 kHz), almost never this. See
+    /// `FormatConverter`.
+    private let converter: FormatConverter
 
     private var file: AVAudioFile?
     private var currentIndex = 0
@@ -40,6 +45,15 @@ public actor ChunkedAudioWriter {
         self.directory = FieldnoteStorage.audioChunkDirectory(for: meetingID)
         self.chunkDuration = chunkDuration
         self.settings = settings
+        let sampleRate = settings[AVSampleRateKey] as? Double ?? 44_100
+        let channels = AVAudioChannelCount(settings[AVNumberOfChannelsKey] as? Int ?? 1)
+        guard let clientFormat = AVAudioFormat(
+            commonFormat: .pcmFormatFloat32,
+            sampleRate: sampleRate,
+            channels: channels,
+            interleaved: false
+        ) else { throw WriterError.unsupportedFormat }
+        self.converter = FormatConverter(targetFormat: clientFormat)
         try FieldnoteStorage.ensureDirectory(directory)
         self.chunks = Self.existingChunks(in: directory)
         self.currentIndex = (chunks.last?.index ?? -1) + 1
@@ -50,8 +64,9 @@ public actor ChunkedAudioWriter {
 
     public func write(_ audio: CapturedAudio) throws {
         guard let buffer = audio.makeBuffer() else { throw WriterError.unsupportedFormat }
-        let file = try fileForWriting(format: buffer.format)
-        try file.write(from: buffer)
+        let converted = try converter.convert(buffer)
+        let file = try fileForWriting()
+        try file.write(from: converted)
         currentDuration += audio.duration
         if currentDuration >= chunkDuration {
             try rollChunk()
@@ -70,10 +85,15 @@ public actor ChunkedAudioWriter {
         return chunks
     }
 
-    private func fileForWriting(format: AVAudioFormat) throws -> AVAudioFile {
+    private func fileForWriting() throws -> AVAudioFile {
         if let file { return file }
         let url = directory.appendingPathComponent(String(format: "chunk-%04d.m4a", currentIndex))
-        let created = try AVAudioFile(forWriting: url, settings: settings)
+        let created = try AVAudioFile(
+            forWriting: url,
+            settings: settings,
+            commonFormat: converter.targetFormat.commonFormat,
+            interleaved: converter.targetFormat.isInterleaved
+        )
         try? FieldnoteStorage.protect(url)
         file = created
         currentDuration = 0
