@@ -24,7 +24,9 @@ extension MeetingSnapshot {
                 meeting.speakers.map { ($0.label, $0.name) },
                 uniquingKeysWith: { first, _ in first }
             ),
-            summary: meeting.summary?.summary
+            summary: meeting.summary?.summary,
+            latitude: meeting.latitude,
+            longitude: meeting.longitude
         )
     }
 }

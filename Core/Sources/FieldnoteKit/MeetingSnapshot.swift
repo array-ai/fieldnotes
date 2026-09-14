@@ -13,6 +13,10 @@ public struct MeetingSnapshot: Sendable, Identifiable, Hashable {
     public var segments: [TranscriptSegment]
     public var speakerNames: [String: String]
     public var summary: MeetingSummary?
+    /// Where the recording started, if the user opted in. Raw coordinates only — no
+    /// reverse geocoding, which would be an outbound request (constraint 1).
+    public var latitude: Double?
+    public var longitude: Double?
 
     public init(
         id: UUID = UUID(),
@@ -25,7 +29,9 @@ public struct MeetingSnapshot: Sendable, Identifiable, Hashable {
         folderName: String? = nil,
         segments: [TranscriptSegment] = [],
         speakerNames: [String: String] = [:],
-        summary: MeetingSummary? = nil
+        summary: MeetingSummary? = nil,
+        latitude: Double? = nil,
+        longitude: Double? = nil
     ) {
         self.id = id
         self.title = title
@@ -38,5 +44,7 @@ public struct MeetingSnapshot: Sendable, Identifiable, Hashable {
         self.segments = segments
         self.speakerNames = speakerNames
         self.summary = summary
+        self.latitude = latitude
+        self.longitude = longitude
     }
 }

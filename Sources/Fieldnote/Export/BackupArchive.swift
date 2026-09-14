@@ -37,6 +37,8 @@ public enum BackupArchive {
         /// v2 speaker registry (spec 11.3) from historical meetings.
         public var speakerEmbeddings: [String: [Float]]
         public var summary: MeetingSummary?
+        public var latitude: Double?
+        public var longitude: Double?
     }
 
     // MARK: - Write

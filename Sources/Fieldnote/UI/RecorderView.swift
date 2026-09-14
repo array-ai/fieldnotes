@@ -6,7 +6,8 @@ struct RecorderView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var title = ""
-    @State private var type: MeetingType = .siteVisit
+    @State private var titleEditedByUser = false
+    @State private var type: MeetingType = .general
     @State private var error: String?
 
     var body: some View {
@@ -31,6 +32,9 @@ struct RecorderView: View {
             } message: {
                 Text(error ?? "")
             }
+            .task {
+                if title.isEmpty { title = MeetingTitleGenerator.defaultTitle(type: type) }
+            }
         }
     }
 
@@ -38,9 +42,12 @@ struct RecorderView: View {
 
     private var setup: some View {
         VStack(spacing: 20) {
-            TextField("Meeting title", text: $title)
-                .textFieldStyle(.roundedBorder)
-                .font(.title3)
+            TextField("Meeting title", text: Binding(
+                get: { title },
+                set: { title = $0; titleEditedByUser = true }
+            ))
+            .textFieldStyle(.roundedBorder)
+            .font(.title3)
 
             Picker("Type", selection: $type) {
                 ForEach(MeetingType.allCases, id: \.self) { type in
@@ -48,6 +55,16 @@ struct RecorderView: View {
                 }
             }
             .pickerStyle(.menu)
+            .onChange(of: type) { _, newType in
+                guard !titleEditedByUser else { return }
+                title = MeetingTitleGenerator.defaultTitle(type: newType)
+            }
+
+            Toggle("Include location", isOn: Bindable(model.settings).locationEnabled)
+            Text("Stored as coordinates only, for your own reference. Never sent anywhere.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
             // Text, not workflow (spec 7). The consent log, the badge and the share
             // gate are v2 (spec 11.5).
@@ -141,7 +158,8 @@ struct RecorderView: View {
     private func start() async {
         do {
             model.settings.consentAcknowledged = true
-            try await model.startRecording(title: title.trimmed(), type: type)
+            let coordinate = model.settings.locationEnabled ? await model.locationProvider.currentCoordinate() : nil
+            try await model.startRecording(title: title.trimmed(), type: type, coordinate: coordinate)
         } catch {
             self.error = error.localizedDescription
         }

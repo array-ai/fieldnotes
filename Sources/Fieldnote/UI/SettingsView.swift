@@ -199,7 +199,9 @@ struct BackupView: View {
                         segments: meeting.segments,
                         speakerNames: meeting.speakerNames,
                         speakerEmbeddings: [:],
-                        summary: meeting.summary
+                        summary: meeting.summary,
+                        latitude: meeting.latitude,
+                        longitude: meeting.longitude
                     )
                 }
             )

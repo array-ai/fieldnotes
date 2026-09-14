@@ -191,6 +191,46 @@ matching needs a corpus, and backfilling embeddings from archived audio is far m
 painful than storing them now. The backup archive carries them too, so a restored
 device does not start from an empty corpus.
 
+## A new meeting starts on a neutral type, not "Internal"
+
+**What changed.** `MeetingType` gained a fifth case, `general`, and it — not
+`.siteVisit` — is now the default `Meeting.typeRaw`, the `RecorderView` default, and
+the classifier's floor.
+
+**Why a new case instead of reusing `.internalMeeting`.** "Internal" already reads as
+a specific kind of meeting (staff talking among themselves) with its own prompt
+template built around that assumption. A new recording is not that; it is simply
+unclassified yet. Reusing `.internalMeeting` as the floor would have summarised
+every unclassified meeting as if it were an internal one until `MeetingTypeClassifier`
+or the user said otherwise.
+
+**How it behaves.** `general`'s template asks only for what was discussed, decisions,
+tasks and open questions — no MSP-specific framing. `MeetingTypeClassifier` never
+suggests `general`; it only ever upgrades away from it, so the neutral case is a floor
+a meeting starts on, never a guess the model makes.
+
+## Location is stored as coordinates, never geocoded
+
+**What was asked.** Optionally capture where a meeting started, for context, and use
+it (with the date/time) to seed a default title.
+
+**The conflict.** A human-readable place name needs reverse geocoding, and
+`CLGeocoder` sends the coordinate to Apple's servers to get one. Constraint 1 says
+zero outbound requests, full stop — `PolicyTests.noNetworking` and
+`Scripts/policy-check.sh` exist to make that mechanical rather than a promise.
+
+**What was built.** `LocationProvider` wraps `CLLocationManager` for a one-shot
+coordinate only, off by default (`Settings.locationEnabled`). `Meeting.latitude` /
+`.longitude` store the raw value; the detail view links out to Apple Maps so the
+number is still useful, and `MeetingTitleGenerator` appends it to the default title
+verbatim rather than a place name. CoreLocation itself makes no request this app's
+code initiates, so it does not trip the networking scan.
+
+**The cost.** A coordinate pair in a title ("Site visit – 8 Sep, 2:30 pm (-33.869,
+151.209)") is not as readable as a place name. A local, user-built "named places"
+registry (label a location once, match by proximity next time) would fix that without
+any network call — flagged here as a reasonable v2, deliberately not built now.
+
 ## No App Intents at all, not even control intents
 
 The spec permits `StartRecording` / `StopRecording` style control intents provided they

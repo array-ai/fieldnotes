@@ -26,8 +26,15 @@ public actor MeetingStore {
     // MARK: - Recording lifecycle
 
     @discardableResult
-    public func createMeeting(title: String, type: MeetingType, locale: Locale, consentAcknowledged: Bool) throws -> UUID {
-        let meeting = Meeting(title: title, type: type, locale: locale)
+    public func createMeeting(
+        title: String,
+        type: MeetingType,
+        locale: Locale,
+        consentAcknowledged: Bool,
+        latitude: Double? = nil,
+        longitude: Double? = nil
+    ) throws -> UUID {
+        let meeting = Meeting(title: title, type: type, locale: locale, latitude: latitude, longitude: longitude)
         meeting.consentAcknowledged = consentAcknowledged
         modelContext.insert(meeting)
         try modelContext.save()

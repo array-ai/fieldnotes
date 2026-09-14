@@ -29,6 +29,8 @@
 	<false/>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Fieldnote records meetings on this device. Audio, transcripts and summaries never leave the device unless you share them yourself.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Fieldnote can record where a meeting started, as coordinates only. Off by default, and used only while you are recording.</string>
 	<key>NSRemindersFullAccessUsageDescription</key>
 	<string>Fieldnote can add action items from a meeting to a Reminders list you choose. Off by default, and asked for only when you use it.</string>
 	<key>NSCalendarsFullAccessUsageDescription</key>

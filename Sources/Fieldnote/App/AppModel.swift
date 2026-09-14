@@ -17,6 +17,7 @@ public final class AppModel {
     }
 
     public let recorder = RecordingController()
+    public let locationProvider = LocationProvider()
     public let store: MeetingStore
     #if os(iOS)
     public let coordinator: BackgroundProcessingCoordinator
@@ -53,13 +54,15 @@ public final class AppModel {
 
     // MARK: - Recording
 
-    public func startRecording(title: String, type: MeetingType) async throws {
+    public func startRecording(title: String, type: MeetingType, coordinate: (latitude: Double, longitude: Double)?) async throws {
         let locale = settings.locale
         let id = try await store.createMeeting(
             title: title,
             type: type,
             locale: locale,
-            consentAcknowledged: settings.consentAcknowledged
+            consentAcknowledged: settings.consentAcknowledged,
+            latitude: coordinate?.latitude,
+            longitude: coordinate?.longitude
         )
         try await recorder.start(meetingID: id, title: title, type: type, locale: locale)
         await refresh()
@@ -95,12 +98,18 @@ public final class AppModel {
         public var consentAcknowledged: Bool {
             didSet { UserDefaults.standard.set(consentAcknowledged, forKey: "consentAcknowledged") }
         }
+        /// Off by default. When on, a coordinate is captured at the start of each
+        /// recording and stored on the meeting — never geocoded, never sent anywhere.
+        public var locationEnabled: Bool {
+            didSet { UserDefaults.standard.set(locationEnabled, forKey: "locationEnabled") }
+        }
 
         public init() {
             self.localeIdentifier = UserDefaults.standard.string(forKey: "locale") ?? "en_AU"
             self.remindersEnabled = UserDefaults.standard.bool(forKey: "remindersEnabled")
             self.remindersListID = UserDefaults.standard.string(forKey: "remindersListID")
             self.consentAcknowledged = UserDefaults.standard.bool(forKey: "consentAcknowledged")
+            self.locationEnabled = UserDefaults.standard.bool(forKey: "locationEnabled")
         }
 
         public var locale: Locale { Locale(identifier: localeIdentifier) }

@@ -183,6 +183,18 @@ struct SummarySections: View {
     var onCitation: (UUID) -> Void
 
     var body: some View {
+        if let latitude = meeting.latitude, let longitude = meeting.longitude {
+            Section("Location") {
+                if let url = URL(string: "https://maps.apple.com/?ll=\(latitude),\(longitude)") {
+                    Link(destination: url) {
+                        Label(
+                            String(format: "%.3f, %.3f", latitude, longitude),
+                            systemImage: "mappin.and.ellipse"
+                        )
+                    }
+                }
+            }
+        }
         if let summary = meeting.summary {
             if !summary.overview.isEmpty {
                 Section("Overview") { Text(summary.overview) }

@@ -54,6 +54,22 @@ public enum PromptTemplates {
 
     public static func builtIn(for type: MeetingType) -> SummaryTemplate {
         switch type {
+        case .general:
+            SummaryTemplate(
+                name: "General",
+                meetingType: .general,
+                instructions: """
+                    You summarise a work meeting recorded by an IT managed service \
+                    provider.
+
+                    \(groundingRules)
+                    """,
+                focus: """
+                    Pull out in particular: what was discussed, any decisions made, \
+                    tasks people agreed to do, and questions left open.
+                    """,
+                isBuiltIn: true
+            )
         case .siteVisit:
             SummaryTemplate(
                 name: "Site visit",

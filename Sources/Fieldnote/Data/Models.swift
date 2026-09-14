@@ -17,12 +17,16 @@ public final class Meeting {
     #Index<Meeting>([\.startedAt], [\.processingStateRaw])
     public var id: UUID = UUID()
     public var title: String = ""
-    public var typeRaw: String = MeetingType.siteVisit.rawValue
+    public var typeRaw: String = MeetingType.general.rawValue
     public var startedAt: Date = Date()
     public var duration: TimeInterval = 0
     public var localeIdentifier: String = "en_AU"
     /// Directory holding the audio chunks, relative to the meetings directory.
     public var audioPath: String = ""
+    /// Where the recording started, if the user opted in. Raw coordinates only — no
+    /// reverse geocoding, which would be an outbound request (constraint 1).
+    public var latitude: Double?
+    public var longitude: Double?
     public var processingStateRaw: String = ProcessingState.recording.rawValue
     public var failureMessage: String?
     /// Denormalised title + transcript + summary text, lowercased. See the note above.
@@ -43,7 +47,15 @@ public final class Meeting {
 
     public var folder: Folder?
 
-    public init(id: UUID = UUID(), title: String, type: MeetingType, startedAt: Date = Date(), locale: Locale) {
+    public init(
+        id: UUID = UUID(),
+        title: String,
+        type: MeetingType,
+        startedAt: Date = Date(),
+        locale: Locale,
+        latitude: Double? = nil,
+        longitude: Double? = nil
+    ) {
         self.id = id
         self.title = title
         self.typeRaw = type.rawValue
@@ -52,10 +64,12 @@ public final class Meeting {
         self.audioPath = id.uuidString
         self.processingStateRaw = ProcessingState.recording.rawValue
         self.searchText = title.lowercased()
+        self.latitude = latitude
+        self.longitude = longitude
     }
 
     public var type: MeetingType {
-        get { MeetingType(rawValue: typeRaw) ?? .internalMeeting }
+        get { MeetingType(rawValue: typeRaw) ?? .general }
         set { typeRaw = newValue.rawValue }
     }
 
