@@ -1,3 +1,4 @@
+@preconcurrency import CoreML
 import FieldnoteKit
 import FluidAudio
 import Foundation
@@ -6,15 +7,24 @@ import OSLog
 /// Batch diarization over the accumulated 16 kHz mono buffer, once, on stop
 /// (spec 4.2 / 4.4). Apple still ships no diarization API in iOS 27 — the Speech
 /// modules are `SpeechTranscriber`, `DictationTranscriber` and `SpeechDetector`
-/// (voice activity only) — so this is FluidAudio's CoreML pipeline.
+/// (voice activity only) — so this is FluidAudio's CoreML pipelines.
+///
+/// Three interchangeable methods, chosen in Settings (`DiarizationMethod`):
+///
+/// - **Nemotron 3** — NVIDIA's end-to-end streaming Sortformer. Predicts up to eight
+///   speakers per frame, overlap included, with no clustering step.
+/// - **pyannote community-1** — segmentation + WeSpeaker embeddings + PLDA/VBx
+///   clustering over the whole recording.
+/// - **pyannote 3.1 (legacy)** — segmentation + WeSpeaker with greedy clustering.
 ///
 /// # Models are bundled, never downloaded
 ///
-/// FluidAudio's convenience path fetches its CoreML models over the network on first
-/// use. Fieldnote makes zero outbound requests (constraint 1 and 2), so the models
-/// are vendored into the app bundle at build time and loaded from there. If the
-/// bundled models are missing this type fails loudly rather than reaching for the
-/// network — see `Scripts/vendor-diarization-models.sh` and the README note.
+/// FluidAudio's convenience paths fetch their CoreML models over the network on first
+/// use. Fieldnote makes zero outbound requests (constraint 1 and 2), so every model
+/// is vendored into the app bundle at build time and loaded from there with plain
+/// `MLModel(contentsOf:)` or FluidAudio's local-file loaders. If a bundled model is
+/// missing this type fails loudly rather than reaching for the network — see
+/// `Scripts/vendor-diarization-models.sh` and the README note.
 public actor DiarizationService {
 
     public struct Output: Sendable {
@@ -22,18 +32,24 @@ public actor DiarizationService {
         /// One raw embedding per cluster. Dead weight in v1 by design: v2's
         /// cross-meeting matching (spec 11.3) needs a corpus, and backfilling
         /// embeddings from archived audio later is far more painful than storing
-        /// them now.
+        /// them now. Empty for Nemotron 3, which has no embedding stage.
         public var embeddings: [String: [Float]]
     }
 
     private let log = Logger(subsystem: "com.publicarray.fieldnotes", category: "diarization")
-    private var manager: DiarizerManager?
+
+    // One cached engine per method: loading compiles CoreML graphs, which is slow
+    // enough to matter when a backlog of meetings is processed in one task.
+    private var legacyManager: DiarizerManager?
+    private var community1Models: OfflineDiarizerModels?
+    private var nemotron: Nemotron3Diarizer?
 
     public init() {}
 
     public func diarize(
         samples: [Float],
-        progress: @Sendable (Double) -> Void = { _ in }
+        method: DiarizationMethod,
+        progress: @escaping @Sendable (Double) -> Void = { _ in }
     ) async throws -> Output {
         guard samples.count > 16_000 else {
             // Under a second of audio. Nothing to cluster.
@@ -41,7 +57,133 @@ public actor DiarizationService {
         }
 
         progress(0.05)
-        let manager = try preparedManager()
+        let output: Output
+        switch method {
+        case .nemotron3:
+            output = try await diarizeNemotron(samples, progress: progress)
+        case .pyannoteCommunity1:
+            output = try await diarizeCommunity1(samples, progress: progress)
+        case .pyannoteLegacy:
+            output = try diarizeLegacy(samples, progress: progress)
+        }
+        progress(1.0)
+        log.notice("\(method.rawValue, privacy: .public): diarized \(output.spans.count, privacy: .public) spans across \(Set(output.spans.map(\.speakerID)).count, privacy: .public) speakers")
+        return output
+    }
+
+    /// Per-meeting labels only. "S1" is a label in this meeting, not a person, and it
+    /// does not carry to the next meeting (spec 4.4).
+    static func label(for speakerID: String) -> String {
+        let digits = speakerID.filter(\.isNumber)
+        return digits.isEmpty ? speakerID : "S\(digits)"
+    }
+
+    // MARK: - Nemotron 3
+
+    /// Audio is fed in slices through the streaming API rather than `processComplete`,
+    /// which computes the mel spectrogram for the whole recording up front — ~550 MB
+    /// for a three-hour meeting. The streaming frontend drops audio and features as
+    /// soon as they are consumed, and its output is frame-exact with `processComplete`.
+    private func diarizeNemotron(
+        _ samples: [Float],
+        progress: @Sendable (Double) -> Void
+    ) async throws -> Output {
+        let diarizer = try await preparedNemotron()
+        progress(0.15)
+        diarizer.reset()
+
+        let config = diarizer.config
+        let slice = 60 * config.sampleRate
+        var probabilities: [Float] = []
+        var frameCount = 0
+        var offset = 0
+        while offset < samples.count {
+            let end = min(offset + slice, samples.count)
+            diarizer.appendAudio(Array(samples[offset..<end]))
+            for chunk in try diarizer.processBufferedAudio() {
+                probabilities.append(contentsOf: chunk.probabilities)
+                frameCount += chunk.frameCount
+            }
+            offset = end
+            progress(0.15 + 0.8 * Double(offset) / Double(samples.count))
+            try Task.checkCancellation()
+        }
+        for chunk in try diarizer.finishStream() {
+            probabilities.append(contentsOf: chunk.probabilities)
+            frameCount += chunk.frameCount
+        }
+
+        let spans = SpeakerActivity.spans(
+            probabilities: probabilities,
+            frameCount: frameCount,
+            speakerCount: config.numSpeakers,
+            frameSeconds: Double(config.outputFrameSeconds)
+        )
+        return Output(spans: spans, embeddings: [:])
+    }
+
+    private func preparedNemotron() async throws -> Nemotron3Diarizer {
+        if let nemotron { return nemotron }
+        let config = DiarizationModelProvider.nemotronConfig
+        // Neural Engine, not GPU: this runs inside a background continued-processing
+        // task, and the split W8A8 build is 100% ANE-resident by design.
+        let models = try await Nemotron3Models.load(
+            config: config,
+            directory: try DiarizationModelProvider.nemotronDirectory(),
+            computeUnits: .cpuAndNeuralEngine
+        )
+        let created = Nemotron3Diarizer(config: config, models: models)
+        nemotron = created
+        return created
+    }
+
+    // MARK: - pyannote community-1
+
+    private func diarizeCommunity1(
+        _ samples: [Float],
+        progress: @escaping @Sendable (Double) -> Void
+    ) async throws -> Output {
+        // A fresh manager per run: it is cheap (the models are the cached part), and
+        // it is not Sendable, so one stored on this actor could not be handed to its
+        // nonisolated async `process`.
+        let manager = OfflineDiarizerManager()
+        manager.initialize(models: try preparedCommunity1Models())
+        progress(0.15)
+        let result = try await manager.process(audio: samples) { done, total in
+            guard total > 0 else { return }
+            progress(0.15 + 0.75 * Double(done) / Double(total))
+        }
+        progress(0.95)
+
+        let spans = result.segments.map { segment in
+            DiarizedSpan(
+                start: TimeInterval(segment.startTimeSeconds),
+                end: TimeInterval(segment.endTimeSeconds),
+                speakerID: Self.label(for: segment.speakerId),
+                confidence: Double(segment.qualityScore)
+            )
+        }
+        var embeddings: [String: [Float]] = [:]
+        for (speaker, embedding) in result.speakerDatabase ?? [:] {
+            embeddings[Self.label(for: speaker)] = embedding
+        }
+        return Output(spans: spans, embeddings: embeddings)
+    }
+
+    private func preparedCommunity1Models() throws -> OfflineDiarizerModels {
+        if let community1Models { return community1Models }
+        let loaded = try DiarizationModelProvider.community1Models()
+        community1Models = loaded
+        return loaded
+    }
+
+    // MARK: - pyannote 3.1 (legacy)
+
+    private func diarizeLegacy(
+        _ samples: [Float],
+        progress: @Sendable (Double) -> Void
+    ) throws -> Output {
+        let manager = try preparedLegacyManager()
         progress(0.2)
 
         let result = try manager.performCompleteDiarization(samples, sampleRate: 16_000)
@@ -63,62 +205,131 @@ public actor DiarizationService {
                 embeddings[label] = segment.embedding
             }
         }
-        progress(1.0)
-        log.notice("Diarized \(spans.count, privacy: .public) spans across \(embeddings.count, privacy: .public) speakers")
         return Output(spans: spans, embeddings: embeddings)
     }
 
-    /// Per-meeting labels only. "S1" is a label in this meeting, not a person, and it
-    /// does not carry to the next meeting (spec 4.4).
-    static func label(for speakerID: String) -> String {
-        let digits = speakerID.filter(\.isNumber)
-        return digits.isEmpty ? speakerID : "S\(digits)"
-    }
-
-    private func preparedManager() throws -> DiarizerManager {
-        if let manager { return manager }
-        let models = try DiarizationModelProvider.bundledModels()
+    private func preparedLegacyManager() throws -> DiarizerManager {
+        if let legacyManager { return legacyManager }
+        let models = try DiarizationModelProvider.legacyModels()
         let created = DiarizerManager()
         created.initialize(models: models)
-        manager = created
+        legacyManager = created
         return created
     }
 }
 
 /// Loads the vendored CoreML models from the app bundle.
 ///
-/// Deliberately uses FluidAudio's **local-file** loader. Its convenience loader,
-/// `DiarizerModels.load(from:)`, calls `download(to:)` underneath — one network fetch
-/// on first use, which would break constraint 1 silently and only on a fresh install.
-/// `load(localSegmentationModel:localEmbeddingModel:)` touches no network at all: its
-/// own documentation says "No models are downloaded."
+/// Deliberately never uses FluidAudio's convenience loaders. `DiarizerModels.load(from:)`,
+/// `OfflineDiarizerModels.load(from:)` and `Nemotron3Models.loadFromHuggingFace` all
+/// fall back to a network fetch when a file is missing — which would break constraint 1
+/// silently and only on a fresh install. Everything here reads local files only.
 public enum DiarizationModelProvider {
-
-    /// Model filenames, from FluidAudio's `ModelNames.Diarizer`. They are compiled
-    /// CoreML bundles (`.mlmodelc`), not source `.mlmodel` files.
-    static let segmentationFile = "pyannote_segmentation.mlmodelc"
-    static let embeddingFile = "wespeaker_v2.mlmodelc"
 
     /// Where `xtool.yml` puts `Resources/DiarizationModels`: the bundle root.
     public static var bundledModelDirectory: URL? {
         Bundle.main.resourceURL?.appending(path: "DiarizationModels", directoryHint: .isDirectory)
     }
 
-    public static func bundledModels() throws -> DiarizerModels {
-        guard let directory = bundledModelDirectory else { throw Failure.modelsMissing }
-        let segmentation = directory.appending(path: segmentationFile, directoryHint: .isDirectory)
-        let embedding = directory.appending(path: embeddingFile, directoryHint: .isDirectory)
+    // MARK: Legacy pyannote 3.1
 
-        let manager = FileManager.default
-        guard manager.fileExists(atPath: segmentation.path(percentEncoded: false)),
-              manager.fileExists(atPath: embedding.path(percentEncoded: false)) else {
-            throw Failure.modelsMissing
+    /// From FluidAudio's `ModelNames.Diarizer`. Compiled CoreML bundles (`.mlmodelc`).
+    static let segmentationFile = "pyannote_segmentation.mlmodelc"
+    static let embeddingFile = "wespeaker_v2.mlmodelc"
+
+    public static func legacyModels() throws -> DiarizerModels {
+        let directory = try modelDirectory()
+        // `load(localSegmentationModel:localEmbeddingModel:)` touches no network: its
+        // own documentation says "No models are downloaded."
+        return try DiarizerModels.load(
+            localSegmentationModel: try existing(segmentationFile, in: directory),
+            localEmbeddingModel: try existing(embeddingFile, in: directory)
+        )
+    }
+
+    // MARK: pyannote community-1
+
+    public static func community1Models() throws -> OfflineDiarizerModels {
+        let directory = try modelDirectory()
+        let start = Date()
+
+        func model(_ name: String, _ units: MLComputeUnits) throws -> MLModel {
+            let configuration = MLModelConfiguration()
+            configuration.computeUnits = units
+            return try MLModel(contentsOf: existing(name, in: directory), configuration: configuration)
         }
 
-        return try DiarizerModels.load(
-            localSegmentationModel: segmentation,
-            localEmbeddingModel: embedding
+        // Compute units mirror `OfflineDiarizerModels.load`: FBank is fastest on CPU.
+        let names = ModelNames.OfflineDiarizer.self
+        return OfflineDiarizerModels(
+            segmentationModel: try model(names.segmentationFile, .cpuAndNeuralEngine),
+            fbankModel: try model(names.fbankFile, .cpuOnly),
+            embeddingModel: try model(names.embeddingFile, .cpuAndNeuralEngine),
+            pldaRhoModel: try model(names.pldaRhoFile, .cpuAndNeuralEngine),
+            pldaPsi: try pldaPsi(at: existing(names.pldaParameters, in: directory)),
+            compilationDuration: Date().timeIntervalSince(start)
         )
+    }
+
+    /// The `psi` tensor from `plda-parameters.json`: base64 little-endian Float32.
+    /// FluidAudio's own parser is private to its network-backed loader, so this is
+    /// the same few lines.
+    static func pldaPsi(at url: URL) throws -> [Double] {
+        let root = try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any]
+        guard
+            let tensors = root?["tensors"] as? [String: Any],
+            let psi = tensors["psi"] as? [String: Any],
+            let base64 = psi["data_base64"] as? String,
+            let data = Data(base64Encoded: base64, options: .ignoreUnknownCharacters),
+            data.count >= MemoryLayout<Float>.size
+        else { throw Failure.modelsMissing }
+
+        var floats = [Float](repeating: 0, count: data.count / MemoryLayout<Float>.size)
+        _ = floats.withUnsafeMutableBytes { data.copyBytes(to: $0) }
+        return floats.map(Double.init)
+    }
+
+    // MARK: Nemotron 3
+
+    /// `c128-split-w8a8`: the 10.24 s window that counts speakers correctly on all 16
+    /// AMI test meetings, with W8A8 weights at half the size (95 MB) of the fp16
+    /// presets and a graph that runs entirely on the Neural Engine. Latency is
+    /// irrelevant here — diarization runs once, after stop.
+    static let nemotronPreset = "c128-split-w8a8"
+
+    static var nemotronConfig: Nemotron3Config {
+        // A preset name FluidAudio does not know is a programming error caught the
+        // first time diarization runs on any device, not a runtime condition.
+        guard let config = Nemotron3Config.preset(named: nemotronPreset) else {
+            preconditionFailure("FluidAudio has no Nemotron 3 preset named \(nemotronPreset)")
+        }
+        return config
+    }
+
+    /// Holds the preset's `.mlmodelc` next to `learnable_sil_emb.bin` and
+    /// `pre_encode_proj_t.bin`, flat, which is the layout `Nemotron3Models.load`
+    /// expects.
+    static func nemotronDirectory() throws -> URL {
+        let directory = try modelDirectory().appending(path: "Nemotron3", directoryHint: .isDirectory)
+        _ = try existing(nemotronConfig.modelFileName, in: directory)
+        _ = try existing(ModelNames.Nemotron3.silenceEmbeddingFile, in: directory)
+        _ = try existing(ModelNames.Nemotron3.preEncodeProjectionFile, in: directory)
+        return directory
+    }
+
+    // MARK: Shared
+
+    private static func modelDirectory() throws -> URL {
+        guard let directory = bundledModelDirectory else { throw Failure.modelsMissing }
+        return directory
+    }
+
+    private static func existing(_ name: String, in directory: URL) throws -> URL {
+        let url = directory.appending(path: name)
+        guard FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) else {
+            throw Failure.modelsMissing
+        }
+        return url
     }
 
     public enum Failure: Error, LocalizedError {

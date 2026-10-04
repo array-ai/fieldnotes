@@ -89,7 +89,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: Resources/DiarizationModels
-          key: diarization-models-1ed7a662fdc7109e36d822db793ee6eebdaf8594
+          key: diarization-models-${{ hashFiles('Scripts/fetch-diarization-models.sh') }}
 
       - name: Vendor diarization models
         if: steps.diarization-cache.outputs.cache-hit != 'true'
@@ -123,6 +123,11 @@ jobs:
           ls "$APP/PlugIns"
           [ -d "$APP/DiarizationModels/pyannote_segmentation.mlmodelc" ] \
             && [ -d "$APP/DiarizationModels/wespeaker_v2.mlmodelc" ] \
+            && [ -d "$APP/DiarizationModels/Segmentation.mlmodelc" ] \
+            && [ -f "$APP/DiarizationModels/plda-parameters.json" ] \
+            && [ -d "$APP/DiarizationModels/Nemotron3/Nemotron3Diarizer_c128_split_w8a8.mlmodelc" ] \
+            && [ -f "$APP/DiarizationModels/Nemotron3/learnable_sil_emb.bin" ] \
+            && [ -f "$APP/DiarizationModels/Nemotron3/pre_encode_proj_t.bin" ] \
             || { echo "diarization models missing from the packed app"; exit 1; }
 
       # The other half of "works with both toolchains": the same package, built the

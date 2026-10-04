@@ -41,7 +41,9 @@ let package = Package(
         // declared in its manifest ("FieldnoteCore") — so that is what the product
         // references below have to say.
         .package(path: "Core"),
-        .package(url: "https://github.com/FluidInference/FluidAudio", from: "0.6.0"),
+        // 0.17.5 for Nemotron 3 diarization (`Nemotron3Diarizer`) and its split
+        // W8A8 bundles; see DiarizationService.
+        .package(url: "https://github.com/FluidInference/FluidAudio", from: "0.17.5"),
     ],
     targets: [
         // Types both the app and the widget need, and that touch Apple frameworks

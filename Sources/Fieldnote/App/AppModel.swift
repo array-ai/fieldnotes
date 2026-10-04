@@ -104,7 +104,15 @@ public final class AppModel {
             didSet { UserDefaults.standard.set(locationEnabled, forKey: "locationEnabled") }
         }
 
+        /// Applies to the next recording processed. See `DiarizationMethod`.
+        public var diarizationMethod: DiarizationMethod {
+            didSet { UserDefaults.standard.set(diarizationMethod.rawValue, forKey: DiarizationMethod.defaultsKey) }
+        }
+
         public init() {
+            self.diarizationMethod = DiarizationMethod(
+                storedValue: UserDefaults.standard.string(forKey: DiarizationMethod.defaultsKey)
+            )
             self.localeIdentifier = UserDefaults.standard.string(forKey: "locale") ?? "en_AU"
             self.remindersEnabled = UserDefaults.standard.bool(forKey: "remindersEnabled")
             self.remindersListID = UserDefaults.standard.string(forKey: "remindersListID")

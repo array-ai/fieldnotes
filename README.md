@@ -83,7 +83,7 @@ is unaffected either way, since Core needs no Apple SDK.
 
 ```sh
 xtool setup                                   # Apple ID + Darwin SDK, once
-Scripts/vendor-diarization-models.sh ~/Downloads/fluidaudio-models
+Scripts/vendor-diarization-models.sh ~/Downloads/fluidaudio-models  # layout: Resources/README.md
 swift test --package-path Core                # cross-platform half, no device needed
 ./Scripts/xtool.sh dev run                    # build, sign, install, launch
 ```

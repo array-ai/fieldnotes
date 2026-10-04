@@ -168,7 +168,12 @@ public actor ProcessingPipeline {
 
         let buffer = try DiarizationBuffer(meetingID: input.meetingID)
         let samples = try await buffer.samples()
-        let output = try await diarizer.diarize(samples: samples) { fraction in
+        // Read at run time rather than captured at init: the pipeline runs off the main
+        // actor inside a background task, long after Settings last changed.
+        let method = DiarizationMethod(
+            storedValue: UserDefaults.standard.string(forKey: DiarizationMethod.defaultsKey)
+        )
+        let output = try await diarizer.diarize(samples: samples, method: method) { fraction in
             progress(.diarizing, fraction)
         }
 

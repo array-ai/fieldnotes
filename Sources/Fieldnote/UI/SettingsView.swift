@@ -28,6 +28,23 @@ struct SettingsView: View {
                 }
 
                 Section {
+                    Picker("Method", selection: $settings.diarizationMethod) {
+                        ForEach(DiarizationMethod.allCases, id: \.self) { method in
+                            Text(method.displayName).tag(method)
+                        }
+                    }
+                } header: {
+                    Text("Speaker identification")
+                } footer: {
+                    Text(
+                        """
+                        \(settings.diarizationMethod.summary) Runs on this device. \
+                        Changing this affects the next meeting, not existing ones.
+                        """
+                    )
+                }
+
+                Section {
                     Toggle("Send tasks to Reminders", isOn: $settings.remindersEnabled)
                     if settings.remindersEnabled {
                         Picker("List", selection: $settings.remindersListID) {

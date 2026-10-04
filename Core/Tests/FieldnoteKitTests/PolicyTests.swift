@@ -134,6 +134,28 @@ struct PolicyTests {
         }
     }
 
+    /// Constraint 1, the part networking symbols alone do not catch: FluidAudio's
+    /// convenience model loaders download from Hugging Face whenever a file is
+    /// missing, through its own URLSession. Every model is vendored into the bundle
+    /// and loaded from local files instead (`DiarizationModelProvider`).
+    @Test("No network-backed model loaders")
+    func noModelDownloads() {
+        let forbidden = [
+            "loadFromHuggingFace",
+            "ModelHub",
+            "DownloadUtils",
+            "prepareModels(",
+            "downloadIfNeeded",
+            "DiarizerModels.download",
+            "DiarizerModels.load(from",
+            "OfflineDiarizerModels.load("
+        ]
+        for marker in forbidden {
+            let offenders = PolicySourceScanner.filesContaining(marker)
+            #expect(offenders.isEmpty, "Network-backed loader \(marker) found in: \(offenders.joined(separator: ", "))")
+        }
+    }
+
     /// Spec 4.7: without the continued-processing inference entitlement, summarisation
     /// dies the moment the app backgrounds — which is exactly when it runs.
     @Test("Inference entitlement is present")

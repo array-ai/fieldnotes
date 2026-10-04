@@ -27,8 +27,14 @@ command -v xtool >/dev/null || {
   exit 1
 }
 
-REAL_SWIFT_BUILD=$(xcrun -f swift-build)
-REAL_SWIFT_PACKAGE=$(xcrun -f swift-package)
+# xcrun on macOS; on Linux there is no xcrun and the tools are just on PATH.
+if command -v xcrun >/dev/null; then
+  REAL_SWIFT_BUILD=$(xcrun -f swift-build)
+  REAL_SWIFT_PACKAGE=$(xcrun -f swift-package)
+else
+  REAL_SWIFT_BUILD=$(command -v swift-build)
+  REAL_SWIFT_PACKAGE=$(command -v swift-package)
+fi
 
 SHIM_DIR="${TMPDIR:-/tmp}/fieldnote-swiftpm-shim"
 mkdir -p "$SHIM_DIR"

@@ -65,6 +65,13 @@ for needle in "URLSession" "URLRequest" "NSURLConnection" "import Network" "NWCo
 done
 
 echo
+echo "== Constraint 1: no model downloads (FluidAudio's network-backed loaders)"
+for needle in "loadFromHuggingFace" "ModelHub" "DownloadUtils" "prepareModels(" "downloadIfNeeded" \
+              "DiarizerModels.download" "DiarizerModels.load(from" "OfflineDiarizerModels.load("; do
+  check_absent "$needle" "no $needle"
+done
+
+echo
 echo "== Entitlements"
 ENTITLEMENTS=Config/Fieldnote.entitlements
 if grep -q "com.apple.developer.background-tasks.continued-processing.inference" "$ENTITLEMENTS"; then

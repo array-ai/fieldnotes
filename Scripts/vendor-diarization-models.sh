@@ -30,7 +30,8 @@ USAGE
 fi
 
 mkdir -p "$DEST"
-rsync -a --delete "$SOURCE"/ "$DEST"/
+# --exclude keeps the tracked .gitkeep, which --delete would otherwise remove.
+rsync -a --delete --exclude .gitkeep "$SOURCE"/ "$DEST"/
 find "$DEST" -type f \! -name SHA256SUMS -print0 \
   | sort -z \
   | xargs -0 shasum -a 256 > "$DEST/SHA256SUMS"
