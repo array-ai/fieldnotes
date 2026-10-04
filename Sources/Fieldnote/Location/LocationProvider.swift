@@ -63,7 +63,9 @@ public final class LocationProvider: NSObject {
 }
 
 #if os(iOS)
-extension LocationProvider: CLLocationManagerDelegate {
+// Isolated conformance: the manager is created on the main actor, so CoreLocation
+// delivers these callbacks on the main thread.
+extension LocationProvider: @MainActor CLLocationManagerDelegate {
     public func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         guard awaitingAuthorization else { return }
         awaitingAuthorization = false
