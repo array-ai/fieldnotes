@@ -2,8 +2,9 @@ name: App build (iOS)
 
 # Separate from ci.yml, and deliberately not on every push.
 #
-# Two reasons. This repository is private, so macOS runner minutes bill at 10x the
-# Linux rate. And the image needed here is a preview image, so it can queue.
+# Two reasons. macOS runners are slower and scarcer than Linux ones (and bill at
+# 10x the Linux rate wherever minutes are billed). And the image needed here is a
+# preview image, so it can queue.
 # ci.yml (policy + Core, on Linux) stays the every-push gate; this job runs when the
 # iOS-only code or the packaging actually changes, and on demand.
 on:
@@ -31,10 +32,10 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      # FluidAudio pulls a ~50 MB binary xcframework on every resolve. Caching the
+      # FluidAudio pulls an ~87 MB binary xcframework on every resolve. Caching the
       # SwiftPM download cache (not .build, which goes stale in confusing ways) keeps
-      # that out of each run — worth it here because macOS minutes on a private repo
-      # bill at 10x the Linux rate.
+      # that out of each run — worth it here because macOS runner time is the scarce
+      # kind.
       - name: Cache SwiftPM downloads
         uses: actions/cache@v4
         with:
