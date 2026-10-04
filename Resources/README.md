@@ -20,24 +20,23 @@ and both `.bin` assets in one directory, while the Hugging Face repo keeps the m
 under `split/`.
 
 Fieldnote never downloads them at runtime, because the app makes no outbound requests
-at all (constraint 1). So they are vendored at build time instead:
+at all. So they are vendored at build time instead, from pinned Hugging Face revisions
+(not `main`):
 
 ```sh
-Scripts/vendor-diarization-models.sh ~/Downloads/fluidaudio-models
+Scripts/fetch-diarization-models.sh /tmp/fieldnote-models
+Scripts/vendor-diarization-models.sh /tmp/fieldnote-models
 ```
 
-That writes `DiarizationModels/SHA256SUMS` alongside them. Treat a model bump like any
-other dependency bump: check the publisher, compare the checksum, and have a reason to
-trust the source. "No network traffic" is not the same as "no risk".
+The fetch script downloads exactly the files `DiarizationModelProvider` loads, and the
+vendor script copies them here and writes `SHA256SUMS`. CI runs the same two scripts,
+cached by `actions/cache` keyed on the fetch script's hash, so changing a pin or a file
+list invalidates the cache.
 
-Without this directory populated, `DiarizationModelProvider.bundledModels()` throws and
-the diarization stage fails loudly. That is deliberate: the alternative is a silent
-fallback that reaches for the network.
+Treat a model bump like any other dependency bump: change the revision pin
+deliberately, check the publisher, and compare the checksums. "No network traffic" is
+not the same as "no risk".
 
-CI does the equivalent automatically, cached by `actions/cache` (see `app.yml` /
-`release.yml`): `Scripts/fetch-diarization-models.sh` downloads exactly the files
-`DiarizationModelProvider` loads from **pinned** HuggingFace revisions (not `main`) and
-hands them to `vendor-diarization-models.sh`. Its file list is also the exact layout a
-manual vendor has to reproduce. The CI cache is keyed on the script's hash, so changing
-a pin or a file list invalidates it. Bumping the model means bumping that
-revision pin deliberately, the same review as above -- not floating.
+If a model is missing, `DiarizationModelProvider` throws and the diarization stage fails
+loudly. That is deliberate: the alternative is a silent fallback that reaches for the
+network.

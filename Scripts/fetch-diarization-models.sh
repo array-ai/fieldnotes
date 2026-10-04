@@ -1,10 +1,7 @@
 #!/usr/bin/env bash
 # Downloads the diarization CoreML models (all three DiarizationMethods) from
-# pinned HuggingFace revisions, for CI to hand to vendor-diarization-models.sh.
-#
-# CI-only. A human vendoring models locally should fetch and vet them manually
-# instead (see Resources/README.md) -- this script exists so CI doesn't have to,
-# on the strength of the pin below having already been reviewed once.
+# pinned HuggingFace revisions, to hand to vendor-diarization-models.sh. CI and
+# local builds use it alike; the pins below are what gets reviewed.
 #
 # Usage: Scripts/fetch-diarization-models.sh <dest-dir>
 set -euo pipefail
