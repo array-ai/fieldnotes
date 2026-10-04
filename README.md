@@ -7,6 +7,9 @@ Everything stays on the device. There is no Fieldnote server, no account, no
 subscription, and no third-party SDK. Content leaves only when the user drives the
 system share sheet themselves.
 
+Written almost entirely by AI (Claude), directed and reviewed by publicarray.
+Experimental: see [Status](#status).
+
 Built with [xtool](https://xtool.sh), not Xcode: SwiftPM on Linux, signed and
 installed straight to a device.
 
@@ -259,5 +262,10 @@ package in Xcode on a Mac and fixes them.
 
 ## Licence
 
-MIT, if this is ever made public. A no-network, no-account, share-sheet-only notetaker
-is an underserved niche, and the absence of integrations is the selling point.
+[0BSD](LICENSE): use it for anything, no attribution required, no warranty. The code
+was written almost entirely by AI (Claude), directed and reviewed by publicarray, so a
+public-domain-style licence is the honest fit.
+
+Dependencies keep their own licences: FluidAudio is Apache-2.0, and the bundled
+diarization models are CC-BY-4.0 (pyannote) and OpenMDW-1.1 (Nemotron 3) — see
+[Resources/README.md](Resources/README.md).
