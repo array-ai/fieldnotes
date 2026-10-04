@@ -3,8 +3,8 @@
 A meeting recorder for iPhone that transcribes, works out who spoke when, and
 summarises, all on the device. No server, no account, no network access at all.
 
-> **Experimental.** Fieldnote compiles for iOS 27 in CI but has never run on a real
-> device. Treat every runtime claim below as untested until someone does.
+> **Experimental.** Fieldnote runs on a real iPhone, but it still has small bugs.
+> Expect rough edges.
 >
 > **Written almost entirely by AI** (Claude), directed and reviewed by publicarray.
 
@@ -60,7 +60,7 @@ SDKs are included.
 |---|---|
 | Core logic (`Core/`) | Builds and tests on Linux, no Apple SDK. 75 tests, run in CI on every push |
 | App and widget | Build for `arm64-apple-ios27.0` in CI with Xcode 27, both through xtool and `xcodebuild` |
-| On a device | **Never run.** The pipeline has not processed a real recording |
+| On a device | Runs on iPhone, with known small bugs. The device checks under [Testing](#testing) haven't all been done |
 | Linux device builds | Blocked: the bundled LLD can't read the iOS 27 SDK's stubs (see [Build](#build)) |
 
 ## Requirements
