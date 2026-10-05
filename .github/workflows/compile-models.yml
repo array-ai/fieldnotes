@@ -19,6 +19,11 @@ on:
         description: "Hugging Face model repo to upload to"
         type: string
         default: publicarray/fieldnote-models
+      model:
+        description: "Which model to compile"
+        type: choice
+        options: [minicpm5-1b, minicpm5-2b]
+        default: minicpm5-1b
       architectures:
         description: "Chip families to compile for, space separated (the app's debug log names its own). 'h17*' style patterns pick from the valid names. Empty: all, which is very slow"
         type: string
@@ -26,8 +31,11 @@ on:
 
 env:
   # Pinned sources, the same revisions the app's catalogue pins.
-  MINICPM_REPO: mlboydaisuke/MiniCPM5-1B-CoreAI
-  MINICPM_REV: f38d143ec50cb2e54d8388479b919e3b9283943b
+  # Pinned sources. The 1B's bundles sit at the repo root (the app pins them
+  # there); every other model's go in a folder named after it.
+  MINICPM_REPO: ${{ inputs.model == 'minicpm5-2b' && 'mlboydaisuke/MiniCPM5-2B-CoreAI' || 'mlboydaisuke/MiniCPM5-1B-CoreAI' }}
+  MINICPM_REV: ${{ inputs.model == 'minicpm5-2b' && '39db5ff9480e5d80e423889e3bacb7f9e9b9e40f' || 'f38d143ec50cb2e54d8388479b919e3b9283943b' }}
+  UPLOAD_PATH: ${{ inputs.model == 'minicpm5-2b' && 'minicpm5-2b' || '.' }}
 
 jobs:
   compile:
@@ -168,4 +176,9 @@ jobs:
           hf download "$MINICPM_REPO" LICENSE --revision "$MINICPM_REV" --local-dir licence
           cp licence/LICENSE bundles/LICENSE
           # Replaces the earlier loose compiled folders with the bundles.
-          hf upload "$HF_REPO" bundles . --delete "minicpm5_1b_*/**" --commit-message "Ahead-of-time compiled summary models (run $GITHUB_RUN_NUMBER)"
+          if [ "$UPLOAD_PATH" = "." ]; then
+            # Replaces the earlier loose compiled folders with the bundles.
+            hf upload "$HF_REPO" bundles . --delete "minicpm5_1b_*/**" --commit-message "Ahead-of-time compiled summary models (run $GITHUB_RUN_NUMBER)"
+          else
+            hf upload "$HF_REPO" bundles "$UPLOAD_PATH" --commit-message "Ahead-of-time compiled $UPLOAD_PATH (run $GITHUB_RUN_NUMBER)"
+          fi
