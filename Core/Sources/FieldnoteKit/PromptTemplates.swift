@@ -32,11 +32,26 @@ public enum PromptTemplates {
         Meeting transcript, part \(chunkIndex + 1) of \(chunkCount). Lines are \
         "N | Speaker: text".
 
-        \(request)
+        \(request) \(topicLimitSentence(forLines: chunk.segments.count))
 
         Transcript:
         \(chunk.promptText())
         """
+    }
+
+    /// Short excerpts get fewer topics: asking a few lines for three topics invites
+    /// padding, and every extra topic costs answer tokens.
+    public static func topicLimit(forLines lines: Int) -> Int {
+        switch lines {
+        case ..<15: 1
+        case ..<40: 2
+        default: 3
+        }
+    }
+
+    static func topicLimitSentence(forLines lines: Int) -> String {
+        let limit = topicLimit(forLines: lines)
+        return limit == 1 ? "Use one topic." : "Use at most \(limit) topics."
     }
 
     /// The shorter, neutral retry after a guardrail trip or a refusal. Same excerpt,

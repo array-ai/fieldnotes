@@ -113,3 +113,25 @@ struct SummaryPromptTests {
         #expect(prompt.contains("1 | Unknown: hi"))
     }
 }
+
+@Suite("Topic limits")
+struct TopicLimitTests {
+
+    private func chunk(lines: Int) -> TranscriptChunk {
+        let segments = (0..<lines).map { TranscriptSegment(start: Double($0), end: Double($0) + 1, text: "line \($0)") }
+        return TranscriptChunk(index: 0, lineNumbers: Array(1...lines), segments: segments, overlapCount: 0)
+    }
+
+    @Test("Short excerpts ask for fewer topics")
+    func limits() {
+        #expect(PromptTemplates.topicLimit(forLines: 5) == 1)
+        #expect(PromptTemplates.topicLimit(forLines: 20) == 2)
+        #expect(PromptTemplates.topicLimit(forLines: 80) == 3)
+    }
+
+    @Test("The limit is in the prompt")
+    func inPrompt() {
+        #expect(PromptTemplates.chunkPrompt(chunk: chunk(lines: 5), chunkIndex: 0, chunkCount: 1).contains("Use one topic."))
+        #expect(PromptTemplates.chunkPrompt(chunk: chunk(lines: 60), chunkIndex: 0, chunkCount: 1).contains("Use at most 3 topics."))
+    }
+}

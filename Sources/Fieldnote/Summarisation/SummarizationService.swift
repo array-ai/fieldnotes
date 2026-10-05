@@ -34,6 +34,11 @@ public actor SummarizationService {
     private let log = Logger(subsystem: "com.publicarray.fieldnotes", category: "summarisation")
     private let debug = DebugLog.shared
     private let tier = ModelTier.coreAdvanced
+    /// Longest answer a part may produce: the room the budget reserved for it, so an
+    /// answer can never run past the context window (answers of ~1,750 tokens were
+    /// seen before this cap).
+    private var answerCap = 1_800
+
     /// The prompt for the current run: built-in, or the user's edit (debug mode).
     private var prompt = SummaryPrompt.builtIn
     /// Splits per chunk before giving up: 2^4 = 16 pieces.
@@ -98,6 +103,7 @@ public actor SummarizationService {
         _ = try OnDeviceModel.session(tier: tier, instructions: self.prompt.instructions)
 
         let budget = await measureBudget()
+        answerCap = budget.outputReserve
         debug.log(
             "summary",
             "\(DebugLog.short(meeting.id)): context \(budget.contextSize), fixed \(budget.fixedCost), answer reserve \(budget.outputReserve), prompt limit \(budget.promptLimit), chunk target \(budget.chunkBudget)\(budget.isMeasured ? "" : " (fallback, not measured)")"
@@ -234,7 +240,7 @@ public actor SummarizationService {
         do {
             let session = try OnDeviceModel.session(tier: tier, instructions: self.prompt.instructions)
             let started = ContinuousClock.now
-            let response = try await session.respond(to: prompt, generating: DraftChunkNotes.self, contextOptions: OnDeviceModel.contextOptions)
+            let response = try await session.respond(to: prompt, generating: DraftChunkNotes.self, options: GenerationOptions(maximumResponseTokens: answerCap), contextOptions: OnDeviceModel.contextOptions)
             debug.log(
                 "summary",
                 "chunk \(piece.index + 1): \(response.usage.input.totalTokenCount) tokens in, \(response.usage.output.totalTokenCount) out, \(DebugLog.elapsed(since: started))"
@@ -273,6 +279,13 @@ public actor SummarizationService {
                 }
 
             case .timeout, .modelError:
+                // An answer cut off at the length cap fails as a model error. Half the
+                // excerpt means a shorter answer, so split before giving up.
+                if failure.reason == .modelError, !failure.isTemporary,
+                   depth < maxSplitDepth, piece.segments.count >= 8, let halves = piece.halves() {
+                    debug.log("summary", "chunk \(piece.index + 1): answer may have hit the \(answerCap)-token cap; splitting \(piece.segments.count) lines in two")
+                    return try await splitAndMerge(halves, of: total, budget: budget, depth: depth, degraded: &degraded)
+                }
                 if failure.isTemporary { throw allowDeferral ? Deferred(detail: failure.detail) : NotWritten(detail: failure.detail) }
                 degraded.append(failure.degraded(piece, recovered: false))
                 return ChunkNotes()
@@ -294,7 +307,7 @@ public actor SummarizationService {
 
     private func respond(to prompt: String) async throws -> ChunkNotes {
         let session = try OnDeviceModel.session(tier: tier, instructions: self.prompt.instructions)
-        return try await session.respond(to: prompt, generating: DraftChunkNotes.self, contextOptions: OnDeviceModel.contextOptions).content.notes
+        return try await session.respond(to: prompt, generating: DraftChunkNotes.self, options: GenerationOptions(maximumResponseTokens: answerCap), contextOptions: OnDeviceModel.contextOptions).content.notes
     }
 
     /// The fallback after a guardrail trip or refusal: same excerpt, neutral framing.
@@ -308,7 +321,7 @@ public actor SummarizationService {
         let prompt = PromptTemplates.neutralChunkPrompt(chunk: piece, chunkIndex: piece.index, chunkCount: total)
         do {
             let session = try OnDeviceModel.session(tier: tier, instructions: PromptTemplates.groundingRules)
-            let response = try await session.respond(to: prompt, generating: DraftChunkNotes.self, contextOptions: OnDeviceModel.contextOptions)
+            let response = try await session.respond(to: prompt, generating: DraftChunkNotes.self, options: GenerationOptions(maximumResponseTokens: answerCap), contextOptions: OnDeviceModel.contextOptions)
             debug.log("summary", "chunk \(piece.index + 1): neutral retry succeeded")
             degraded.append(failure.degraded(piece, recovered: true))
             return response.content.notes
@@ -345,7 +358,7 @@ public actor SummarizationService {
         if budget.fits(promptTokens: await cost(of: prompt)) {
             do {
                 let session = try OnDeviceModel.session(tier: tier, instructions: self.prompt.instructions)
-                let response = try await session.respond(to: prompt, generating: DraftOutline.self, contextOptions: OnDeviceModel.contextOptions)
+                let response = try await session.respond(to: prompt, generating: DraftOutline.self, options: GenerationOptions(maximumResponseTokens: 800), contextOptions: OnDeviceModel.contextOptions)
                 let sections = response.content.sections.map {
                     TopicMerger.Section(
                         title: $0.title,
@@ -383,7 +396,7 @@ public actor SummarizationService {
         }
         do {
             let session = try OnDeviceModel.session(tier: tier, instructions: self.prompt.instructions)
-            let response = try await session.respond(to: prompt, generating: DraftRollup.self, contextOptions: OnDeviceModel.contextOptions)
+            let response = try await session.respond(to: prompt, generating: DraftRollup.self, options: GenerationOptions(maximumResponseTokens: 800), contextOptions: OnDeviceModel.contextOptions)
             return response.content.overview.trimmed()
         } catch {
             debug.log("summary", "overview failed (\(Failure(error).detail)); using the first points instead")
