@@ -78,7 +78,7 @@ jobs:
             for suffix in "" p g s m c d x a b e; do
               arch="h$gen$suffix"
               out=$(perl -e 'alarm shift; exec @ARGV' 6 xcrun coreai-build compile "$model" --platform iOS \
-                --architecture "$arch" --output "$RUNNER_TEMP/probe-$arch" 2>&1)
+                --architecture "$arch" --output "$RUNNER_TEMP/probe-$arch" 2>&1 || true)
               if ! grep -q "Unknown architecture" <<< "$out"; then echo "$arch" >> valid.txt; fi
             done
           done
