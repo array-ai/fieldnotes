@@ -49,9 +49,10 @@ struct MeetingDetailView: View {
             findPrefilled = true
             if !model.searchQuery.trimmed().isEmpty { find = model.searchQuery }
         }
-        .onChange(of: find) { _, text in
-            if !text.trimmed().isEmpty { tab = .transcript }
-        }
+        // Show the transcript only when it has a matching line: a list search can
+        // match the title or the notes alone.
+        .onChange(of: find) { showTranscriptIfFound() }
+        .onChange(of: meeting?.id) { showTranscriptIfFound() }
         .toolbar {
             if let meeting {
                 ToolbarItem(placement: .primaryAction) {
@@ -190,6 +191,8 @@ struct MeetingDetailView: View {
                         SummarySections(meeting: meeting, showsDetail: model.settings.debugMode) { segmentID in
                             // Tapping a citation jumps to the line it came from,
                             // and plays it. Every claim has one or it was not saved.
+                            // Clear find so the cited line isn't filtered out.
+                            find = ""
                             tab = .transcript
                             scrollTarget = segmentID
                             if let line = meeting.segments.first(where: { $0.id == segmentID }) {
@@ -258,6 +261,14 @@ struct MeetingDetailView: View {
     /// so a meeting opened while still processing would otherwise show `.recording`/
     /// `.summarising`-era data (raw "S1" labels, no summary) forever, even after the
     /// pipeline completes. Poll gently until the state is terminal, then stop.
+    private func showTranscriptIfFound() {
+        let terms = MeetingSearch.terms(find)
+        guard !terms.isEmpty, let meeting,
+              meeting.segments.contains(where: { MeetingSearch.matches(MeetingSearch.normalize($0.text), terms: terms) })
+        else { return }
+        tab = .transcript
+    }
+
     private func loadAndPollWhileProcessing() async {
         await load()
         while !Task.isCancelled {

@@ -47,7 +47,7 @@ public final class ModelDownloads {
             if Self.installedDirectory(for: id) != nil {
                 states[id] = .installed
             } else if FileManager.default.fileExists(atPath: Self.staging(for: id).path)
-                        || FileManager.default.fileExists(atPath: Self.directory(for: id).path) {
+                        || Self.closedWhilePreparing(id) {
                 // Started before the app was last closed (downloading, or preparing
                 // after the download); finished files are kept.
                 states[id] = .failed("Interrupted. Tap Download to carry on where it stopped.")
@@ -75,6 +75,15 @@ public final class ModelDownloads {
         directory(for: id).appendingPathComponent(".installed")
     }
 
+    /// Files moved into place but never marked installed: the app closed while the
+    /// model was preparing. (A folder marked with an older revision is an old
+    /// install, not this.)
+    nonisolated private static func closedWhilePreparing(_ id: ModelPack.ID) -> Bool {
+        let manager = FileManager.default
+        return manager.fileExists(atPath: directory(for: id).path)
+            && !manager.fileExists(atPath: markerURL(for: id).path)
+    }
+
     /// The pack's folder if it is fully downloaded and verified at the current
     /// pinned revision; nil otherwise. Safe to call from any actor.
     nonisolated public static func installedDirectory(for id: ModelPack.ID) -> URL? {
@@ -97,7 +106,7 @@ public final class ModelDownloads {
                         ModelDownloads.shared.states[id] = state
                         // The first compile only runs while the app is open; a
                         // screen lock would suspend it part-way.
-                        if state == .preparing { Self.keepScreenOn(true) }
+                        ModelDownloads.shared.updateScreenLock()
                     }
                 }
                 states[id] = .installed
@@ -109,14 +118,15 @@ public final class ModelDownloads {
                 states[id] = .failed(error.localizedDescription)
                 DebugLog.shared.log("models", "\(id.rawValue): download failed: \(error)")
             }
-            Self.keepScreenOn(false)
+            updateScreenLock()
             tasks[id] = nil
         }
     }
 
-    private static func keepScreenOn(_ on: Bool) {
+    /// The screen stays on while any model prepares, whatever else finishes.
+    private func updateScreenLock() {
         #if os(iOS)
-        UIApplication.shared.isIdleTimerDisabled = on
+        UIApplication.shared.isIdleTimerDisabled = states.values.contains(.preparing)
         #endif
     }
 
@@ -148,9 +158,8 @@ public final class ModelDownloads {
         // Closed while preparing: the files were already moved into place. Move them
         // back so they're checked and kept rather than downloaded again.
         let final = Self.directory(for: pack.id)
-        if manager.fileExists(atPath: final.path), !manager.fileExists(atPath: staging.path) {
+        if Self.closedWhilePreparing(pack.id), !manager.fileExists(atPath: staging.path) {
             try manager.moveItem(at: final, to: staging)
-            try? manager.removeItem(at: staging.appendingPathComponent(".installed"))
         }
         try manager.createDirectory(at: staging, withIntermediateDirectories: true)
         try Self.checkFreeSpace(for: pack, at: Self.root)

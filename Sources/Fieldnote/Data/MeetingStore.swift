@@ -419,11 +419,16 @@ public actor MeetingStore {
     public func reindexIfNeeded() {
         let key = "searchIndexVersion"
         guard UserDefaults.standard.integer(forKey: key) < MeetingSearch.indexVersion else { return }
-        let meetings = (try? modelContext.fetch(FetchDescriptor<Meeting>())) ?? []
-        meetings.forEach(rebuildSearchText)
-        try? modelContext.save()
-        UserDefaults.standard.set(MeetingSearch.indexVersion, forKey: key)
-        DebugLog.shared.log("store", "re-indexed \(meetings.count) meeting(s) for search")
+        do {
+            let meetings = try modelContext.fetch(FetchDescriptor<Meeting>())
+            meetings.forEach(rebuildSearchText)
+            try modelContext.save()
+            UserDefaults.standard.set(MeetingSearch.indexVersion, forKey: key)
+            DebugLog.shared.log("store", "re-indexed \(meetings.count) meeting(s) for search")
+        } catch {
+            // Left unrecorded, so the next launch tries again.
+            DebugLog.shared.log("store", "re-indexing for search failed: \(error)")
+        }
     }
 }
 
