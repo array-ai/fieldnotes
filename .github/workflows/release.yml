@@ -68,9 +68,11 @@ jobs:
           set -euo pipefail
           brew install xtool-org/tap/xtool
           ./Scripts/generate-xcode-project.sh
+          # The app target is xtool's "Fieldnote-App"; "Fieldnote" is the SwiftPM library.
+          xcodebuild -list -workspace xtool/Fieldnote.xcworkspace
           xcodebuild build \
             -workspace xtool/Fieldnote.xcworkspace \
-            -scheme Fieldnote \
+            -scheme Fieldnote-App \
             -configuration Release \
             -destination 'generic/platform=iOS' \
             -derivedDataPath build/DerivedData \
@@ -80,6 +82,11 @@ jobs:
 
           APP=$(find build/DerivedData/Build/Products/Release-iphoneos -maxdepth 1 -name "*.app" | head -1)
           [ -n "$APP" ] || { echo "Xcode produced no .app"; exit 1; }
+          # xtool's Xcode project skips xtool.yml's bundle-root resources (a TODO in
+          # xtool), so copy them in here, from the same list.
+          for RES in $(sed -n '/^resources:/,/^[^ -]/s/^  - //p' xtool.yml); do
+            cp -R "$RES" "$APP/"
+          done
           echo "--- built $APP"
           ls "$APP"
           [ -d "$APP/PlugIns" ] || { echo "no PlugIns: the widget extension was not built into the app"; exit 1; }
@@ -97,14 +104,12 @@ jobs:
       - name: Generate dSYMs
         run: |
           set -euo pipefail
-          dsymutil "$APP_PATH/Fieldnote" -o Fieldnote.dSYM
+          # Executable names come from xtool's targets (Fieldnote-App, ...), so read them.
+          EXE=$(/usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "$APP_PATH/Info.plist")
+          dsymutil "$APP_PATH/$EXE" -o Fieldnote.dSYM
           WIDGET=$(find "$APP_PATH/PlugIns" -maxdepth 1 -name "*.appex" | head -1)
-          dsymutil "$WIDGET/FieldnoteWidgets" -o FieldnoteWidgets.dSYM
-
-          echo "--- symbolicating the record-crash addresses from builds 7 and 8 ---"
-          echo "(identical offsets in both crash reports -- same call site, unaffected by the @Sendable change)"
-          xcrun atos -o Fieldnote.dSYM/Contents/Resources/DWARF/Fieldnote -l 0x1042e0000 \
-            0x00000001043eec5c 0x00000001043eee50
+          WEXE=$(/usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "$WIDGET/Info.plist")
+          dsymutil "$WIDGET/$WEXE" -o FieldnoteWidgets.dSYM
 
       - uses: actions/upload-artifact@v4
         with:

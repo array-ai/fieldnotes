@@ -98,12 +98,16 @@ jobs:
           ./Scripts/generate-xcode-project.sh
           xcodebuild build \
             -workspace xtool/Fieldnote.xcworkspace \
-            -scheme Fieldnote \
+            -scheme Fieldnote-App \
             -destination 'generic/platform=iOS' \
             -derivedDataPath build/DerivedData \
             CODE_SIGNING_ALLOWED=NO \
             | tail -5
           APP=$(find build/DerivedData/Build/Products/Debug-iphoneos -maxdepth 1 -name "*.app" | head -1)
+          # xtool's Xcode project skips xtool.yml's bundle-root resources; copy them in.
+          for RES in $(sed -n '/^resources:/,/^[^ -]/s/^  - //p' xtool.yml); do
+            [ -n "$APP" ] && cp -R "$RES" "$APP/"
+          done
           [ -n "$APP" ] && [ -d "$APP/PlugIns" ] && [ -f "$APP/Places/places.deflate" ] \
             && [ -d "$APP/DiarizationModels/Nemotron3" ] \
             || { echo "app, widget, models or place table missing"; exit 1; }
