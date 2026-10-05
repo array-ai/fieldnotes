@@ -93,6 +93,7 @@ struct SettingsView: View {
                     if settings.debugMode {
                         NavigationLink("Activity log") { DebugLogView() }
                         NavigationLink("Benchmark models") { BenchmarkView() }
+                        NavigationLink("Summary prompt") { SummaryPromptEditor() }
                     }
                 } header: {
                     Text("Debug")
@@ -330,5 +331,59 @@ struct BenchmarkView: View {
         var seen: [String] = []
         for row in benchmark.rows where !seen.contains(row.section) { seen.append(row.section) }
         return seen
+    }
+}
+
+struct SummaryPromptEditor: View {
+    @State private var prompt = SummaryPromptStore.load()
+    @State private var saved = SummaryPromptStore.load()
+
+    var body: some View {
+        Form {
+            Section {
+                TextEditor(text: $prompt.preamble).frame(minHeight: 100)
+            } header: {
+                Text("Instructions")
+            } footer: {
+                Text("The system prompt: who the model is and what the notes are for.")
+            }
+            Section {
+                TextEditor(text: $prompt.request).frame(minHeight: 140)
+            } header: {
+                Text("Request for each excerpt")
+            } footer: {
+                Text("Sent with every part of the transcript. Ask for what you want pulled out; the topics, decisions, tasks and questions it fills in are fixed.")
+            }
+            Section {
+                Text(PromptTemplates.groundingRules)
+                    .font(.caption.monospaced())
+                    .foregroundStyle(.secondary)
+            } header: {
+                Text("Always added")
+            } footer: {
+                Text("These rules make points cite the transcript, which is how they get timestamps and how made-up points are dropped. They can't be edited.")
+            }
+            Section {
+                Button("Restore built-in prompt", role: .destructive) {
+                    prompt = .builtIn
+                    save()
+                }
+                .disabled(prompt.isBuiltIn)
+            } footer: {
+                Text("Changes apply to the next summary. Use Redo summary on a meeting to compare. Smaller on-device models follow short, plain instructions best.")
+            }
+        }
+        .navigationTitle("Summary prompt")
+        .toolbar {
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Save") { save() }.disabled(prompt == saved)
+            }
+        }
+    }
+
+    private func save() {
+        SummaryPromptStore.save(prompt)
+        saved = prompt
+        DebugLog.shared.log("summary", prompt.isBuiltIn ? "summary prompt restored to built-in" : "summary prompt edited")
     }
 }

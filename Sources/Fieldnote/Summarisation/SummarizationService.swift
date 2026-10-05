@@ -34,6 +34,8 @@ public actor SummarizationService {
     private let log = Logger(subsystem: "com.publicarray.fieldnotes", category: "summarisation")
     private let debug = DebugLog.shared
     private let tier = ModelTier.coreAdvanced
+    /// The prompt for the current run: built-in, or the user's edit (debug mode).
+    private var prompt = SummaryPrompt.builtIn
     /// Splits per chunk before giving up: 2^4 = 16 pieces.
     private let maxSplitDepth = 4
 
@@ -53,8 +55,13 @@ public actor SummarizationService {
             return MeetingSummary()
         }
 
+        prompt = SummaryPromptStore.load()
+        if !prompt.isBuiltIn {
+            debug.log("summary", "\(DebugLog.short(meeting.id)): using an edited summary prompt")
+        }
+
         // Fails early, with a clear reason, if the on-device model isn't available.
-        _ = try OnDeviceModel.session(tier: tier, instructions: PromptTemplates.instructions)
+        _ = try OnDeviceModel.session(tier: tier, instructions: prompt.instructions)
 
         let budget = await measureBudget()
         debug.log(
@@ -131,7 +138,7 @@ public actor SummarizationService {
     // MARK: - Budget
 
     private func measureBudget() async -> PromptBudget {
-        let instructions = await OnDeviceModel.tokenCount(instructions: PromptTemplates.instructions, tier: tier)
+        let instructions = await OnDeviceModel.tokenCount(instructions: prompt.instructions, tier: tier)
         let schema = await OnDeviceModel.tokenCount(schema: DraftChunkNotes.generationSchema, tier: tier)
         guard let instructions, let schema else { return .fallback }
         return PromptBudget(
@@ -161,7 +168,7 @@ public actor SummarizationService {
         depth: Int,
         degraded: inout [DegradedChunk]
     ) async -> ChunkNotes {
-        let prompt = PromptTemplates.chunkPrompt(chunk: piece, chunkIndex: piece.index, chunkCount: total)
+        let prompt = PromptTemplates.chunkPrompt(chunk: piece, chunkIndex: piece.index, chunkCount: total, request: prompt.effectiveRequest)
         let tokens = await cost(of: prompt)
 
         if !budget.fits(promptTokens: tokens), depth < maxSplitDepth, let halves = piece.halves() {
@@ -170,7 +177,7 @@ public actor SummarizationService {
         }
 
         do {
-            let session = try OnDeviceModel.session(tier: tier, instructions: PromptTemplates.instructions)
+            let session = try OnDeviceModel.session(tier: tier, instructions: prompt.instructions)
             let response = try await session.respond(to: prompt, generating: DraftChunkNotes.self)
             return response.content.notes
         } catch {
@@ -215,7 +222,7 @@ public actor SummarizationService {
     }
 
     private func respond(to prompt: String) async throws -> ChunkNotes {
-        let session = try OnDeviceModel.session(tier: tier, instructions: PromptTemplates.instructions)
+        let session = try OnDeviceModel.session(tier: tier, instructions: prompt.instructions)
         return try await session.respond(to: prompt, generating: DraftChunkNotes.self).content.notes
     }
 
@@ -265,7 +272,7 @@ public actor SummarizationService {
 
         if budget.fits(promptTokens: await cost(of: prompt)) {
             do {
-                let session = try OnDeviceModel.session(tier: tier, instructions: PromptTemplates.instructions)
+                let session = try OnDeviceModel.session(tier: tier, instructions: prompt.instructions)
                 let response = try await session.respond(to: prompt, generating: DraftOutline.self)
                 let sections = response.content.sections.map {
                     TopicMerger.Section(
@@ -303,7 +310,7 @@ public actor SummarizationService {
             debug.log("summary", "overview uses \(kept.count) of \(points.count) points to fit the context")
         }
         do {
-            let session = try OnDeviceModel.session(tier: tier, instructions: PromptTemplates.instructions)
+            let session = try OnDeviceModel.session(tier: tier, instructions: prompt.instructions)
             let response = try await session.respond(to: prompt, generating: DraftRollup.self)
             return response.content.overview.trimmed()
         } catch {
@@ -358,6 +365,25 @@ public actor SummarizationService {
                 endTime: piece.endTime,
                 detail: detail
             )
+        }
+    }
+}
+
+/// The user's edit of the summary prompt (debug mode), kept in UserDefaults.
+public enum SummaryPromptStore {
+    private static let key = "summaryPrompt"
+
+    public static func load() -> SummaryPrompt {
+        guard let data = UserDefaults.standard.data(forKey: key),
+              let stored = try? JSONDecoder().decode(SummaryPrompt.self, from: data) else { return .builtIn }
+        return stored
+    }
+
+    public static func save(_ prompt: SummaryPrompt) {
+        if prompt.isBuiltIn {
+            UserDefaults.standard.removeObject(forKey: key)
+        } else if let data = try? JSONEncoder().encode(prompt) {
+            UserDefaults.standard.set(data, forKey: key)
         }
     }
 }

@@ -162,11 +162,14 @@ public final class ModelBenchmark {
         // One excerpt of about a third of the context, the size real chunks are.
         let chunker = TranscriptChunker(budget: 1_200, overlap: 0)
         guard let chunk = chunker.chunks(from: lines).first else { return }
-        let prompt = PromptTemplates.chunkPrompt(chunk: chunk, chunkIndex: 0, chunkCount: 1)
+        let summaryPrompt = SummaryPromptStore.load()
+        let prompt = PromptTemplates.chunkPrompt(
+            chunk: chunk, chunkIndex: 0, chunkCount: 1, request: summaryPrompt.effectiveRequest
+        )
         let promptTokens = await OnDeviceModel.tokenCount(prompt: prompt, tier: .coreAdvanced)
 
         do {
-            let session = try OnDeviceModel.session(tier: .coreAdvanced, instructions: PromptTemplates.instructions)
+            let session = try OnDeviceModel.session(tier: .coreAdvanced, instructions: summaryPrompt.instructions)
             let started = ContinuousClock.now
             let response = try await session.respond(to: prompt, generating: DraftChunkNotes.self)
             let elapsed = seconds(since: started)

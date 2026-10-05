@@ -23,23 +23,22 @@ public enum PromptTemplates {
         padding with detail the transcript does not contain.
         """
 
-    /// Session instructions for every summarisation call.
-    public static let instructions = """
-        You write minutes and notes from a recorded meeting.
-
-        \(groundingRules)
-        """
+    /// Session instructions for every summarisation call, with the built-in prompt.
+    public static let instructions = SummaryPrompt.builtIn.instructions
 
     /// The map-phase prompt. One chunk of numbered transcript in, structured notes out.
-    public static func chunkPrompt(chunk: TranscriptChunk, chunkIndex: Int, chunkCount: Int) -> String {
+    public static func chunkPrompt(
+        chunk: TranscriptChunk,
+        chunkIndex: Int,
+        chunkCount: Int,
+        request: String = SummaryPrompt.builtIn.request
+    ) -> String {
         """
         Excerpt \(chunkIndex + 1) of \(chunkCount) from a meeting transcript. Each \
         line is numbered and prefixed with the speaker label, as "N | Speaker: text". \
         Cite these line numbers.
 
-        Group what was discussed into topics, each with its key points and the \
-        details that support them. Also pull out decisions made, tasks people agreed \
-        to do, and questions left open.
+        \(request)
 
         Transcript:
         \(chunk.promptText())
@@ -140,5 +139,45 @@ public struct PromptBudget: Sendable, Equatable {
     /// Whether a prompt that costs `promptTokens` (framing + transcript) fits.
     public func fits(promptTokens: Int) -> Bool {
         promptTokens <= promptLimit
+    }
+}
+
+/// The editable part of the summary prompt (debug mode). Two pieces:
+///
+/// - `preamble`: the session instructions — who the model is and what it's for.
+/// - `request`: what to pull out of each excerpt of transcript.
+///
+/// `PromptTemplates.groundingRules` is always appended to the instructions and can't
+/// be edited away: citing line numbers is how points get timestamps, and how made-up
+/// points are caught and dropped.
+public struct SummaryPrompt: Codable, Sendable, Equatable {
+    public var preamble: String
+    public var request: String
+
+    public init(preamble: String, request: String) {
+        self.preamble = preamble
+        self.request = request
+    }
+
+    public static let builtIn = SummaryPrompt(
+        preamble: "You write minutes and notes from a recorded meeting.",
+        request: """
+            Group what was discussed into topics, each with its key points and the \
+            details that support them. Also pull out decisions made, tasks people \
+            agreed to do, and questions left open.
+            """
+    )
+
+    public var isBuiltIn: Bool { self == .builtIn }
+
+    /// The session instructions actually sent: the preamble, then the rules.
+    public var instructions: String {
+        let preamble = self.preamble.trimmed().nilIfEmpty ?? Self.builtIn.preamble
+        return "\(preamble)\n\n\(PromptTemplates.groundingRules)"
+    }
+
+    /// The request actually sent, falling back to the built-in one if left empty.
+    public var effectiveRequest: String {
+        request.trimmed().nilIfEmpty ?? Self.builtIn.request
     }
 }

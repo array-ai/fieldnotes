@@ -86,3 +86,30 @@ struct SummaryFittingTests {
         #expect(decoded.explanation.contains("shorter prompt"))
     }
 }
+
+@Suite("Editable summary prompt")
+struct SummaryPromptTests {
+
+    @Test("The rules are always part of the instructions")
+    func rulesKept() {
+        let custom = SummaryPrompt(preamble: "You take terse notes for a building inspector.", request: "List defects.")
+        #expect(custom.instructions.hasPrefix("You take terse notes"))
+        #expect(custom.instructions.contains(PromptTemplates.groundingRules))
+        #expect(!custom.isBuiltIn)
+    }
+
+    @Test("Empty fields fall back to the built-in text")
+    func emptyFallsBack() {
+        let blank = SummaryPrompt(preamble: "  ", request: "")
+        #expect(blank.instructions == SummaryPrompt.builtIn.instructions)
+        #expect(blank.effectiveRequest == SummaryPrompt.builtIn.request)
+    }
+
+    @Test("The request lands in the excerpt prompt")
+    func requestInPrompt() {
+        let chunk = TranscriptChunk(index: 0, lineNumbers: [1], segments: [TranscriptSegment(start: 0, end: 1, text: "hi")], overlapCount: 0)
+        let prompt = PromptTemplates.chunkPrompt(chunk: chunk, chunkIndex: 0, chunkCount: 1, request: "List defects.")
+        #expect(prompt.contains("List defects."))
+        #expect(prompt.contains("1 | Unknown: hi"))
+    }
+}
