@@ -148,7 +148,7 @@ public actor SummarizationService {
             if chunkDegraded.isEmpty { await savePart(chunk.partKey, chunkNotes) }
             debug.log(
                 "summary",
-                "chunk \(chunk.index + 1)/\(chunks.count): \(chunk.segments.count) lines, \(chunkNotes.points.count) points, \(chunkDegraded.isEmpty ? "ok" : "\(chunkDegraded.count) degraded piece(s)") in \(DebugLog.elapsed(since: started))"
+                "chunk \(chunk.index + 1)/\(chunks.count): \(chunk.segments.count) lines, \(chunkNotes.topics.count) topic(s), \(chunkNotes.topics.reduce(0) { $0 + $1.points.count }) point(s), \(chunkDegraded.isEmpty ? "ok" : "\(chunkDegraded.count) degraded piece(s)") in \(DebugLog.elapsed(since: started))"
             )
             // Chunks are the map phase; the roll-up is the last 10%.
             progress(0.9 * Double(chunk.index + 1) / Double(chunks.count))
