@@ -343,10 +343,20 @@ public actor MeetingStore {
     }
 
     public func delete(meetingID: UUID) throws {
+        try deleteRecord(meetingID: meetingID)
+        Self.deleteFiles(meetingID: meetingID)
+    }
+
+    /// The database half of a delete. Once it's gone the meeting is no longer
+    /// pending, and anything a cancelled run still reports for it is ignored.
+    public func deleteRecord(meetingID: UUID) throws {
         guard let meeting = try meeting(with: meetingID) else { return }
         modelContext.delete(meeting)
         try modelContext.save()
-        // Audio and checkpoints are outside the database; delete means delete.
+    }
+
+    /// Audio and checkpoints are outside the database; delete means delete.
+    public nonisolated static func deleteFiles(meetingID: UUID) {
         try? FileManager.default.removeItem(at: FieldnoteStorage.meetingDirectory(for: meetingID))
     }
 

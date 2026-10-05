@@ -92,7 +92,7 @@ public struct AudioSamples: Sendable {
         reader = { Array(samples[$0]) }
     }
 
-    /// The meeting's speaker buffer (`diarization.f32`). Opened per slice, so nothing
+    /// The meeting's speaker buffer (`diarization.f32`). Mapped per slice, so nothing
     /// is held open between reads.
     public init(meetingID: UUID) throws {
         let url = DiarizationBuffer.fileURL(for: meetingID)
@@ -101,13 +101,13 @@ public struct AudioSamples: Sendable {
         count = bytes / MemoryLayout<Float>.size
         reader = { range in
             guard !range.isEmpty else { return [] }
-            let handle = try FileHandle(forReadingFrom: url)
-            defer { try? handle.close() }
-            try handle.seek(toOffset: UInt64(range.lowerBound * MemoryLayout<Float>.size))
-            // The pool frees each read's buffer now rather than at the end of the run.
+            // Mapped, not read: only the slice's pages are touched, and the whole
+            // recording costs one copy (the array), not two.
             return try autoreleasepool {
-                let data = try handle.read(upToCount: range.count * MemoryLayout<Float>.size) ?? Data()
-                return data.withUnsafeBytes { Array($0.bindMemory(to: Float.self)) }
+                let data = try Data(contentsOf: url, options: .alwaysMapped)
+                let size = MemoryLayout<Float>.size
+                let bytes = data[(range.lowerBound * size)..<min(range.upperBound * size, data.count)]
+                return bytes.withUnsafeBytes { Array($0.bindMemory(to: Float.self)) }
             }
         }
     }

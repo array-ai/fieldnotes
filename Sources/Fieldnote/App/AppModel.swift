@@ -249,14 +249,17 @@ public final class AppModel {
     /// Deletes meetings, stopping any processing first. The meeting being recorded
     /// is skipped: its files are still being written.
     public func deleteMeetings(_ ids: [UUID]) async {
+        let ids = ids.filter { !(recorder.isActive && recorder.meetingID == $0) }
+        // The rows go first, so they vanish at once and no restarted run picks
+        // them up; then any run still on one is stopped before its files go.
+        for id in ids { try? await store.deleteRecord(meetingID: id) }
+        await refresh()
         for id in ids {
-            if recorder.isActive, recorder.meetingID == id { continue }
             #if os(iOS)
             await coordinator.stopAndWait(meetingID: id)
             #endif
-            try? await store.delete(meetingID: id)
+            MeetingStore.deleteFiles(meetingID: id)
         }
-        await refresh()
     }
 
     // MARK: - Editing
