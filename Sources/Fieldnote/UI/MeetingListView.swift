@@ -150,23 +150,33 @@ struct MeetingRow: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            HStack(spacing: 6) {
-                Text(meeting.startedAt.formatted(date: .abbreviated, time: .shortened))
-                if let place = meeting.placeName {
+            // One line of details: when (short, no year this year), where, folder.
+            // The place gives way first when space runs out.
+            HStack(spacing: 4) {
+                Text(Self.when(meeting.startedAt))
+                    .layoutPriority(2)
+                if let place = meeting.placeName, !place.isEmpty {
                     Text("·")
                     Label(place, systemImage: "mappin")
                         .labelStyle(.titleAndIcon)
-                        .lineLimit(1)
+                        .truncationMode(.tail)
                 }
                 if let folder = meeting.folderName {
                     Text("·")
-                    Text(folder)
+                    Text(folder).layoutPriority(1)
                 }
-                Spacer()
-                ProcessingBadge(state: meeting.state, message: meeting.failureMessage, finish: meeting.estimatedCompletion)
             }
+            .lineLimit(1)
             .font(.caption)
             .foregroundStyle(.secondary)
+
+            // Status on its own line, only while there is one.
+            if meeting.state != .complete {
+                ProcessingBadge(state: meeting.state, message: meeting.failureMessage, finish: meeting.estimatedCompletion)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
 
             if let snippet = MeetingSearch.snippet(in: meeting, terms: searchTerms) {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
@@ -204,6 +214,13 @@ struct MeetingRow: View {
         }
         .padding(.vertical, 2)
     }
+
+    /// "6 Oct, 12:39 am"; the year only when it isn't this year.
+    static func when(_ date: Date) -> String {
+        let sameYear = Calendar.current.isDate(date, equalTo: Date(), toGranularity: .year)
+        let style = Date.FormatStyle.dateTime.day().month(.abbreviated).hour().minute()
+        return date.formatted(sameYear ? style : style.year())
+    }
 }
 
 struct ProcessingBadge: View {
@@ -228,7 +245,7 @@ struct ProcessingBadge: View {
                 ProgressView().controlSize(.mini)
                 Text(stageName)
                 if let finish {
-                    Text("· \(finish.timeIntervalSinceNow > 0 ? max(0, finish.timeIntervalSinceNow).roughDuration : "finishing")")
+                    Text("· \(finish.timeIntervalSinceNow > 0 ? "\(max(0, finish.timeIntervalSinceNow).roughDuration) left" : "finishing")")
                 }
             }
         }
