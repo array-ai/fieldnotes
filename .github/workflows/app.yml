@@ -1,23 +1,10 @@
 name: App build (iOS)
 
-# Separate from ci.yml, and deliberately not on every push.
-#
-# Two reasons. macOS runners are slower and scarcer than Linux ones (and bill at
-# 10x the Linux rate wherever minutes are billed). And the image needed here is a
-# preview image, so it can queue.
-# ci.yml (policy + Core, on Linux) stays the every-push gate; this job runs when the
-# iOS-only code or the packaging actually changes, and on demand.
+# Manual only. macOS runners bill at 10x the Linux rate, and release.yml already
+# builds, packs and uploads the app, so running this on every push paid for the
+# same build twice. ci.yml (policy + Core, on Linux) stays the every-push gate;
+# run this by hand to check a build without uploading it to TestFlight.
 on:
-  push:
-    paths:
-      - "Sources/**"
-      - "Core/**"
-      - "Package.swift"
-      - "Config/**"
-      - "xtool.yml"
-      - "Scripts/**"
-      - ".github/workflows/app.yml"
-  pull_request:
   workflow_dispatch:
 
 jobs:
