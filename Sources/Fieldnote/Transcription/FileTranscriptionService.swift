@@ -48,10 +48,12 @@ public actor FileTranscriptionService {
             try await session.start()
             do {
                 try await feed(file, into: session)
-            } catch {
-                // Release the speech model before giving up on this run.
+            } catch is CancellationError {
                 await session.cancel()
-                throw error
+                throw CancellationError()
+            } catch {
+                // A chunk that breaks part-way: keep what was heard up to there.
+                DebugLog.shared.log("transcript", "audio chunk \(chunk.index + 1) of \(chunks.count) stopped part-way; keeping what was read (\(error.localizedDescription))")
             }
             let segments = try await session.finish()
             all.append(contentsOf: segments)

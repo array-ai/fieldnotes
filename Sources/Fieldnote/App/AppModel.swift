@@ -83,7 +83,14 @@ public final class AppModel {
             longitude: coordinate?.longitude
         )
         let live = settings.identifiesSpeakersLive
-        try await recorder.start(meetingID: id, title: title, type: type, locale: locale, identifySpeakersLive: live)
+        do {
+            try await recorder.start(meetingID: id, title: title, type: type, locale: locale, identifySpeakersLive: live)
+        } catch {
+            // Nothing was recorded; don't leave an empty meeting behind.
+            try? await store.delete(meetingID: id)
+            await refresh()
+            throw error
+        }
         DebugLog.shared.log(
             "recording",
             "\(DebugLog.short(id)): started, speaker method \(settings.diarizationMethod.rawValue)\(recorder.identifiesSpeakersLive ? ", identifying speakers live" : "")"

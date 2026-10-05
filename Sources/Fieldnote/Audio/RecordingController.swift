@@ -101,10 +101,26 @@ public final class RecordingController {
         self.locale = locale
         liveSpans = []
         identifiesSpeakersLive = false
+        do {
+            try await begin(meetingID: meetingID, title: title, type: type, locale: locale, identifySpeakersLive: identifySpeakersLive)
+        } catch {
+            // Nothing was captured: back to idle (not failed, which means "audio
+            // saved, tap Save"). The caller shows the error.
+            DebugLog.shared.log("recording", "\(DebugLog.short(meetingID)): couldn't start: \(error)")
+            await abandonStart()
+            throw error
+        }
+    }
 
+    private func begin(
+        meetingID: UUID,
+        title: String,
+        type: MeetingType,
+        locale: Locale,
+        identifySpeakersLive: Bool
+    ) async throws {
         #if os(iOS)
         guard await sessionController.requestPermission() else {
-            state = .failed("Microphone access is off for Fieldnote.")
             throw RecordingError.microphoneDenied
         }
         sessionController.onEvent = { [weak self] event in
@@ -150,6 +166,46 @@ public final class RecordingController {
         await liveActivity?.start(startedAt: startDate)
     }
 
+    private func abandonStart() async {
+        if let engineObserver {
+            NotificationCenter.default.removeObserver(engineObserver)
+            self.engineObserver = nil
+        }
+        // Only if capture got that far: touching the input node creates it, which
+        // isn't wanted after a refused microphone.
+        if pump != nil {
+            engine.inputNode.removeTap(onBus: 0)
+            engine.stop()
+        }
+        bufferContinuation?.finish()
+        bufferContinuation = nil
+        await pump?.value
+        pump = nil
+        liveContinuation?.finish()
+        liveContinuation = nil
+        await livePump?.value
+        livePump = nil
+        updates?.cancel()
+        updates = nil
+        await transcription?.cancel()
+        transcription = nil
+        _ = await nemotron?.finish()
+        nemotron = nil
+        if identifiesSpeakersLive {
+            await DiarizationService.shared.cancelLive()
+            identifiesSpeakersLive = false
+        }
+        _ = try? await writer?.finish()
+        writer = nil
+        try? await diarizationBuffer?.close()
+        diarizationBuffer = nil
+        #if os(iOS)
+        sessionController.deactivate()
+        #endif
+        meetingID = nil
+        state = .idle
+    }
+
     public func pause() async {
         guard state == .recording else { return }
         engine.pause()
@@ -166,7 +222,12 @@ public final class RecordingController {
             #if os(iOS)
             try sessionController.activate()
             #endif
-            try engine.start()
+            // Re-reads the input format: the mic may have changed while paused (a
+            // headset connected during a call), and starting the engine with the old
+            // format raises an exception Swift can't catch.
+            engine.inputNode.removeTap(onBus: 0)
+            engine.stop()
+            try installTapAndStart()
             startDate = Date()
             state = .recording
             DebugLog.shared.log("recording", "resumed")
@@ -290,7 +351,7 @@ public final class RecordingController {
             bufferingPolicy: .bufferingNewest(512)
         )
         bufferContinuation = continuation
-        // ~3 minutes (about 30 MB): room for a model to load or catch up.
+        // ~3 minutes (about 45 MB for mono input): room for a model to load or catch up.
         let (liveStream, liveContinuation) = AsyncStream<LiveAudio>.makeStream(
             bufferingPolicy: .bufferingNewest(2_048)
         )
@@ -425,7 +486,8 @@ public final class RecordingController {
                 await liveActivity?.update(elapsed: elapsed, level: 0, isPaused: true)
             }
         case .interruptionEnded(let shouldResume):
-            guard shouldResume else { return }
+            // Only an interrupted recording: one the user paused stays paused.
+            guard shouldResume, state == .interrupted else { return }
             Task { await resume() }
         case .routeChanged(let reason):
             // Nothing to do here: if the new route changes the input format, the
