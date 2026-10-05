@@ -31,6 +31,8 @@ public final class Meeting {
     public var placeName: String?
     public var processingStateRaw: String = ProcessingState.recording.rawValue
     public var failureMessage: String?
+    /// When processing is expected to finish, set as each stage starts.
+    public var estimatedCompletion: Date?
     /// Denormalised title + transcript + summary text, lowercased. See the note above.
     public var searchText: String = ""
     /// v1 relies on a verbal consent process rather than building product around it

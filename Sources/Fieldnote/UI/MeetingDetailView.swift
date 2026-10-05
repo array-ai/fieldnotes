@@ -197,6 +197,11 @@ struct ProcessingStatusBanner: View {
             } else {
                 ProgressView().controlSize(.small)
                 Text(statusText)
+                if let finish = meeting.estimatedCompletion {
+                    let left = finish.timeIntervalSinceNow
+                    Text(left > 0 ? "· \(left.roughDuration) left" : "· finishing up")
+                        .foregroundStyle(.secondary)
+                }
             }
             Spacer()
         }

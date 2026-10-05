@@ -12,6 +12,8 @@ public final class AppModel {
 
     public private(set) var capability: DeviceCapability.Status = .ready
     public private(set) var meetings: [MeetingSnapshot] = []
+    /// Set to navigate to a meeting, e.g. from a tapped notification.
+    public var openMeetingID: UUID?
     /// 0...1 while a recording is being imported, nil otherwise.
     public private(set) var importProgress: Double?
     public var importError: String?
@@ -104,6 +106,7 @@ public final class AppModel {
         }
         #if os(iOS)
         let title = meetings.first { $0.id == result.meetingID }?.title ?? "meeting"
+        await ProcessingNotifier.shared.requestPermissionIfNeeded()
         await coordinator.submitAfterRecording(title: title)
         #endif
         await refresh()
@@ -150,6 +153,7 @@ public final class AppModel {
                 "\(DebugLog.short(id)): imported \(String(format: "%.1f", result.duration))s in \(result.chunks.count) chunk(s) in \(DebugLog.elapsed(since: started))"
             )
             #if os(iOS)
+            await ProcessingNotifier.shared.requestPermissionIfNeeded()
             await coordinator.submitAfterRecording(title: title)
             #endif
         } catch {
@@ -249,6 +253,11 @@ public final class AppModel {
             liveSpeakers && diarizationMethod == .nemotron3
         }
 
+        /// A local notification when a meeting's notes are ready. On by default.
+        public var notifyWhenProcessed: Bool {
+            didSet { UserDefaults.standard.set(notifyWhenProcessed, forKey: ProcessingNotifier.enabledKey) }
+        }
+
         /// Shows the log viewer and the redo actions.
         public var debugMode: Bool {
             didSet { UserDefaults.standard.set(debugMode, forKey: "debugMode") }
@@ -261,6 +270,7 @@ public final class AppModel {
 
         public init() {
             self.debugMode = UserDefaults.standard.bool(forKey: "debugMode")
+            self.notifyWhenProcessed = UserDefaults.standard.object(forKey: ProcessingNotifier.enabledKey) as? Bool ?? true
             self.liveSpeakers = UserDefaults.standard.object(forKey: "liveSpeakers") as? Bool ?? true
             self.appleMapsPlaceNames = UserDefaults.standard.bool(forKey: "appleMapsPlaceNames")
             self.diarizationMethod = DiarizationMethod(

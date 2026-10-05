@@ -55,6 +55,8 @@ public actor ProcessingPipeline {
 
     /// Fractional progress within a stage, 0...1.
     public typealias ProgressHandler = @Sendable (ProcessingStage, Double) -> Void
+    /// Called as each stage starts, with when processing is expected to finish.
+    public typealias EstimateHandler = @Sendable (ProcessingStage, Date) -> Void
 
     private let log = Logger(subsystem: "com.publicarray.fieldnotes", category: "pipeline")
     private let debug = DebugLog.shared
@@ -73,9 +75,37 @@ public actor ProcessingPipeline {
         self.summariser = summariser
     }
 
-    public func run(_ input: Input, progress: @escaping ProgressHandler = { _, _ in }) async throws -> Output {
+    public func run(
+        _ input: Input,
+        progress: @escaping ProgressHandler = { _, _ in },
+        estimate: @escaping EstimateHandler = { _, _ in }
+    ) async throws -> Output {
         let store = try ProcessingCheckpointStore(meetingID: input.meetingID)
         var checkpoint = await store.load()
+
+        // What actually has work to do, for the time estimate.
+        let hasLiveSpeakers = await store.loadLiveSpans() != nil
+        let work = ProcessingEstimator.Work(
+            transcribes: !checkpoint.isComplete(.transcribing)
+                && (checkpoint.redoTranscript == true || !coversRecording(input.liveSegments, duration: input.duration)),
+            diarizes: !checkpoint.isComplete(.diarizing) && !hasLiveSpeakers,
+            summarises: !checkpoint.isComplete(.summarising)
+        )
+        var estimator = ProcessingEstimates.load()
+        let announce: (ProcessingStage) -> Void = { stage in
+            let seconds = estimator.remaining(from: stage, audio: input.duration, work: work)
+            estimate(stage, Date().addingTimeInterval(seconds))
+        }
+        let learn: (ProcessingStage, ContinuousClock.Instant) -> Void = { stage, start in
+            guard work.includes(stage) else { return }
+            let elapsed = start.duration(to: .now)
+            estimator.record(
+                stage,
+                elapsed: Double(elapsed.components.seconds) + Double(elapsed.components.attoseconds) / 1e18,
+                audio: input.duration
+            )
+            ProcessingEstimates.save(estimator)
+        }
         let id = DebugLog.short(input.meetingID)
         if !checkpoint.completedStages.isEmpty {
             log.notice("Resuming meeting \(input.meetingID.uuidString, privacy: .public) after \(checkpoint.completedStages.count, privacy: .public) completed stages")
@@ -85,15 +115,20 @@ public actor ProcessingPipeline {
         let started = ContinuousClock.now
 
         var stageStart = ContinuousClock.now
+        announce(.transcribing)
         let segments = try await transcribeStage(input, store: store, checkpoint: &checkpoint, progress: progress)
         debug.log("pipeline", "\(id): transcribing finished in \(DebugLog.elapsed(since: stageStart)), \(segments.count) lines")
+        learn(.transcribing, stageStart)
 
         stageStart = .now
+        announce(.diarizing)
         let diarization = try await diarizeStage(input, segments: segments, store: store, checkpoint: &checkpoint, progress: progress)
         let speakers = Set(diarization.segments.compactMap(\.speakerID)).count
         debug.log("pipeline", "\(id): identifying speakers finished in \(DebugLog.elapsed(since: stageStart)), \(speakers) speaker(s)")
+        learn(.diarizing, stageStart)
 
         stageStart = .now
+        announce(.summarising)
         let summary = try await summariseStage(
             input,
             segments: diarization.segments,
@@ -102,6 +137,7 @@ public actor ProcessingPipeline {
             progress: progress
         )
         debug.log("pipeline", "\(id): summarising finished in \(DebugLog.elapsed(since: stageStart)), \(summary.degradedChunks.count) degraded part(s)")
+        learn(.summarising, stageStart)
         debug.log("pipeline", "\(id): done in \(DebugLog.elapsed(since: started))")
 
         return Output(
@@ -264,5 +300,23 @@ public actor ProcessingPipeline {
         try await store.markComplete(.summarising, in: &checkpoint)
         progress(.summarising, 1.0)
         return summary
+    }
+}
+
+/// The learned processing speeds for this phone, kept in UserDefaults.
+enum ProcessingEstimates {
+    private static let key = "processingEstimator"
+
+    static func load() -> ProcessingEstimator {
+        guard let data = UserDefaults.standard.data(forKey: key),
+              let stored = try? JSONDecoder().decode(ProcessingEstimator.self, from: data) else {
+            return ProcessingEstimator()
+        }
+        return stored
+    }
+
+    static func save(_ estimator: ProcessingEstimator) {
+        guard let data = try? JSONEncoder().encode(estimator) else { return }
+        UserDefaults.standard.set(data, forKey: key)
     }
 }

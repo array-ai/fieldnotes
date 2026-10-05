@@ -8,10 +8,11 @@ struct MeetingListView: View {
     @State private var showingSettings = false
     @State private var importing = false
     @State private var share = SharePresentation()
+    @State private var path: [UUID] = []
 
     var body: some View {
         @Bindable var model = model
-        NavigationStack {
+        NavigationStack(path: $path) {
             List {
                 ForEach(model.meetings) { meeting in
                     NavigationLink(value: meeting.id) {
@@ -89,6 +90,11 @@ struct MeetingListView: View {
             }
             .refreshable { await model.refresh() }
         }
+        .onChange(of: model.openMeetingID) { _, id in
+            guard let id else { return }
+            path = [id]
+            model.openMeetingID = nil
+        }
         .sharePresentation(share)
         .sheet(isPresented: $showingRecorder) { RecorderView() }
         .sheet(isPresented: $showingSettings) { SettingsView() }
@@ -126,7 +132,7 @@ struct MeetingRow: View {
                     Text(folder)
                 }
                 Spacer()
-                ProcessingBadge(state: meeting.state, message: meeting.failureMessage)
+                ProcessingBadge(state: meeting.state, message: meeting.failureMessage, finish: meeting.estimatedCompletion)
             }
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -158,6 +164,7 @@ struct MeetingRow: View {
 struct ProcessingBadge: View {
     let state: ProcessingState
     let message: String?
+    var finish: Date?
 
     var body: some View {
         switch state {
@@ -175,6 +182,9 @@ struct ProcessingBadge: View {
             HStack(spacing: 4) {
                 ProgressView().controlSize(.mini)
                 Text(stageName)
+                if let finish {
+                    Text("· \(finish.timeIntervalSinceNow > 0 ? max(0, finish.timeIntervalSinceNow).roughDuration : "finishing")")
+                }
             }
         }
     }

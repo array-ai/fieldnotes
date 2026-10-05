@@ -198,16 +198,26 @@ public final class BackgroundProcessingCoordinator: @unchecked Sendable {
             reporter.reset()
             let pipeline = pipelineFactory(job.locale)
             do {
-                let output = try await pipeline.run(job) { [provider] stage, fraction in
-                    // Reported on every fractional update, not once per stage: the
-                    // system prioritises killing tasks that report little progress.
-                    let stageChanged = reporter.report(stage, fraction: fraction)
-                    guard stageChanged else { return }
-                    // Surface the stage in the meeting list too, so a user looking at
-                    // the app sees the same state as the Live Activity.
-                    Task { await provider.markStage(stage, meetingID: job.meetingID) }
-                }
+                let output = try await pipeline.run(
+                    job,
+                    progress: { stage, fraction in
+                        // Reported on every fractional update, not once per stage: the
+                        // system prioritises killing tasks that report little progress.
+                        reporter.report(stage, fraction: fraction)
+                    },
+                    estimate: { [provider] stage, finish in
+                        // Surface the stage and the estimate in the meeting list and
+                        // the Live Activity, so both say the same thing.
+                        reporter.setEstimate(finish, for: stage)
+                        Task { await provider.markStage(stage, meetingID: job.meetingID, estimatedCompletion: finish) }
+                    }
+                )
                 await provider.apply(output, to: job.meetingID)
+                await ProcessingNotifier.shared.notifyFinished(
+                    meetingID: job.meetingID,
+                    title: job.title,
+                    headline: output.summary.topics?.first?.title
+                )
             } catch is CancellationError {
                 log.notice("Processing cancelled for \(job.meetingID.uuidString, privacy: .public); checkpoint holds")
                 debug.log("pipeline", "\(DebugLog.short(job.meetingID)): cancelled; will resume from the last finished stage")
@@ -216,6 +226,7 @@ public final class BackgroundProcessingCoordinator: @unchecked Sendable {
                 log.error("Processing failed: \(error.localizedDescription, privacy: .public)")
                 debug.log("pipeline", "\(DebugLog.short(job.meetingID)): failed: \(error)")
                 await provider.markFailed(meetingID: job.meetingID, message: error.localizedDescription)
+                await ProcessingNotifier.shared.notifyFailed(meetingID: job.meetingID, title: job.title)
             }
         }
     }
@@ -233,6 +244,7 @@ private final class ProgressReporter: @unchecked Sendable {
     private let task: BGContinuedProcessingTask?
     private let baseTitle: String
     private var currentStage: ProcessingStage?
+    private var finishByStage: [ProcessingStage: Date] = [:]
 
     init(progress: Progress, task: BGContinuedProcessingTask?) {
         self.progress = progress
@@ -251,8 +263,23 @@ private final class ProgressReporter: @unchecked Sendable {
             + Int64(Double(stage.progressWeight) * fraction)
         guard currentStage != stage else { return false }
         currentStage = stage
-        task?.updateTitle(baseTitle, subtitle: stage.displayName)
+        task?.updateTitle(baseTitle, subtitle: subtitle(for: stage))
         return true
+    }
+
+    func setEstimate(_ finish: Date, for stage: ProcessingStage) {
+        lock.lock()
+        defer { lock.unlock() }
+        finishByStage[stage] = finish
+        if currentStage == stage {
+            task?.updateTitle(baseTitle, subtitle: subtitle(for: stage))
+        }
+    }
+
+    /// "Summarising · about 2 min left". Called with the lock held.
+    private func subtitle(for stage: ProcessingStage) -> String {
+        guard let finish = finishByStage[stage] else { return stage.displayName }
+        return "\(stage.displayName) · \(max(0, finish.timeIntervalSinceNow).roughDuration) left"
     }
 
     func reset() {
@@ -260,6 +287,7 @@ private final class ProgressReporter: @unchecked Sendable {
         defer { lock.unlock() }
         progress.completedUnitCount = 0
         currentStage = nil
+        finishByStage = [:]
     }
 
     func complete(success: Bool) {

@@ -40,7 +40,9 @@ you turn on Apple Maps place names.
 - **Exports** through the share sheet as Markdown, plain text, PDF, SRT/VTT subtitles
   or audio, sends tasks to Reminders, and makes encrypted backups.
 - **Keeps working in the background** after you press stop. Processing runs as a
-  continued-processing task and resumes from its last checkpoint if iOS kills it.
+  continued-processing task and resumes from its last checkpoint if iOS kills it. It
+  shows how long is left (learned from how fast this phone has been before) and
+  sends a notification when the notes are ready.
 
 - **Debug mode** (Settings) adds an activity log of what ran, for how long and what
   failed, Redo actions on each meeting for the transcript, speakers or summary, and a
@@ -75,7 +77,7 @@ SDKs are included.
 
 | | |
 |---|---|
-| Core logic (`Core/`) | Builds and tests on Linux, no Apple SDK. 97 tests, run in CI on every push |
+| Core logic (`Core/`) | Builds and tests on Linux, no Apple SDK. 104 tests, run in CI on every push |
 | App and widget | Build for `arm64-apple-ios27.0` in CI with Xcode 27, both through xtool and `xcodebuild` |
 | On a device | Runs on iPhone, with known small bugs. The device checks under [Testing](#testing) haven't all been done |
 | Linux device builds | Blocked: the bundled LLD can't read the iOS 27 SDK's stubs (see [Build](#build)) |

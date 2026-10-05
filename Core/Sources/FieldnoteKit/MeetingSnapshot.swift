@@ -9,6 +9,8 @@ public struct MeetingSnapshot: Sendable, Identifiable, Hashable {
     public var duration: TimeInterval
     public var state: ProcessingState
     public var failureMessage: String?
+    /// When processing is expected to finish, while it is running.
+    public var estimatedCompletion: Date?
     public var folderName: String?
     public var segments: [TranscriptSegment]
     public var speakerNames: [String: String]
@@ -34,7 +36,8 @@ public struct MeetingSnapshot: Sendable, Identifiable, Hashable {
         summary: MeetingSummary? = nil,
         latitude: Double? = nil,
         longitude: Double? = nil,
-        placeName: String? = nil
+        placeName: String? = nil,
+        estimatedCompletion: Date? = nil
     ) {
         self.id = id
         self.title = title
@@ -50,5 +53,6 @@ public struct MeetingSnapshot: Sendable, Identifiable, Hashable {
         self.latitude = latitude
         self.longitude = longitude
         self.placeName = placeName
+        self.estimatedCompletion = estimatedCompletion
     }
 }

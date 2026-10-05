@@ -1,5 +1,6 @@
 import SwiftData
 import SwiftUI
+import UserNotifications
 
 @main
 struct FieldnoteApp: App {
@@ -18,6 +19,10 @@ struct FieldnoteApp: App {
 
         let model = AppModel(container: container)
         _model = State(initialValue: model)
+
+        // Tapping a "notes ready" notification opens that meeting.
+        UNUserNotificationCenter.current().delegate = ProcessingNotifier.shared
+        ProcessingNotifier.shared.onOpen = { id in model.openMeetingID = id }
 
         #if os(iOS)
         // Registration must happen before launch completes. Not at the call site —

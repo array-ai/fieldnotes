@@ -7,7 +7,7 @@ import Foundation
 public protocol ProcessingJobProvider: Sendable {
     /// Meetings that stopped recording but have not finished processing, oldest first.
     func pendingJobs() async -> [ProcessingPipeline.Input]
-    func markStage(_ stage: ProcessingStage, meetingID: UUID) async
+    func markStage(_ stage: ProcessingStage, meetingID: UUID, estimatedCompletion: Date?) async
     func apply(_ output: ProcessingPipeline.Output, to meetingID: UUID) async
     func markFailed(meetingID: UUID, message: String) async
 }

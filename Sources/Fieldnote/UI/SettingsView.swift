@@ -65,6 +65,14 @@ struct SettingsView: View {
                 }
 
                 Section {
+                    Toggle("Notify when notes are ready", isOn: $settings.notifyWhenProcessed)
+                } header: {
+                    Text("Notifications")
+                } footer: {
+                    Text("A notification on this phone when a meeting finishes processing. It shows the meeting title and its first topic, which can appear on the lock screen.")
+                }
+
+                Section {
                     Toggle("Name places with Apple Maps", isOn: $settings.appleMapsPlaceNames)
                 } header: {
                     Text("Location")

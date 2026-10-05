@@ -60,9 +60,10 @@ public actor MeetingStore {
         try modelContext.save()
     }
 
-    public func markStage(_ stage: ProcessingStage, meetingID: UUID) async {
+    public func markStage(_ stage: ProcessingStage, meetingID: UUID, estimatedCompletion: Date?) async {
         guard let meeting = try? meeting(with: meetingID) else { return }
         meeting.processingState = ProcessingState(stage: stage)
+        meeting.estimatedCompletion = estimatedCompletion
         try? modelContext.save()
     }
 
@@ -70,6 +71,7 @@ public actor MeetingStore {
         guard let meeting = try? meeting(with: meetingID) else { return }
         meeting.processingState = .failed
         meeting.failureMessage = message
+        meeting.estimatedCompletion = nil
         try? modelContext.save()
     }
 
@@ -111,6 +113,7 @@ public actor MeetingStore {
 
         meeting.processingState = .complete
         meeting.failureMessage = nil
+        meeting.estimatedCompletion = nil
         rebuildSearchText(for: meeting)
         try? modelContext.save()
 
