@@ -140,6 +140,7 @@ public final class RecordingController {
         accumulated += Date().timeIntervalSince(startDate)
         try? await writer?.flush()
         state = .paused
+        DebugLog.shared.log("recording", "paused")
         await liveActivity?.update(elapsed: elapsed, level: 0, isPaused: true)
     }
 
@@ -152,6 +153,7 @@ public final class RecordingController {
             try engine.start()
             startDate = Date()
             state = .recording
+            DebugLog.shared.log("recording", "resumed")
             await liveActivity?.update(elapsed: elapsed, level: level, isPaused: false)
         } catch {
             state = .failed(error.localizedDescription)
@@ -343,6 +345,7 @@ public final class RecordingController {
                 try? await writer?.flush()
                 try? await diarizationBuffer?.flush()
                 state = .interrupted
+                DebugLog.shared.log("recording", "interrupted by the system (a call, Siri or another app's audio)")
                 await liveActivity?.update(elapsed: elapsed, level: 0, isPaused: true)
             }
         case .interruptionEnded(let shouldResume):

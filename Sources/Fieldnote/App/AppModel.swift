@@ -40,6 +40,9 @@ public final class AppModel {
 
     public func onLaunch() async {
         DebugLog.shared.logLaunch(device: ModelBenchmark.deviceModel())
+        #if os(iOS)
+        CrashWatch.shared.start()
+        #endif
         refreshCapability()
         await store.reindexIfNeeded()
         await refresh()

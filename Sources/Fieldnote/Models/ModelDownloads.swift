@@ -46,8 +46,10 @@ public final class ModelDownloads {
         for id in ModelPack.ID.allCases {
             if Self.installedDirectory(for: id) != nil {
                 states[id] = .installed
-            } else if FileManager.default.fileExists(atPath: Self.staging(for: id).path) {
-                // Started before the app was last closed; finished files are kept.
+            } else if FileManager.default.fileExists(atPath: Self.staging(for: id).path)
+                        || FileManager.default.fileExists(atPath: Self.directory(for: id).path) {
+                // Started before the app was last closed (downloading, or preparing
+                // after the download); finished files are kept.
                 states[id] = .failed("Interrupted. Tap Download to carry on where it stopped.")
             } else {
                 states[id] = .notInstalled
@@ -131,6 +133,13 @@ public final class ModelDownloads {
         let manager = FileManager.default
         let staging = Self.staging(for: pack.id)
         try FieldnoteStorage.ensureDirectory(Self.root)
+        // Closed while preparing: the files were already moved into place. Move them
+        // back so they're checked and kept rather than downloaded again.
+        let final = Self.directory(for: pack.id)
+        if manager.fileExists(atPath: final.path), !manager.fileExists(atPath: staging.path) {
+            try manager.moveItem(at: final, to: staging)
+            try? manager.removeItem(at: staging.appendingPathComponent(".installed"))
+        }
         try manager.createDirectory(at: staging, withIntermediateDirectories: true)
         try Self.checkFreeSpace(for: pack, at: Self.root)
 
@@ -159,7 +168,6 @@ public final class ModelDownloads {
         }
 
         // Every file verified: move into place, then mark installed last.
-        let final = Self.directory(for: pack.id)
         try? manager.removeItem(at: final)
         try manager.moveItem(at: staging, to: final)
         try Self.prepareForLockedUse(final)
@@ -185,6 +193,9 @@ public final class ModelDownloads {
             // Core AI compiles the portable model for this phone on first load.
             report(.preparing)
             let compileStarted = ContinuousClock.now
+            #if os(iOS)
+            DebugLog.shared.log("models", "qwen3: compiling, \(CrashWatch.memoryLeft) memory left")
+            #endif
             let model = try await OnDeviceModel.loadLocalModel(at: final, eager: true)
             model.unload()
             DebugLog.shared.log("models", "qwen3: first compile took \(DebugLog.elapsed(since: compileStarted))")
@@ -254,9 +265,13 @@ public final class ModelDownloads {
         let handle = try FileHandle(forReadingFrom: url)
         defer { try? handle.close() }
         var hasher = SHA256()
-        while let data = try handle.read(upToCount: 4 * 1_024 * 1_024), !data.isEmpty {
+        // Each read is released before the next: without the pool, hashing a 1.4 GB
+        // file kept every chunk alive until the end and iOS closed the app.
+        while try autoreleasepool(invoking: {
+            guard let data = try handle.read(upToCount: 4 * 1_024 * 1_024), !data.isEmpty else { return false }
             hasher.update(data: data)
-        }
+            return true
+        }) {}
         return hasher.finalize().map { String(format: "%02x", $0) }.joined()
     }
 
