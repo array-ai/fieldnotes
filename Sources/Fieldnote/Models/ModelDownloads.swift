@@ -43,9 +43,16 @@ public final class ModelDownloads {
     private var tasks: [ModelPack.ID: Task<Void, Never>] = [:]
 
     private init() {
+        defer { UserDefaults.standard.removeObject(forKey: Self.preparingKey) }
         for id in ModelPack.ID.allCases {
             if Self.installedDirectory(for: id) != nil {
                 states[id] = .installed
+            } else if Self.closedWhilePreparing(id),
+                      UserDefaults.standard.string(forKey: Self.preparingKey) == id.rawValue {
+                // The app was closed part-way through the first compile: almost
+                // always iOS closing it for memory (build 37: Qwen took 2.4 GB).
+                states[id] = .failed("Fieldnote closed while preparing this model, most likely out of memory. The download is kept; tap Download to try again.")
+                DebugLog.shared.log("models", "\(id.rawValue): the app closed while preparing it (most likely out of memory)")
             } else if FileManager.default.fileExists(atPath: Self.staging(for: id).path)
                         || Self.closedWhilePreparing(id) {
                 // Started before the app was last closed (downloading, or preparing
@@ -56,6 +63,9 @@ public final class ModelDownloads {
             }
         }
     }
+
+    /// The pack whose first compile is running, so a launch after a kill can say so.
+    nonisolated private static let preparingKey = "modelDownloads.preparing"
 
     public func state(_ id: ModelPack.ID) -> State { states[id] ?? .notInstalled }
 
@@ -192,6 +202,8 @@ public final class ModelDownloads {
         try? manager.removeItem(at: final)
         try manager.moveItem(at: staging, to: final)
         try Self.prepareForLockedUse(final)
+        UserDefaults.standard.set(pack.id.rawValue, forKey: Self.preparingKey)
+        defer { UserDefaults.standard.removeObject(forKey: Self.preparingKey) }
 
         // Compile once now, while the user is watching. Parakeet's first Neural Engine
         // compile can take minutes; done inside a background task it would be cut off
