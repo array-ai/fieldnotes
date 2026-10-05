@@ -96,4 +96,9 @@ jobs:
           HF_REPO: ${{ inputs.hf_repo }}
         run: |
           set -euo pipefail
+          # Only output that worked: nothing goes up after a failed compile.
+          if ! find out -name "*.aimodelc" -maxdepth 3 | grep -q .; then
+            echo "nothing compiled; not uploading"
+            exit 1
+          fi
           hf upload "$HF_REPO" out . --commit-message "Ahead-of-time compiled summary models (run $GITHUB_RUN_NUMBER)"
