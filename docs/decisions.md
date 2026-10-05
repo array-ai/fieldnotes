@@ -188,8 +188,7 @@ compliance feature without the substance.
 
 `Speaker.embedding` is dead weight in v1 and deliberately so. v2's cross-meeting
 matching needs a corpus, and backfilling embeddings from archived audio is far more
-painful than storing them now. The backup archive carries them too, so a restored
-device does not start from an empty corpus.
+painful than storing them now.
 
 ## A new meeting starts on a neutral type, not "Internal"
 

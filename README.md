@@ -48,7 +48,7 @@ two things you choose: optional model downloads, and Apple Maps place names.
   highlighted and kept in view. Tap a line, or a timestamp in the summary, to play
   from there.
 - **Exports** through the share sheet as Markdown, plain text, PDF, SRT/VTT subtitles
-  or audio, sends tasks to Reminders, and makes encrypted backups.
+  or audio, and sends tasks to Reminders.
 - **Keeps working in the background** after you press stop: the transcript and
   speakers finish in a continued-processing task, resuming from a checkpoint if iOS
   stops it. The notes are written while the app is open, because Apple's on-device

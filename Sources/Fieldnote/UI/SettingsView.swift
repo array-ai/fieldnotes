@@ -145,10 +145,6 @@ struct SettingsView: View {
                     )
                 }
 
-                Section("Backup") {
-                    NavigationLink("Export or restore") { BackupView() }
-                }
-
                 Section {
                     Label("No accounts, no server, no network unless you choose it", systemImage: "network.slash")
                     Label("Audio, transcripts and summaries stay on this device", systemImage: "iphone")
@@ -179,73 +175,6 @@ struct SettingsView: View {
                     }
                 }
             }
-        }
-    }
-}
-
-struct BackupView: View {
-    @Environment(AppModel.self) private var model
-    @State private var passphrase = ""
-    @State private var status: String?
-    @State private var exportURL: URL?
-
-    var body: some View {
-        Form {
-            Section {
-                SecureField("Passphrase", text: $passphrase)
-                Button("Create encrypted archive") { Task { await export() } }
-                    .disabled(passphrase.count < 8)
-            } header: {
-                Text("Export")
-            } footer: {
-                Text(
-                    """
-                    One encrypted file you keep wherever you choose. There is no cloud \
-                    copy, and a lost passphrase cannot be recovered.
-                    """
-                )
-            }
-            if let status {
-                Section { Text(status).font(.footnote) }
-            }
-            if let exportURL {
-                Section { ShareLink(item: exportURL) { Label("Share archive", systemImage: "square.and.arrow.up") } }
-            }
-        }
-        .navigationTitle("Backup")
-    }
-
-    private func export() async {
-        do {
-            let meetings = try await model.store.recentSnapshots(limit: 10_000)
-            let payload = BackupArchive.Payload(
-                manifest: .init(createdAt: Date(), meetingCount: meetings.count, includesAudio: false),
-                meetings: meetings.map { meeting in
-                    BackupArchive.MeetingBackup(
-                        id: meeting.id,
-                        title: meeting.title,
-                        type: meeting.type,
-                        startedAt: meeting.startedAt,
-                        duration: meeting.duration,
-                        localeIdentifier: Locale.current.identifier,
-                        folderName: meeting.folderName,
-                        segments: meeting.segments,
-                        speakerNames: meeting.speakerNames,
-                        speakerEmbeddings: [:],
-                        summary: meeting.summary,
-                        latitude: meeting.latitude,
-                        longitude: meeting.longitude,
-                        placeName: meeting.placeName
-                    )
-                }
-            )
-            let url = FileManager.default.temporaryDirectory
-                .appendingPathComponent("Fieldnote \(ExportFilename.isoDate(Date())).fieldnote")
-            try BackupArchive.write(payload, passphrase: passphrase, to: url)
-            exportURL = url
-            status = "Archived \(payload.meetings.count) meetings."
-        } catch {
-            status = error.localizedDescription
         }
     }
 }
