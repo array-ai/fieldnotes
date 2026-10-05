@@ -22,7 +22,7 @@ on:
       architectures:
         description: "Chip families to compile for, space separated (the app's debug log names its own). 'h17*' style patterns pick from the valid names. Empty: all, which is very slow"
         type: string
-        default: "h17*"
+        default: "h17g h17p h18g h18p"
 
 env:
   # Pinned sources, the same revisions the app's catalogue pins.
@@ -119,15 +119,36 @@ jobs:
           vm_stat | head -5
           exit 0
 
+      # One ready-to-load bundle per architecture, laid out like the portable one:
+      # ios-<arch>/metadata.json (pointing at the compiled model), tokenizer/, and
+      # <model>.<arch>.aimodelc. The app downloads only its own architecture's.
+      - name: Bundle
+        run: |
+          set -euo pipefail
+          mkdir -p bundles
+          static=$(dirname "$(find src -name "*.aimodel" -maxdepth 3 | head -1)")
+          for compiled in $(find out -name "*.aimodelc" -maxdepth 2); do
+            file=$(basename "$compiled")
+            arch=$(echo "$file" | sed -E 's/.*\.([^.]+)\.aimodelc$/\1/')
+            dest="bundles/ios-$arch"
+            mkdir -p "$dest"
+            cp -R "$static/tokenizer" "$dest/"
+            mv "$compiled" "$dest/"
+            python3 - "$static/metadata.json" "$dest/metadata.json" "$file" "$arch" <<'PY'
+          import json, sys
+          src, dst, main, arch = sys.argv[1:]
+          meta = json.load(open(src))
+          meta["assets"]["main"] = main
+          meta.setdefault("compilation", {})["targets"] = [f"{arch} (coreai-build compile --platform iOS --min-deployment-version 27.0)"]
+          json.dump(meta, open(dst, "w"), indent=2)
+          PY
+          done
+
       - name: Report
         run: |
-          echo "## Compiled models" >> "$GITHUB_STEP_SUMMARY"
-          find out -name "*.aimodelc" -maxdepth 3 | while read -r dir; do
-            size=$(du -sh "$dir" | cut -f1)
-            echo "- \`$dir\`: $size" | tee -a "$GITHUB_STEP_SUMMARY"
-            find "$dir" -type f | sort | while read -r file; do
-              echo "    $(shasum -a 256 "$file" | cut -d' ' -f1)  $(stat -f%z "$file")  ${file#out/}"
-            done
+          echo "## Compiled bundles" >> "$GITHUB_STEP_SUMMARY"
+          for dir in bundles/*; do
+            echo "- \`$dir\`: $(du -sh "$dir" | cut -f1), $(find "$dir" -type f | wc -l | tr -d ' ') files" | tee -a "$GITHUB_STEP_SUMMARY"
           done
 
       - name: Upload to Hugging Face
@@ -138,8 +159,9 @@ jobs:
         run: |
           set -euo pipefail
           # Only output that worked: nothing goes up after a failed compile.
-          if ! find out -name "*.aimodelc" -maxdepth 3 | grep -q .; then
+          if ! find bundles -name "*.aimodelc" -maxdepth 2 | grep -q .; then
             echo "nothing compiled; not uploading"
             exit 1
           fi
-          hf upload "$HF_REPO" out . --commit-message "Ahead-of-time compiled summary models (run $GITHUB_RUN_NUMBER)"
+          # Replaces the earlier loose compiled folders with the bundles.
+          hf upload "$HF_REPO" bundles . --delete "minicpm5_1b_*/**" --commit-message "Ahead-of-time compiled summary models (run $GITHUB_RUN_NUMBER)"
