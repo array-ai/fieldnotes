@@ -127,6 +127,17 @@ public final class BackgroundProcessingCoordinator: @unchecked Sendable {
     /// "to capture all error conditions" — and this call site depends on catching a
     /// failed submission to fall back to in-process work.
     private func submit(title: String) async {
+        // On battery with the app open, run here instead. Apple's model refuses a
+        // background task's requests on battery, and keeps refusing the app's own for
+        // a while after one ends (debug log: rate-limited 0.1 s and 15 s after the
+        // hand-over, fine 3 min later or when charging). Work in the app is fast enough
+        // anyway: transcript and speakers for an hour of audio take a minute or two.
+        if await PowerState.isAppInFront(), !(await PowerState.isOnPower()) {
+            debug.log("background", "on battery with the app open: processing in the app, without a background task")
+            runInProcess()
+            return
+        }
+
         let request = BGContinuedProcessingTaskRequest(
             identifier: Self.taskIdentifier,
             title: title,

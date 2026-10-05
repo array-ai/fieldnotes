@@ -354,6 +354,7 @@ public actor ProcessingPipeline {
             date: input.date
         )
         let deferrals = checkpoint.summaryDeferrals ?? 0
+        let inFront = await PowerState.isAppInFront()
         let summary: MeetingSummary
         do {
             // After a few waits, accept thinner notes rather than waiting forever.
@@ -361,8 +362,10 @@ public actor ProcessingPipeline {
             summary = try await summariser.summarise(
                 segments: segments,
                 meeting: context,
-                // One automatic retry; after that it's the user's Try again.
-                allowDeferral: deferrals < 1,
+                // One automatic retry; after that it's the user's Try again. A run
+                // with the app out of view always waits instead: the model refuses
+                // it there, which says nothing about the meeting.
+                allowDeferral: deferrals < 1 || !inFront,
                 savedParts: saved,
                 savePart: { key, notes in try? await store.saveSummaryPart(notes, key: key) }
             ) { fraction in
@@ -372,7 +375,9 @@ public actor ProcessingPipeline {
             debug.log("pipeline", "\(DebugLog.short(input.meetingID)): notes not written after the automatic retry (\(await PowerState.summary())): \(notWritten.detail.prefix(160))")
             throw notWritten
         } catch let deferred as SummarizationService.Deferred {
-            checkpoint.summaryDeferrals = deferrals + 1
+            if await PowerState.isAppInFront() {
+                checkpoint.summaryDeferrals = deferrals + 1
+            }
             try await store.save(checkpoint)
             debug.log("pipeline", "\(DebugLog.short(input.meetingID)): summarising put off, will retry once when the app is open (\(await PowerState.summary())): \(deferred.detail.prefix(160))")
             throw deferred
@@ -442,6 +447,10 @@ public enum PowerState {
         await MainActor.run { isOnPowerNow() }
     }
 
+    public static func isAppInFront() async -> Bool {
+        await MainActor.run { UIApplication.shared.applicationState == .active }
+    }
+
     /// "battery 64%, Low Power Mode on, app in front": for the Activity log.
     public static func summary() async -> String {
         await MainActor.run {
@@ -467,6 +476,7 @@ public enum PowerState {
 #else
 public enum PowerState {
     public static func isOnPower() async -> Bool { true }
+    public static func isAppInFront() async -> Bool { true }
     public static func summary() async -> String { "power unknown" }
 }
 #endif
