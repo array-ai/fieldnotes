@@ -87,6 +87,11 @@ struct SettingsView: View {
                 }
 
                 Section {
+                    NavigationLink {
+                        ModelsView(kind: .summary)
+                    } label: {
+                        LabeledContent("Notes model", value: settings.summaryEngine.card.title)
+                    }
                     Toggle("Notify when notes are ready", isOn: $settings.notifyWhenProcessed)
                     Toggle("Finish notes while charging", isOn: $settings.summariseWhileCharging)
                     Toggle("Keep screen on while writing notes", isOn: $settings.keepAwakeWhileProcessing)
@@ -427,7 +432,7 @@ struct SummaryPromptEditor: View {
 /// relative accuracy and speed, languages, size, and download / delete. Tap a card to
 /// use that model.
 struct ModelsView: View {
-    enum Kind { case transcription, speakers }
+    enum Kind { case transcription, speakers, summary }
 
     let kind: Kind
     @Environment(AppModel.self) private var model
@@ -443,6 +448,14 @@ struct ModelsView: View {
                             model.settings.transcriptionEngine = engine
                         } onDeleted: {
                             if model.settings.transcriptionEngine == engine { model.settings.transcriptionEngine = .apple }
+                        }
+                    }
+                case .summary:
+                    ForEach(SummaryEngine.allCases, id: \.self) { engine in
+                        card(engine.card, pack: engine.modelPack, active: model.settings.summaryEngine == engine) {
+                            model.settings.summaryEngine = engine
+                        } onDeleted: {
+                            if model.settings.summaryEngine == engine { model.settings.summaryEngine = .apple }
                         }
                     }
                 case .speakers:
@@ -462,7 +475,11 @@ struct ModelsView: View {
             }
             .padding()
         }
-        .navigationTitle(kind == .transcription ? "Transcription models" : "Speaker models")
+        .navigationTitle(switch kind {
+        case .transcription: "Transcription models"
+        case .speakers: "Speaker models"
+        case .summary: "Notes models"
+        })
     }
 
     private var footer: String {

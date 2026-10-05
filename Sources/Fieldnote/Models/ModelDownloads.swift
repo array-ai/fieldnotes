@@ -167,6 +167,14 @@ public final class ModelDownloads {
             _ = try AsrModels.loadLocal(from: final, version: version)
             DebugLog.shared.log("models", "\(pack.id.rawValue): first compile took \(DebugLog.elapsed(since: compileStarted))")
         }
+        if pack.id == .qwen3 {
+            // Core AI compiles the portable model for this phone on first load.
+            report(.preparing)
+            let compileStarted = ContinuousClock.now
+            let model = try await OnDeviceModel.loadLocalModel(at: final, eager: true)
+            model.unload()
+            DebugLog.shared.log("models", "qwen3: first compile took \(DebugLog.elapsed(since: compileStarted))")
+        }
         try pack.revision.write(to: Self.markerURL(for: pack.id), atomically: true, encoding: .utf8)
         DebugLog.shared.log("models", "\(pack.id.rawValue): \(pack.files.count) files verified in \(DebugLog.elapsed(since: started))")
     }

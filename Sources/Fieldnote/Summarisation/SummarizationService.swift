@@ -87,6 +87,9 @@ public actor SummarizationService {
         }
 
         prompt = SummaryPromptStore.load()
+        try await OnDeviceModel.prepareSummaryModel()
+        defer { OnDeviceModel.releaseSummaryModel() }
+        debug.log("summary", "\(DebugLog.short(meeting.id)): writing notes with \(OnDeviceModel.usesLocalModel ? "Qwen3 1.7B (Core AI)" : "Apple's model")")
         if !prompt.isBuiltIn {
             debug.log("summary", "\(DebugLog.short(meeting.id)): using an edited summary prompt")
         }
@@ -177,6 +180,18 @@ public actor SummarizationService {
     // MARK: - Budget
 
     private func measureBudget() async -> PromptBudget {
+        if OnDeviceModel.usesLocalModel {
+            // Qwen's own tokenizer isn't exposed; Apple's counts are a close proxy and
+            // the margins absorb the difference.
+            let instructions = await OnDeviceModel.tokenCount(instructions: prompt.instructions, tier: tier) ?? 300
+            let schema = await OnDeviceModel.tokenCount(schema: DraftChunkNotes.generationSchema, tier: tier) ?? 800
+            return PromptBudget(
+                contextSize: OnDeviceModel.localContextSize,
+                fixedCost: Int(Double(instructions + schema) * 1.2),
+                outputReserve: 2_000,
+                isMeasured: false
+            )
+        }
         let instructions = await OnDeviceModel.tokenCount(instructions: self.prompt.instructions, tier: tier)
         let schema = await OnDeviceModel.tokenCount(schema: DraftChunkNotes.generationSchema, tier: tier)
         guard let instructions, let schema else { return .fallback }
@@ -219,7 +234,7 @@ public actor SummarizationService {
         do {
             let session = try OnDeviceModel.session(tier: tier, instructions: self.prompt.instructions)
             let started = ContinuousClock.now
-            let response = try await session.respond(to: prompt, generating: DraftChunkNotes.self)
+            let response = try await session.respond(to: prompt, generating: DraftChunkNotes.self, contextOptions: OnDeviceModel.contextOptions)
             debug.log(
                 "summary",
                 "chunk \(piece.index + 1): \(response.usage.input.totalTokenCount) tokens in, \(response.usage.output.totalTokenCount) out, \(DebugLog.elapsed(since: started))"
@@ -279,7 +294,7 @@ public actor SummarizationService {
 
     private func respond(to prompt: String) async throws -> ChunkNotes {
         let session = try OnDeviceModel.session(tier: tier, instructions: self.prompt.instructions)
-        return try await session.respond(to: prompt, generating: DraftChunkNotes.self).content.notes
+        return try await session.respond(to: prompt, generating: DraftChunkNotes.self, contextOptions: OnDeviceModel.contextOptions).content.notes
     }
 
     /// The fallback after a guardrail trip or refusal: same excerpt, neutral framing.
@@ -293,7 +308,7 @@ public actor SummarizationService {
         let prompt = PromptTemplates.neutralChunkPrompt(chunk: piece, chunkIndex: piece.index, chunkCount: total)
         do {
             let session = try OnDeviceModel.session(tier: tier, instructions: PromptTemplates.groundingRules)
-            let response = try await session.respond(to: prompt, generating: DraftChunkNotes.self)
+            let response = try await session.respond(to: prompt, generating: DraftChunkNotes.self, contextOptions: OnDeviceModel.contextOptions)
             debug.log("summary", "chunk \(piece.index + 1): neutral retry succeeded")
             degraded.append(failure.degraded(piece, recovered: true))
             return response.content.notes
@@ -330,7 +345,7 @@ public actor SummarizationService {
         if budget.fits(promptTokens: await cost(of: prompt)) {
             do {
                 let session = try OnDeviceModel.session(tier: tier, instructions: self.prompt.instructions)
-                let response = try await session.respond(to: prompt, generating: DraftOutline.self)
+                let response = try await session.respond(to: prompt, generating: DraftOutline.self, contextOptions: OnDeviceModel.contextOptions)
                 let sections = response.content.sections.map {
                     TopicMerger.Section(
                         title: $0.title,
@@ -368,7 +383,7 @@ public actor SummarizationService {
         }
         do {
             let session = try OnDeviceModel.session(tier: tier, instructions: self.prompt.instructions)
-            let response = try await session.respond(to: prompt, generating: DraftRollup.self)
+            let response = try await session.respond(to: prompt, generating: DraftRollup.self, contextOptions: OnDeviceModel.contextOptions)
             return response.content.overview.trimmed()
         } catch {
             debug.log("summary", "overview failed (\(Failure(error).detail)); using the first points instead")

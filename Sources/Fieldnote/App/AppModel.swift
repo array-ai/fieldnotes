@@ -319,6 +319,11 @@ public final class AppModel {
             didSet { UserDefaults.standard.set(debugMode, forKey: "debugMode") }
         }
 
+        /// Which on-device model writes the notes. See `SummaryEngine`.
+        public var summaryEngine: SummaryEngine {
+            didSet { UserDefaults.standard.set(summaryEngine.rawValue, forKey: SummaryEngine.defaultsKey) }
+        }
+
         /// Which speech model writes the transcript after stop. See `TranscriptionEngine`.
         public var transcriptionEngine: TranscriptionEngine {
             didSet { UserDefaults.standard.set(transcriptionEngine.rawValue, forKey: TranscriptionEngine.defaultsKey) }
@@ -333,6 +338,7 @@ public final class AppModel {
             self.debugMode = UserDefaults.standard.bool(forKey: "debugMode")
             self.summariseWhileCharging = UserDefaults.standard.bool(forKey: SummaryInBackground.defaultsKey)
             self.keepAwakeWhileProcessing = UserDefaults.standard.object(forKey: "keepAwakeWhileProcessing") as? Bool ?? true
+            self.summaryEngine = SummaryEngine(storedValue: UserDefaults.standard.string(forKey: SummaryEngine.defaultsKey))
             self.transcriptionEngine = TranscriptionEngine(
                 storedValue: UserDefaults.standard.string(forKey: TranscriptionEngine.defaultsKey)
             )

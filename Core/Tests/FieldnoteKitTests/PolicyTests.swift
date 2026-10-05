@@ -158,6 +158,22 @@ struct PolicyTests {
         }
     }
 
+    /// The optional Qwen summary model runs through Apple's Core AI runtime as a
+    /// Foundation Models `LanguageModel`. It is built in one file, and nothing may name
+    /// Apple's cloud model or the Hugging Face loaders that runtime could fall back on.
+    @Test("Local summary model confined; no cloud model, no downloading tokenizer")
+    func localModelConfined() {
+        let offenders = PolicySourceScanner.filesContaining(
+            "CoreAILanguageModel(",
+            excluding: ["Sources/Fieldnote/Summarisation/OnDeviceModel.swift"]
+        )
+        #expect(offenders.isEmpty, "CoreAILanguageModel outside OnDeviceModel: \(offenders.joined(separator: ", "))")
+        for marker in ["PrivateCloudComputeLanguageModel", "AutoTokenizer.from(pretrained", "HubApi"] {
+            let found = PolicySourceScanner.filesContaining(marker)
+            #expect(found.isEmpty, "\(marker) found in: \(found.joined(separator: ", "))")
+        }
+    }
+
     /// Optional model downloads are the other sanctioned network use: only on a
     /// tap, pinned, hashed, and only from `ModelDownloads`.
     @Test("URLSession only in ModelDownloads")

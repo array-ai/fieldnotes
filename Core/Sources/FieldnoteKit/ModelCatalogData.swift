@@ -88,6 +88,22 @@ extension ModelPack {
             ]
         ),
         ModelPack(
+            id: .qwen3,
+            name: "Qwen3 1.7B (Core AI)",
+            repo: "darylap/Qwen3-1.7B-coreai-ios",
+            revision: "a9ea1e57f6c5b09615e688e58345d4c2e7bf636c",
+            license: "Apache-2.0",
+            files: [
+                ModelFile(path: "metadata.json", size: 577, sha256: "3abbd235fb70cff5972ede86bc0e03ac2aa0c200101bbff7cb8444b7a5408a07"),
+                ModelFile(path: "qwen3_1_7b_6bit_static.aimodel/main.hash", size: 32, sha256: "8736d07b7ad7d9b7c3aff9d5f4b195ee67792926ef9cc7479470b701c95a2f7a"),
+                ModelFile(path: "qwen3_1_7b_6bit_static.aimodel/main.mlirb", size: 1399268764, sha256: "47df537cab262cb8d6b00b51f086f8b6bb54a94465f3d50eb43ee31c77eac49c"),
+                ModelFile(path: "qwen3_1_7b_6bit_static.aimodel/metadata.json", size: 307, sha256: "bed35f1beaadddd29384951254d018b8813c0616dd0c814a834aeb6921c400a0"),
+                ModelFile(path: "tokenizer/chat_template.jinja", size: 4168, sha256: "a55ee1b1660128b7098723e0abcd92caa0788061051c62d51cbe87d9cf1974d8"),
+                ModelFile(path: "tokenizer/tokenizer.json", size: 11422650, sha256: "be75606093db2094d7cd20f3c2f385c212750648bd6ea4fb2bf507a6a4c55506"),
+                ModelFile(path: "tokenizer/tokenizer_config.json", size: 694, sha256: "04b1682c59acbd057f4c9072297faa73d56fc9de053094c659cdb4c464f58f86"),
+            ]
+        ),
+        ModelPack(
             id: .pyannoteCommunity1,
             name: "pyannote community-1",
             repo: "FluidInference/speaker-diarization-coreml",

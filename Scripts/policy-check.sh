@@ -82,6 +82,13 @@ for needle in "MKReverseGeocodingRequest" "MKLocalSearch" "MKLocalPointsOfIntere
 done
 
 echo
+echo "== Local summary model: built only in OnDeviceModel, never a cloud model or a downloading tokenizer"
+check_absent "CoreAILanguageModel(" "CoreAILanguageModel only in OnDeviceModel" "Sources/Fieldnote/Summarisation/OnDeviceModel.swift"
+for needle in "PrivateCloudComputeLanguageModel" "AutoTokenizer.from(pretrained" "HubApi"; do
+  check_absent "$needle" "no $needle"
+done
+
+echo
 echo "== Entitlements"
 ENTITLEMENTS=Config/Fieldnote.entitlements
 if grep -q "com.apple.developer.background-tasks.continued-processing.inference" "$ENTITLEMENTS"; then

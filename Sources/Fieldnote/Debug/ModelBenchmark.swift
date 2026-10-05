@@ -197,7 +197,16 @@ public final class ModelBenchmark {
 
     private func benchmarkSummary(_ meeting: MeetingSnapshot) async {
         status = "Summary model…"
-        add("Summary", "Context window", "\(OnDeviceModel.contextSize(tier: .coreAdvanced)) tokens")
+        do {
+            try await OnDeviceModel.prepareSummaryModel()
+        } catch {
+            add("Summary", "Model", "couldn't load: \(error.localizedDescription)")
+            return
+        }
+        defer { OnDeviceModel.releaseSummaryModel() }
+        let local = OnDeviceModel.usesLocalModel
+        add("Summary", "Model", local ? "Qwen3 1.7B (Core AI)" : "Apple's on-device model")
+        add("Summary", "Context window", "\(local ? OnDeviceModel.localContextSize : OnDeviceModel.contextSize(tier: .coreAdvanced)) tokens")
 
         let lines = meeting.segments.filter { !$0.text.trimmed().isEmpty }
         guard !lines.isEmpty else {
@@ -227,7 +236,7 @@ public final class ModelBenchmark {
         do {
             let session = try OnDeviceModel.session(tier: .coreAdvanced, instructions: summaryPrompt.instructions)
             let started = ContinuousClock.now
-            let response = try await session.respond(to: prompt, generating: DraftChunkNotes.self)
+            let response = try await session.respond(to: prompt, generating: DraftChunkNotes.self, contextOptions: OnDeviceModel.contextOptions)
             let elapsed = seconds(since: started)
             let notes = response.content
             let input = response.usage.input.totalTokenCount

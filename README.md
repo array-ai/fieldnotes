@@ -32,7 +32,9 @@ two things you choose: optional model downloads, and Apple Maps place names.
   between them. Unnamed speakers show as Speaker A, Speaker B and
   so on. Picks up names from
   self-introductions ("Hi, I'm Priya") and lets you rename speakers by hand.
-- **Summarises** into notes with Apple's on-device Foundation Models: an overview,
+- **Summarises** into notes on the phone, with Apple's on-device Foundation Models
+  model or, optionally, Qwen3 1.7B (a 1.4 GB download, run through Apple's Core AI
+  runtime: twice the context and no false content refusals): an overview,
   topic sections (headline, one-line summary, timestamped key points with supporting
   details), action items grouped by owner, decisions and open questions. The meeting
   list shows each meeting's top topics at a glance. Every point cites the transcript lines it came
@@ -91,7 +93,7 @@ SDKs are included.
 
 | | |
 |---|---|
-| Core logic (`Core/`) | Builds and tests on Linux, no Apple SDK. 128 tests, run in CI on every push |
+| Core logic (`Core/`) | Builds and tests on Linux, no Apple SDK. 129 tests, run in CI on every push |
 | App and widget | Build for `arm64-apple-ios27.0` in CI with Xcode 27, both through xtool and `xcodebuild` |
 | On a device | Runs on iPhone, with known small bugs. The device checks under [Testing](#testing) haven't all been done |
 | Linux device builds | Blocked: the bundled LLD can't read the iOS 27 SDK's stubs (see [Build](#build)) |
@@ -173,6 +175,7 @@ swift test --package-path Core     # Linux or Mac, no device
 | No networking code, no network entitlements | `PolicyTests.noNetworking`, `noNetworkEntitlements` |
 | Apple Maps place lookups only in `PlaceNamer` | `PolicyTests.placeLookupsConfined` |
 | Model downloads only in `ModelDownloads` | `PolicyTests.downloadsConfined` |
+| Local summary model built only in `OnDeviceModel`; no cloud model or downloading tokenizer | `PolicyTests.localModelConfined` |
 | No download-on-first-use model loaders | `PolicyTests.noModelDownloads` |
 | Background inference entitlement present | `PolicyTests.inferenceEntitlement` |
 
@@ -259,6 +262,9 @@ Left out on purpose; reasons are in [docs/decisions.md](docs/decisions.md):
 [0BSD](LICENSE): use it for anything, no attribution required, no warranty. The code
 was written almost entirely by AI, so a public-domain-style licence is the honest fit.
 
-Dependencies keep their own licences: FluidAudio is Apache-2.0, Nemotron 3 is
+Dependencies keep their own licences: FluidAudio is Apache-2.0, Apple's coreai-models
+is BSD-3-Clause (its swift-transformers and xgrammar dependencies are Apache-2.0; the
+download code in swift-transformers is never called — the policy checks ban it in the
+app's sources), Qwen3 is Apache-2.0, Nemotron 3 is
 OpenMDW-1.1, the optional pyannote and Parakeet models are CC-BY-4.0, and the offline place names come
 from [GeoNames](https://www.geonames.org) (CC-BY 4.0).

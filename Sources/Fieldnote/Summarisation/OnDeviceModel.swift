@@ -1,5 +1,8 @@
+import CoreAILanguageModels
+import FieldnoteKit
 import Foundation
 import FoundationModels
+import Synchronization
 
 /// Which on-device tier to run. AFM 3 ships two (spec 4.5):
 ///
@@ -83,12 +86,72 @@ public enum OnDeviceModel {
         tier: ModelTier,
         instructions: String
     ) throws -> LanguageModelSession {
+        if usesLocalModel, let local = localModel.withLock({ $0 }) {
+            return LanguageModelSession(model: local, instructions: instructions)
+        }
         let model = pinnedModel(for: tier)
         guard case .available = model.availability else {
             throw ModelUnavailable(status: DeviceCapability.current())
         }
         return LanguageModelSession(model: model, instructions: instructions)
     }
+
+    // MARK: - Optional local model (Qwen3 on Core AI)
+
+    /// Loaded by `prepareSummaryModel()`, released by `releaseSummaryModel()`.
+    private static let localModel = Mutex<CoreAILanguageModel?>(nil)
+
+    /// Qwen is chosen in Settings and fully downloaded.
+    public static var usesLocalModel: Bool {
+        SummaryEngine(storedValue: UserDefaults.standard.string(forKey: SummaryEngine.defaultsKey)) == .qwen3
+            && ModelDownloads.installedDirectory(for: .qwen3) != nil
+    }
+
+    /// Loads Qwen if it's the chosen summary model (tokenizer now, weights on first
+    /// use). A no-op for Apple's model.
+    public static func prepareSummaryModel() async throws {
+        guard usesLocalModel, localModel.withLock({ $0 }) == nil,
+              let directory = ModelDownloads.installedDirectory(for: .qwen3) else { return }
+        let model = try await loadLocalModel(at: directory, eager: false)
+        localModel.withLock { $0 = model }
+    }
+
+    /// Frees Qwen's memory: it, Nemotron and Parakeet together are too much to keep
+    /// resident in a background task.
+    public static func releaseSummaryModel() {
+        localModel.withLock { model in
+            model?.unload()
+            model = nil
+        }
+    }
+
+    /// The one place the Core AI model is constructed. Refuses a bundle without its
+    /// own tokenizer: the runtime would otherwise fetch one from Hugging Face.
+    static func loadLocalModel(at directory: URL, eager: Bool) async throws -> CoreAILanguageModel {
+        let tokenizer = directory.appending(path: "tokenizer/tokenizer.json")
+        guard FileManager.default.fileExists(atPath: tokenizer.path(percentEncoded: false)) else {
+            throw LocalModelError.tokenizerMissing
+        }
+        return try await CoreAILanguageModel(resourcesAt: directory, mode: eager ? .eager : .lazy)
+    }
+
+    public enum LocalModelError: Error, LocalizedError {
+        case tokenizerMissing
+        public var errorDescription: String? {
+            "The downloaded summary model is missing its tokenizer. Delete and download it again."
+        }
+    }
+
+    /// Generation context for every summary request. Qwen3 "thinks" out loud by
+    /// default, which would spend the answer budget; this turns that off.
+    public static var contextOptions: ContextOptions {
+        usesLocalModel
+            ? ContextOptions(includeSchemaInPrompt: true, reasoningLevel: .custom("none"))
+            : ContextOptions(includeSchemaInPrompt: true)
+    }
+
+    /// Qwen's context from the export (`max_context_length` in its metadata.json).
+    public static let localContextSize = 8_192
 
     // MARK: - Measuring
 

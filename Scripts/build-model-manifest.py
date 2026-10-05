@@ -50,6 +50,17 @@ PACKS = [
                   "parakeet_vocab.json"],
     },
     {
+        "id": "qwen3",
+        "name": "Qwen3 1.7B (Core AI)",
+        "repo": "darylap/Qwen3-1.7B-coreai-ios",
+        "revision": "a9ea1e57f6c5b09615e688e58345d4c2e7bf636c",
+        "license": "Apache-2.0",
+        # Exported with Apple's coreai-models (iOS preset qwen3_1_7b_6bit, 8,192-token
+        # context), portable .aimodel compiled on the phone. tokenizer/ must be
+        # present: without it the runtime would fetch one from Hugging Face.
+        "paths": ["metadata.json", "qwen3_1_7b_6bit_static.aimodel", "tokenizer"],
+    },
+    {
         "id": "pyannoteCommunity1",
         "name": "pyannote community-1",
         "repo": "FluidInference/speaker-diarization-coreml",

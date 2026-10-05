@@ -63,11 +63,14 @@ struct TranscriptionEngineTests {
         #expect(TranscriptionEngine.apple.modelPack == nil)
         #expect(TranscriptionEngine.allCases.filter { $0 != .apple }.allSatisfy { $0.modelPack != nil })
         #expect(TranscriptionEngine(storedValue: "parakeet") == .parakeet)
+        #expect(SummaryEngine(storedValue: nil) == .apple)
+        #expect(SummaryEngine.qwen3.modelPack == .qwen3)
     }
 
     @Test("Cards rate every model within 0...1")
     func cards() {
         let cards = TranscriptionEngine.allCases.map(\.card) + DiarizationMethod.allCases.map(\.card)
+            + SummaryEngine.allCases.map(\.card)
         #expect(cards.allSatisfy { (0...1).contains($0.accuracy) && (0...1).contains($0.speed) && !$0.title.isEmpty })
     }
 
