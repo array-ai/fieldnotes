@@ -55,35 +55,45 @@ jobs:
           ./Scripts/fetch-diarization-models.sh "$TMP"
           ./Scripts/vendor-diarization-models.sh "$TMP"
 
-      # Same shim as app.yml: xtool's packer reads .build/<triple>/<config>, which is
-      # only where SwiftPM's native build system (not swiftbuild, Swift 6.4's default)
-      # puts things.
-      - name: Pack unsigned .app with xtool
+      # Built with Xcode, not xtool's packer: Xcode handles SwiftPM resource bundles
+      # itself, while xtool's packer kept failing on dependencies' bundles (swift-crypto,
+      # via Apple's coreai-models). xtool still generates the Xcode project from
+      # Package.swift and xtool.yml, so there is one source of truth for targets,
+      # Info.plists, entitlements, resources and the widget extension.
+      #
+      # Release configuration on purpose: a debug build once shipped to TestFlight and
+      # crashed on record (debug-only actor-isolation assertions).
+      - name: Build the .app with Xcode
         run: |
           set -euo pipefail
           brew install xtool-org/tap/xtool
-          # xtool defaults to --configuration debug (DevCommand.swift), which was
-          # silently shipping debug binaries to TestFlight: dynamic actor-isolation
-          # assertions (dispatch_assert_queue, backing swift_task_isCurrentExecutor's
-          # checkIsolated) are debug-only diagnostics that a release build strips.
-          # That's what crashed on record, not anything about the tap closure itself.
-          ./Scripts/xtool.sh dev build --configuration release
+          ./Scripts/generate-xcode-project.sh
+          xcodebuild build \
+            -workspace xtool/Fieldnote.xcworkspace \
+            -scheme Fieldnote \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            > /tmp/xcodebuild.log 2>&1 || { grep -E "error:" /tmp/xcodebuild.log | head -40; tail -40 /tmp/xcodebuild.log; exit 1; }
+          tail -3 /tmp/xcodebuild.log
 
-          APP=$(find xtool -maxdepth 2 -name "*.app" | head -1)
-          [ -n "$APP" ] || { echo "xtool produced no .app"; exit 1; }
-          [ -d "$APP/PlugIns" ] || { echo "no PlugIns: the widget extension was not packed"; exit 1; }
+          APP=$(find build/DerivedData/Build/Products/Release-iphoneos -maxdepth 1 -name "*.app" | head -1)
+          [ -n "$APP" ] || { echo "Xcode produced no .app"; exit 1; }
+          echo "--- built $APP"
+          ls "$APP"
+          [ -d "$APP/PlugIns" ] || { echo "no PlugIns: the widget extension was not built into the app"; exit 1; }
           [ -d "$APP/DiarizationModels/Nemotron3/Nemotron3Diarizer_c128_split_w8a8.mlmodelc" ] \
             && [ -f "$APP/DiarizationModels/Nemotron3/learnable_sil_emb.bin" ] \
             && [ -f "$APP/DiarizationModels/Nemotron3/pre_encode_proj_t.bin" ] \
             && [ -f "$APP/Places/places.deflate" ] \
-            || { echo "diarization models missing from the packed app"; exit 1; }
+            || { echo "bundled models or place table missing from the app"; exit 1; }
+          /usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$APP/Info.plist"
+          /usr/libexec/PlistBuddy -c "Print :FieldnoteGitCommit" "$APP/Info.plist"
           echo "APP_PATH=$APP" >> "$GITHUB_ENV"
 
-      # xtool's packer never produces dSYMs, so every crash report from a build it
-      # packed comes back from Apple with raw hex offsets instead of symbols -- this
-      # has been true of every crash report so far. Generate them here so they can be
-      # kept as an artifact and used to symbolicate with atos (macOS-only, hence
-      # doing it in CI rather than after download).
+      # Keep dSYMs as an artifact so crash reports can be symbolicated with atos
+      # (macOS-only, hence doing it in CI rather than after download).
       - name: Generate dSYMs
         run: |
           set -euo pipefail

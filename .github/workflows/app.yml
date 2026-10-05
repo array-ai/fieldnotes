@@ -87,34 +87,6 @@ jobs:
           ./Scripts/fetch-diarization-models.sh "$TMP"
           ./Scripts/vendor-diarization-models.sh "$TMP"
 
-      # Packs the built products into a .app using xtool.yml: catches mistakes in the
-      # Info.plists, the extension declaration and the resource list, which a plain
-      # `swift build` never looks at. `--sign` is omitted on purpose; signing needs an
-      # Apple ID and is not CI's job.
-      #
-      # Via Scripts/xtool.sh, which pins SwiftPM to the native build system — xtool's
-      # packer reads .build/<triple>/<config>, and Swift 6.4 defaults elsewhere.
-      - name: Pack unsigned .app with xtool
-        run: |
-          set -euo pipefail
-          brew install xtool-org/tap/xtool
-          ./Scripts/xtool.sh dev build
-
-          # Assert the artefact exists rather than trusting an exit code: the packer
-          # copies files in a task group, and "it did not fail" is not the same as
-          # "it produced an app with the extension inside it".
-          APP=$(find xtool -maxdepth 2 -name "*.app" | head -1)
-          [ -n "$APP" ] || { echo "xtool produced no .app"; exit 1; }
-          echo "--- packed $APP"
-          ls "$APP"
-          [ -d "$APP/PlugIns" ] || { echo "no PlugIns: the widget extension was not packed"; exit 1; }
-          ls "$APP/PlugIns"
-          [ -d "$APP/DiarizationModels/Nemotron3/Nemotron3Diarizer_c128_split_w8a8.mlmodelc" ] \
-            && [ -f "$APP/DiarizationModels/Nemotron3/learnable_sil_emb.bin" ] \
-            && [ -f "$APP/DiarizationModels/Nemotron3/pre_encode_proj_t.bin" ] \
-            && [ -f "$APP/Places/places.deflate" ] \
-            || { echo "diarization models missing from the packed app"; exit 1; }
-
       # The other half of "works with both toolchains": the same package, built the
       # way Xcode builds it. Catches anything that depends on xtool's own build path.
       - name: Build with Xcode
@@ -122,11 +94,16 @@ jobs:
           # pipefail: without it the pipe into tail returns tail's status and a failed
           # build reads as a passing step.
           set -euo pipefail
+          brew install xtool-org/tap/xtool
           ./Scripts/generate-xcode-project.sh
-          xcodebuild -list -workspace xtool/Fieldnote.xcworkspace || true
           xcodebuild build \
             -workspace xtool/Fieldnote.xcworkspace \
             -scheme Fieldnote \
             -destination 'generic/platform=iOS' \
+            -derivedDataPath build/DerivedData \
             CODE_SIGNING_ALLOWED=NO \
             | tail -5
+          APP=$(find build/DerivedData/Build/Products/Debug-iphoneos -maxdepth 1 -name "*.app" | head -1)
+          [ -n "$APP" ] && [ -d "$APP/PlugIns" ] && [ -f "$APP/Places/places.deflate" ] \
+            && [ -d "$APP/DiarizationModels/Nemotron3" ] \
+            || { echo "app, widget, models or place table missing"; exit 1; }
