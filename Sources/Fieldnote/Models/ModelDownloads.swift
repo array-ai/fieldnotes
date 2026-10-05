@@ -93,7 +93,12 @@ public final class ModelDownloads {
                 // Off the main actor: hashing and the first model compile take seconds
                 // to minutes and must not freeze the UI.
                 try await Self.install(ModelPack.pack(id)) { state in
-                    Task { @MainActor in ModelDownloads.shared.states[id] = state }
+                    Task { @MainActor in
+                        ModelDownloads.shared.states[id] = state
+                        // The first compile only runs while the app is open; a
+                        // screen lock would suspend it part-way.
+                        if state == .preparing { Self.keepScreenOn(true) }
+                    }
                 }
                 states[id] = .installed
                 DebugLog.shared.log("models", "\(id.rawValue): installed")
@@ -104,8 +109,15 @@ public final class ModelDownloads {
                 states[id] = .failed(error.localizedDescription)
                 DebugLog.shared.log("models", "\(id.rawValue): download failed: \(error)")
             }
+            Self.keepScreenOn(false)
             tasks[id] = nil
         }
+    }
+
+    private static func keepScreenOn(_ on: Bool) {
+        #if os(iOS)
+        UIApplication.shared.isIdleTimerDisabled = on
+        #endif
     }
 
     public func cancel(_ id: ModelPack.ID) {

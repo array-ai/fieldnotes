@@ -442,8 +442,8 @@ struct ModelsView: View {
         Accuracy and speed are relative, from published error rates and a benchmark on \
         an iPhone 16 Pro; run Settings → Debug → Benchmark models for this phone. \
         Downloads come from Hugging Face only when you tap Download, at a fixed \
-        version, with every file checked against its published checksum. Keep \
-        Fieldnote open while a download runs.
+        version, with every file checked against its published checksum. Downloads \
+        carry on in the background; keep Fieldnote open while a model prepares.
         """
     }
 
@@ -518,7 +518,7 @@ struct ModelCardView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             case .preparing:
-                Text("Preparing for this phone… this can take a few minutes, once.")
+                Text("Preparing for this phone, once. This can take a few minutes: keep Fieldnote open.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             case .failed(let message):
