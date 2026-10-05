@@ -34,6 +34,8 @@ jobs:
         run: |
           /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${{ github.run_number }}" Config/Fieldnote-Info.plist
           /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${{ github.run_number }}" Config/FieldnoteWidgets-Info.plist
+          # Shown in the app's Activity log, so a shared log says exactly what ran.
+          /usr/libexec/PlistBuddy -c "Set :FieldnoteGitCommit ${GITHUB_SHA::7}" Config/Fieldnote-Info.plist
 
       # Without this, DiarizationModelProvider.bundledModels() throws at runtime --
       # see app.yml for the full explanation. Every build shipped before this step

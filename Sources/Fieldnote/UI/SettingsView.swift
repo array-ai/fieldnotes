@@ -223,7 +223,7 @@ struct DebugLogView: View {
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                Text(text.isEmpty ? "Nothing logged yet." : text)
+                Text("Fieldnote \(DebugLog.appVersion)\n\n" + (text.isEmpty ? "Nothing logged yet." : text))
                     .font(.caption2.monospaced())
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)

@@ -55,6 +55,23 @@ public final class DebugLog: @unchecked Sendable {
         }
     }
 
+    // MARK: - Build
+
+    /// "0.1.0 (23, 24fff48)": marketing version, build number, and the git commit
+    /// CI stamped in at release ("local" for a developer build).
+    public static var appVersion: String {
+        let info = Bundle.main.infoDictionary ?? [:]
+        let version = info["CFBundleShortVersionString"] as? String ?? "?"
+        let build = info["CFBundleVersion"] as? String ?? "?"
+        let commit = info["FieldnoteGitCommit"] as? String ?? "local"
+        return "\(version) (\(build), \(commit))"
+    }
+
+    /// Logged once per launch, so every stretch of the log says what produced it.
+    public func logLaunch(device: String) {
+        log("app", "launched Fieldnote \(Self.appVersion) on \(device), iOS \(ProcessInfo.processInfo.operatingSystemVersionString)")
+    }
+
     // MARK: - Formatting helpers
 
     /// "1.23s" from a start instant.

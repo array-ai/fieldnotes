@@ -39,6 +39,7 @@ public final class AppModel {
     }
 
     public func onLaunch() async {
+        DebugLog.shared.logLaunch(device: ModelBenchmark.deviceModel())
         refreshCapability()
         await refresh()
         // The first Neural Engine load compiles the speaker model (minutes, once per

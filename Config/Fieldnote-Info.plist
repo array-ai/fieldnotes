@@ -14,6 +14,8 @@
 	<string>0.1.0</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
+	<key>FieldnoteGitCommit</key>
+	<string>local</string>
 	<!-- iPhone only: xtool's packer defaults UIDeviceFamily to [1, 2] (iPhone + iPad)
 	     when this key is absent, which pulls in iPad-specific App Store icon
 	     requirements Fieldnote doesn't need. -->
@@ -21,10 +23,10 @@
 	<array>
 		<integer>1</integer>
 	</array>
-	<!-- Fieldnote makes no outbound network requests (see xtool.yml's comment on
-	     Fieldnote.entitlements), so it doesn't use exempt or non-exempt encryption --
-	     this skips the export-compliance question App Store Connect otherwise asks
-	     on every single upload. -->
+	<!-- Fieldnote's only network use is the opt-in Apple Maps place lookup, which
+	     goes through Apple's own frameworks (exempt encryption). The app has no
+	     encryption of its own beyond Apple's CryptoKit for backups. This skips the
+	     export-compliance question App Store Connect otherwise asks on every upload. -->
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>NSMicrophoneUsageDescription</key>

@@ -40,6 +40,7 @@ public final class ModelBenchmark {
             status = ""
         }
 
+        add("Device", "Fieldnote", DebugLog.appVersion)
         add("Device", "Model", Self.deviceModel())
         add("Device", "iOS", ProcessInfo.processInfo.operatingSystemVersionString)
         add("Device", "Memory", String(format: "%.1f GB", Double(ProcessInfo.processInfo.physicalMemory) / 1e9))
