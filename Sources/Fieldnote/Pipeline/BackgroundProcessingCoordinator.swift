@@ -1,5 +1,6 @@
 #if os(iOS)
 import BackgroundTasks
+import UIKit
 import FieldnoteKit
 import Foundation
 import OSLog
@@ -160,8 +161,10 @@ public final class BackgroundProcessingCoordinator: @unchecked Sendable {
             return
         }
         let work = Task { [weak self] in
-            await self?.drainUntilIdle(reporting: reporter)
+            await self?.drainUntilIdle(reporting: reporter, inBackgroundTask: true)
             reporter.complete(success: true)
+            // Summaries wait for an in-app run. If the app is open now, start it.
+            await self?.continueInAppIfActive()
         }
         runningTask = work
         stateLock.unlock()
@@ -189,16 +192,31 @@ public final class BackgroundProcessingCoordinator: @unchecked Sendable {
             return
         }
         runningTask = Task { [weak self] in
-            await self?.drainUntilIdle(reporting: reporter)
+            await self?.drainUntilIdle(reporting: reporter, inBackgroundTask: false)
         }
         stateLock.unlock()
     }
 
+    /// Runs waiting work in the app itself — the only place summaries can run.
+    /// Called when the app becomes active, and after a background task hands over.
+    public func runPendingInApp() {
+        Task { [weak self] in
+            guard let self, !(await self.provider.pendingJobs().isEmpty) else { return }
+            self.debug.log("background", "running waiting work in the app")
+            self.runInProcess()
+        }
+    }
+
+    private func continueInAppIfActive() async {
+        let active = await MainActor.run { UIApplication.shared.applicationState == .active }
+        if active { runPendingInApp() }
+    }
+
     /// Drains pending jobs, then drains again if a submit arrived while draining,
     /// repeating until nothing new showed up.
-    private func drainUntilIdle(reporting reporter: ProgressReporter) async {
+    private func drainUntilIdle(reporting reporter: ProgressReporter, inBackgroundTask: Bool) async {
         repeat {
-            await drain(reporting: reporter)
+            await drain(reporting: reporter, inBackgroundTask: inBackgroundTask)
         } while consumeRedriveRequest() && !Task.isCancelled
         clearRunningTask()
     }
@@ -216,7 +234,7 @@ public final class BackgroundProcessingCoordinator: @unchecked Sendable {
         return redriveRequested
     }
 
-    private func drain(reporting reporter: ProgressReporter) async {
+    private func drain(reporting reporter: ProgressReporter, inBackgroundTask: Bool) async {
         for job in await provider.pendingJobs() {
             if Task.isCancelled { return }
             // The list was fetched up front; skip a meeting the user stopped since.
@@ -228,6 +246,7 @@ public final class BackgroundProcessingCoordinator: @unchecked Sendable {
             do {
                 let output = try await pipeline.run(
                     job,
+                    inBackgroundTask: inBackgroundTask,
                     progress: { stage, fraction in
                         // Reported on every fractional update, not once per stage: the
                         // system prioritises killing tasks that report little progress.
@@ -251,7 +270,13 @@ public final class BackgroundProcessingCoordinator: @unchecked Sendable {
                 // background). Stop here; the rest would hit the same wall. The app
                 // resumes everything next time it's open.
                 await provider.markWaiting(meetingID: job.meetingID, message: deferred.localizedDescription)
-                await ProcessingNotifier.shared.notifyWaiting(meetingID: job.meetingID, title: job.title)
+                let active = await MainActor.run { UIApplication.shared.applicationState == .active }
+                if !active {
+                    await ProcessingNotifier.shared.notifyWaiting(meetingID: job.meetingID, title: job.title)
+                }
+                // A background-task handover: carry on with the other meetings'
+                // transcripts and speakers. A real rate limit in the app: stop here.
+                if deferred.withoutAttempt { continue }
                 return
             } catch is CancellationError {
                 log.notice("Processing cancelled for \(job.meetingID.uuidString, privacy: .public); checkpoint holds")

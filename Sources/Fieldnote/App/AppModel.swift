@@ -122,7 +122,8 @@ public final class AppModel {
         guard meetings.contains(where: { !$0.state.isTerminal && $0.state != .recording }) else { return }
         await ProcessingNotifier.shared.requestPermissionIfNeeded()
         #if os(iOS)
-        coordinator.resumeUnfinishedWork()
+        // In the app, not a background task: summaries only run here.
+        coordinator.runPendingInApp()
         #endif
     }
 

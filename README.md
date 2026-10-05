@@ -47,10 +47,12 @@ two things you choose: optional model downloads, and Apple Maps place names.
   from there.
 - **Exports** through the share sheet as Markdown, plain text, PDF, SRT/VTT subtitles
   or audio, sends tasks to Reminders, and makes encrypted backups.
-- **Keeps working in the background** after you press stop. Processing runs as a
-  continued-processing task and resumes from its last checkpoint if iOS kills it. It
-  shows how long is left (learned from how fast this phone has been before) and
-  sends a notification when the notes are ready.
+- **Keeps working in the background** after you press stop: the transcript and
+  speakers finish in a continued-processing task, resuming from a checkpoint if iOS
+  stops it. The notes are written while the app is open, because Apple's on-device
+  model rate-limits background requests; if you've left, a notification says the
+  notes will finish when you come back. It shows how long is left (learned from this
+  phone's past runs) and notifies you when the notes are ready.
 
 - **Debug mode** (Settings) adds an activity log of what ran, for how long and what
   failed, Redo actions on each meeting for the transcript, speakers or summary, a

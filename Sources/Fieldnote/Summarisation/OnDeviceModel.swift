@@ -63,14 +63,13 @@ public enum OnDeviceModel {
     /// - no code path can substitute a Private Cloud Compute model;
     /// - no code path can substitute a third-party provider.
     private static func pinnedModel(for tier: ModelTier) -> SystemLanguageModel {
+        // The on-device model, with the guardrail mode Apple provides for transforming
+        // text the user supplied (summaries, rewrites). The default mode refused
+        // ordinary meeting talk as "may contain sensitive content". Both tiers resolve
+        // to the on-device model; never a use case that implies server execution.
         switch tier {
-        case .core:
-            return SystemLanguageModel.default
-        case .coreAdvanced:
-            // AFM 3 Core Advanced. `.default` is the on-device model; if the SDK
-            // exposes the larger on-device tier under a distinct initialiser, select
-            // it here. Do not reach for a use case that implies server execution.
-            return SystemLanguageModel.default
+        case .core, .coreAdvanced:
+            return SystemLanguageModel(useCase: .general, guardrails: .permissiveContentTransformations)
         }
     }
 

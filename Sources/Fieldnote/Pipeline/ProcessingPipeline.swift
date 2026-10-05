@@ -75,8 +75,12 @@ public actor ProcessingPipeline {
         self.summariser = summariser
     }
 
+    /// - Parameter inBackgroundTask: true inside a `BGContinuedProcessingTask`. Apple's
+    ///   on-device model rate-limits every request made from one (measured: even with
+    ///   the app on screen), so summarising waits for an in-app run instead.
     public func run(
         _ input: Input,
+        inBackgroundTask: Bool = false,
         progress: @escaping ProgressHandler = { _, _ in },
         estimate: @escaping EstimateHandler = { _, _ in }
     ) async throws -> Output {
@@ -131,6 +135,10 @@ public actor ProcessingPipeline {
 
         stageStart = .now
         announce(.summarising)
+        if inBackgroundTask, !checkpoint.isComplete(.summarising) {
+            debug.log("pipeline", "\(id): transcript and speakers done; summarising waits for an in-app run (background tasks are rate-limited)")
+            throw SummarizationService.Deferred(detail: "background task", withoutAttempt: true)
+        }
         let summary = try await summariseStage(
             input,
             segments: diarization.segments,

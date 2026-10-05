@@ -47,6 +47,9 @@ public actor SummarizationService {
     /// ending up with empty notes.
     public struct Deferred: Error, LocalizedError {
         public var detail: String
+        /// Deferred without trying: the run was in a background task, where Apple's
+        /// model rate-limits every request. Doesn't count against the retry limit.
+        public var withoutAttempt = false
         public var errorDescription: String? {
             "Waiting to summarise. Open Fieldnote to finish the notes."
         }
@@ -161,8 +164,9 @@ public actor SummarizationService {
         return PromptBudget(
             contextSize: OnDeviceModel.contextSize(tier: tier),
             fixedCost: instructions + schema,
-            // Topic notes with details run longer than a flat point list.
-            outputReserve: 1_400,
+            // Answers of up to ~1,750 tokens were measured on device; less than this
+            // overflows the 4,096-token context mid-answer.
+            outputReserve: 1_800,
             isMeasured: true
         )
     }

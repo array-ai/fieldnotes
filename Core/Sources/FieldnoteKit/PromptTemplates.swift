@@ -111,7 +111,7 @@ public struct PromptBudget: Sendable, Equatable {
     public var isMeasured: Bool
 
     /// Used when the framework can't be asked. Sized for a 4,096-token context.
-    public static let fallback = PromptBudget(contextSize: 4_096, fixedCost: 1_200, outputReserve: 1_024, isMeasured: false)
+    public static let fallback = PromptBudget(contextSize: 4_096, fixedCost: 1_300, outputReserve: 1_800, isMeasured: false)
 
     public init(contextSize: Int, fixedCost: Int, outputReserve: Int, isMeasured: Bool) {
         self.contextSize = contextSize

@@ -10,7 +10,7 @@ import FoundationModels
 
 @Generable
 struct DraftChunkNotes {
-    @Guide(description: "What was discussed in this excerpt, grouped into one to four topics, in the order they came up.")
+    @Guide(description: "What was discussed in this excerpt, grouped into one to three topics, in the order they came up.")
     var topics: [DraftTopic]
 
     @Guide(description: "Decisions the participants actually settled in this excerpt. Omit anything still open.")
@@ -40,7 +40,7 @@ struct DraftTopic {
     @Guide(description: "One sentence: what was said about it and where it landed.")
     var summary: String
 
-    @Guide(description: "The key points made, in order. Two to five.")
+    @Guide(description: "The key points made, in order. Two to four, each one short sentence.")
     var points: [DraftPoint]
 }
 
@@ -49,7 +49,7 @@ struct DraftPoint {
     @Guide(description: "The point, in one sentence.")
     var text: String
 
-    @Guide(description: "Up to three short supporting details actually said: figures, names, reasons. Empty if none.")
+    @Guide(description: "Up to two supporting details actually said, a few words each: figures, names, reasons. Empty if none.")
     var details: [String]
 
     @Guide(description: "Line numbers from the excerpt where this point was made. At least one.")
