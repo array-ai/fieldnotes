@@ -1,0 +1,99 @@
+name: Compile summary models ahead of time
+
+# Manual only. Compiles the portable Core AI summary models (.aimodel) into
+# chip-specific .aimodelc files on a Mac, so a phone downloads a ready model
+# instead of compiling it itself (Qwen3 1.7B ran out of memory doing that on an
+# iPhone 16, build 37).
+#
+# The first runs explore: they print coreai-build's help and what it produces,
+# with sizes and SHA-256s, and upload nothing. Set `upload` once the output is
+# right; it then goes to the Hugging Face repo with `hf upload` (Xet storage is
+# handled by hf_xet), using the HF_TOKEN secret.
+on:
+  workflow_dispatch:
+    inputs:
+      upload:
+        description: "Upload the compiled models to Hugging Face"
+        type: boolean
+        default: false
+      hf_repo:
+        description: "Hugging Face model repo to upload to"
+        type: string
+        default: publicarray/fieldnote-models
+
+env:
+  # Pinned sources, the same revisions the app's catalogue pins.
+  QWEN_REPO: darylap/Qwen3-1.7B-coreai-ios
+  QWEN_REV: a9ea1e57f6c5b09615e688e58345d4c2e7bf636c
+  MINICPM_REPO: mlboydaisuke/MiniCPM5-1B-CoreAI
+  MINICPM_REV: f38d143ec50cb2e54d8388479b919e3b9283943b
+
+jobs:
+  compile:
+    name: Compile
+    runs-on: xcode-27
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install the Hugging Face CLI
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/hf"
+          "$RUNNER_TEMP/hf/bin/pip" install --quiet -U "huggingface_hub[hf_xet]"
+          echo "$RUNNER_TEMP/hf/bin" >> "$GITHUB_PATH"
+
+      - name: Show the compiler
+        run: |
+          xcodebuild -version
+          xcrun --find coreai-build || { echo "coreai-build not found in this Xcode"; exit 1; }
+          xcrun coreai-build --help || true
+          for sub in compile build list-architectures architectures; do
+            echo "--- coreai-build $sub --help"
+            xcrun coreai-build "$sub" --help 2>&1 | head -60 || true
+          done
+
+      - name: Download the portable models
+        run: |
+          set -euo pipefail
+          hf download "$QWEN_REPO" --revision "$QWEN_REV" --local-dir src/qwen3
+          hf download "$MINICPM_REPO" --revision "$MINICPM_REV" --include "ios-static/*" --local-dir src/minicpm5
+          find src -name "*.aimodel" -maxdepth 3
+
+      # coreai-build's flags aren't documented outside Xcode yet, so this tries the
+      # likely forms and reports which worked. The help above says which is right.
+      - name: Compile
+        continue-on-error: true
+        run: |
+          set -uo pipefail
+          mkdir -p out
+          for model in $(find src -name "*.aimodel" -maxdepth 3); do
+            name=$(basename "$model" .aimodel)
+            dest="out/$name"
+            mkdir -p "$dest"
+            echo "=== $name"
+            xcrun coreai-build "$model" -o "$dest" \
+              || xcrun coreai-build compile "$model" -o "$dest" \
+              || xcrun coreai-build compile "$model" --output "$dest" \
+              || echo "no form worked for $name"
+          done
+
+      - name: Report
+        run: |
+          echo "## Compiled models" >> "$GITHUB_STEP_SUMMARY"
+          find out -name "*.aimodelc" -maxdepth 3 | while read -r dir; do
+            size=$(du -sh "$dir" | cut -f1)
+            echo "- \`$dir\`: $size" | tee -a "$GITHUB_STEP_SUMMARY"
+            find "$dir" -type f | sort | while read -r file; do
+              echo "    $(shasum -a 256 "$file" | cut -d' ' -f1)  $(stat -f%z "$file")  ${file#out/}"
+            done
+          done
+
+      - name: Upload to Hugging Face
+        if: inputs.upload
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_REPO: ${{ inputs.hf_repo }}
+        run: |
+          set -euo pipefail
+          hf upload "$HF_REPO" out . --commit-message "Ahead-of-time compiled summary models (run $GITHUB_RUN_NUMBER)"
