@@ -116,7 +116,22 @@ public actor DiarizationService {
         }
     }
 
-    private func isLoaded(_ method: DiarizationMethod) -> Bool {
+    /// Drops a method's loaded models, so the benchmark can time a cold load.
+    /// Refuses while live identification is running.
+    public func unload(_ method: DiarizationMethod) {
+        switch method {
+        case .nemotron3:
+            guard live == nil else { return }
+            nemotron = nil
+            nemotronModels = nil
+        case .pyannoteCommunity1:
+            community1Models = nil
+        case .pyannoteLegacy:
+            legacyManager = nil
+        }
+    }
+
+    public func isLoaded(_ method: DiarizationMethod) -> Bool {
         switch method {
         case .nemotron3: nemotron != nil
         case .pyannoteCommunity1: community1Models != nil

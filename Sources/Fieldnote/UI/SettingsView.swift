@@ -84,6 +84,7 @@ struct SettingsView: View {
                     Toggle("Debug mode", isOn: $settings.debugMode)
                     if settings.debugMode {
                         NavigationLink("Activity log") { DebugLogView() }
+                        NavigationLink("Benchmark models") { BenchmarkView() }
                     }
                 } header: {
                     Text("Debug")
@@ -244,5 +245,82 @@ struct DebugLogView: View {
 
     private func reload() {
         text = DebugLog.shared.contents()
+    }
+}
+
+struct BenchmarkView: View {
+    @Environment(AppModel.self) private var model
+    @State private var benchmark = ModelBenchmark()
+    @State private var meetingID: UUID?
+
+    private var candidates: [MeetingSnapshot] {
+        model.meetings.filter { $0.state == .complete && $0.duration > 0 }
+    }
+
+    var body: some View {
+        Form {
+            Section {
+                Picker("Recording", selection: $meetingID) {
+                    Text("Choose…").tag(UUID?.none)
+                    ForEach(candidates) { meeting in
+                        Text(meeting.title).tag(UUID?.some(meeting.id))
+                    }
+                }
+                Button {
+                    guard let meeting = candidates.first(where: { $0.id == meetingID }) else { return }
+                    Task { await benchmark.run(on: meeting, locale: model.settings.locale) }
+                } label: {
+                    if benchmark.isRunning {
+                        HStack {
+                            ProgressView()
+                            Text(benchmark.status)
+                        }
+                    } else {
+                        Text("Run benchmark")
+                    }
+                }
+                .disabled(meetingID == nil || benchmark.isRunning || model.recorder.isActive)
+            } footer: {
+                Text(
+                    """
+                    Times each speaker model (cold and warm load, then up to five \
+                    minutes of the recording), Apple's speech model on the first five \
+                    minutes, and the summary model on one excerpt. Takes a minute or \
+                    two and warms the phone. Results also go to the Activity log.
+                    """
+                )
+            }
+
+            ForEach(sections, id: \.self) { section in
+                Section(section) {
+                    ForEach(benchmark.rows.filter { $0.section == section }) { row in
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(row.name).font(.subheadline.weight(.semibold))
+                            Text(row.value)
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                                .textSelection(.enabled)
+                        }
+                    }
+                }
+            }
+        }
+        .navigationTitle("Benchmark")
+        .toolbar {
+            if !benchmark.rows.isEmpty, !benchmark.isRunning {
+                ShareLink(item: benchmark.report) {
+                    Label("Share", systemImage: "square.and.arrow.up")
+                }
+            }
+        }
+        .task {
+            if meetingID == nil { meetingID = candidates.first?.id }
+        }
+    }
+
+    private var sections: [String] {
+        var seen: [String] = []
+        for row in benchmark.rows where !seen.contains(row.section) { seen.append(row.section) }
+        return seen
     }
 }

@@ -43,7 +43,8 @@ you turn on Apple Maps place names.
   continued-processing task and resumes from its last checkpoint if iOS kills it.
 
 - **Debug mode** (Settings) adds an activity log of what ran, for how long and what
-  failed, and Redo actions on each meeting for the transcript, speakers or summary.
+  failed, Redo actions on each meeting for the transcript, speakers or summary, and a
+  benchmark that times every on-device model on one of your recordings.
   The log records timings and errors only, never what was said.
 
 Meetings can be renamed at any time from the meeting screen.
