@@ -75,7 +75,10 @@ public enum ParakeetTranscriber {
         progress(0.2)
 
         let runStarted = ContinuousClock.now
-        var state = TdtDecoderState.make()
+        // Shaped for this model: TDT-CTC 110M has one decoder layer, v2/v3 two. The
+        // default (two) failed on 110M for short recordings with "MultiArray shape
+        // (2 x 1 x 640) does not match (1 x 1 x 640)" (build 40).
+        var state = TdtDecoderState.make(decoderLayers: await manager.decoderLayerCount)
         // Only the multilingual model takes a language hint.
         let language = version == .v3 ? Language(rawValue: String(localeIdentifier.prefix(2)).lowercased()) : nil
         let result = try await manager.transcribe(wav.url, decoderState: &state, language: language)

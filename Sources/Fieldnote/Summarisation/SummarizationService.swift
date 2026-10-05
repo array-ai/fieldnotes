@@ -253,7 +253,9 @@ public actor SummarizationService {
             let session = try OnDeviceModel.session(tier: tier, instructions: instructions)
             let started = ContinuousClock.now
             if plain {
-                let response = try await session.respond(to: prompt, options: GenerationOptions(maximumResponseTokens: answerCap), contextOptions: OnDeviceModel.contextOptions)
+                // Plain notes are short; a small model given more room rambles (1,000
+                // tokens for eight lines of transcript, build 40).
+                let response = try await session.respond(to: prompt, options: GenerationOptions(maximumResponseTokens: min(answerCap, 600)), contextOptions: OnDeviceModel.contextOptions)
                 let notes = PlainNotes.parse(response.content, chunk: piece)
                 debug.log(
                     "summary",
