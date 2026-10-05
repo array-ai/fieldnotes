@@ -252,7 +252,6 @@ Tests/FieldnoteTests/     Darwin-only tests (CryptoKit)
 Config/                   Info.plists and entitlements
 Resources/                bundled into the app; the CoreML models go here
 Scripts/                  build, model, policy and release scripts
-docs/decisions.md         where the build departs from the original spec, and why
 ```
 
 ### Unverified iOS 27 APIs
@@ -271,7 +270,7 @@ The audio interruption APIs in `AudioSessionController` and `installTap` in
 
 ## Not in v1
 
-Left out on purpose; reasons are in [docs/decisions.md](docs/decisions.md):
+Left out on purpose:
 
 - recognising the same person across meetings (speaker embeddings are stored now, so
   this can be built later);
