@@ -39,6 +39,8 @@ public enum BackupArchive {
         public var summary: MeetingSummary?
         public var latitude: Double?
         public var longitude: Double?
+        /// Optional with a default so archives made before it existed still decode.
+        public var placeName: String? = nil
     }
 
     // MARK: - Write

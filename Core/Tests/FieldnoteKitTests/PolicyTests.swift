@@ -156,6 +156,28 @@ struct PolicyTests {
         }
     }
 
+    /// The one sanctioned outbound request: naming a place with Apple Maps, opt-in
+    /// and off by default. Keeping every lookup in `PlaceNamer` keeps what leaves the
+    /// device for location in one file that's easy to audit.
+    @Test("Apple Maps lookups only in PlaceNamer")
+    func placeLookupsConfined() {
+        let lookups = [
+            "MKReverseGeocodingRequest",
+            "MKLocalSearch",
+            "MKLocalPointsOfInterestRequest",
+            "MKGeocodingRequest",
+            "CLGeocoder",
+            "MKLookAroundSceneRequest"
+        ]
+        for marker in lookups {
+            let offenders = PolicySourceScanner.filesContaining(
+                marker,
+                excluding: ["Sources/Fieldnote/Location/PlaceNamer.swift"]
+            )
+            #expect(offenders.isEmpty, "Place lookup \(marker) outside PlaceNamer: \(offenders.joined(separator: ", "))")
+        }
+    }
+
     /// Spec 4.7: without the continued-processing inference entitlement, summarisation
     /// dies the moment the app backgrounds — which is exactly when it runs.
     @Test("Inference entitlement is present")

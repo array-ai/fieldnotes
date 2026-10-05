@@ -26,7 +26,9 @@ extension MeetingSnapshot {
             ),
             summary: meeting.summary?.summary,
             latitude: meeting.latitude,
-            longitude: meeting.longitude
+            longitude: meeting.longitude,
+            // Empty means "looked, found nothing" — shown as no name.
+            placeName: meeting.placeName?.nilIfEmpty
         )
     }
 }

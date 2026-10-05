@@ -32,7 +32,7 @@ public enum SubtitleRenderer {
 
     private static func cue(for segment: TranscriptSegment, speakerNames: [String: String], voiceTags: Bool) -> String {
         guard let speakerID = segment.speakerID else { return segment.text }
-        let name = speakerNames[speakerID] ?? speakerID
+        let name = SpeakerLabel.name(speakerID, names: speakerNames)
         return voiceTags ? "<v \(name)>\(segment.text)" : "\(name): \(segment.text)"
     }
 }

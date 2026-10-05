@@ -93,7 +93,7 @@ struct MeetingDetailView: View {
         .confirmationDialog("Change speaker", isPresented: .constant(relabelling != nil), titleVisibility: .visible) {
             if let segment = relabelling, let meeting {
                 ForEach(speakerLabels(meeting), id: \.self) { label in
-                    Button(meeting.speakerNames[label] ?? label) {
+                    Button(SpeakerLabel.name(label, names: meeting.speakerNames)) {
                         Task {
                             try? await model.store.relabelSegment(segment.id, to: label)
                             relabelling = nil
@@ -229,10 +229,17 @@ struct SummarySections: View {
             Section("Location") {
                 if let url = URL(string: "https://maps.apple.com/?ll=\(latitude),\(longitude)") {
                     Link(destination: url) {
-                        Label(
-                            String(format: "%.3f, %.3f", latitude, longitude),
-                            systemImage: "mappin.and.ellipse"
-                        )
+                        VStack(alignment: .leading, spacing: 2) {
+                            Label(
+                                meeting.placeName ?? String(format: "%.3f, %.3f", latitude, longitude),
+                                systemImage: "mappin.and.ellipse"
+                            )
+                            if meeting.placeName != nil {
+                                Text(String(format: "%.4f, %.4f", latitude, longitude))
+                                    .font(.caption.monospacedDigit())
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
                     }
                 }
             }
@@ -363,8 +370,7 @@ struct TranscriptSections: View {
     }
 
     private func speakerName(_ segment: TranscriptSegment) -> String {
-        guard let id = segment.speakerID else { return "Unknown" }
-        return meeting.speakerNames[id] ?? id
+        SpeakerLabel.name(segment.speakerID, names: meeting.speakerNames)
     }
 
     private func colour(_ segment: TranscriptSegment) -> Color {

@@ -1,7 +1,8 @@
 # Fieldnote
 
 A meeting recorder for iPhone that transcribes, works out who spoke when, and
-summarises, all on the device. No server, no account, no network access at all.
+summarises, all on the device. No server, no account, and no network access unless
+you turn on Apple Maps place names.
 
 > **Experimental.** Fieldnote runs on a real iPhone, but it still has small bugs.
 > Expect rough edges.
@@ -22,8 +23,8 @@ summarises, all on the device. No server, no account, no network access at all.
   | **pyannote community-1** | Segmentation, speaker embeddings, then clustering over the whole recording |
   | **pyannote 3.1 (legacy)** | The original pipeline, kept for comparison |
 
-  Picks up names from self-introductions ("Hi, I'm Priya") and lets you rename
-  speakers by hand.
+  Unnamed speakers show as Speaker A, Speaker B and so on. Picks up names from
+  self-introductions ("Hi, I'm Priya") and lets you rename speakers by hand.
 - **Summarises** into minutes with Apple's on-device Foundation Models: overview,
   decisions, tasks, open questions. Every point cites the transcript lines it came
   from, and a point whose citation doesn't check out is dropped. Long transcripts are
@@ -50,9 +51,12 @@ This is the point of the app, and it is enforced by tests rather than by intenti
   download-on-first-use loaders are banned in the source.
 - **No Siri or Spotlight indexing.** There are no App Intents, so meeting content never
   reaches the system's semantic index.
-- **Location is opt-in**, stored as coordinates only, and never looked up.
+- **Location is opt-in.** The place is named offline (nearest suburb or town, from a
+  table built into the app). A business or building name needs Apple Maps, which is
+  a separate setting, off by default, that sends only the coordinates to Apple. All
+  Apple Maps calls live in one file, and a policy check keeps them there.
 
-Content leaves the phone only when you share it yourself.
+Meeting content leaves the phone only when you share it yourself.
 
 The one third-party library is [FluidAudio](https://github.com/FluidInference/FluidAudio),
 which runs the speaker-identification models with CoreML. No analytics or networking
@@ -62,7 +66,7 @@ SDKs are included.
 
 | | |
 |---|---|
-| Core logic (`Core/`) | Builds and tests on Linux, no Apple SDK. 83 tests, run in CI on every push |
+| Core logic (`Core/`) | Builds and tests on Linux, no Apple SDK. 91 tests, run in CI on every push |
 | App and widget | Build for `arm64-apple-ios27.0` in CI with Xcode 27, both through xtool and `xcodebuild` |
 | On a device | Runs on iPhone, with known small bugs. The device checks under [Testing](#testing) haven't all been done |
 | Linux device builds | Blocked: the bundled LLD can't read the iOS 27 SDK's stubs (see [Build](#build)) |
@@ -142,6 +146,7 @@ swift test --package-path Core     # Linux or Mac, no device
 | No third-party `LanguageModel` providers | `PolicyTests.noThirdPartyProviders` |
 | No App Intents or semantic indexing | `PolicyTests.noAppIntents` |
 | No networking code, no network entitlements | `PolicyTests.noNetworking`, `noNetworkEntitlements` |
+| Apple Maps place lookups only in `PlaceNamer` | `PolicyTests.placeLookupsConfined` |
 | No download-on-first-use model loaders | `PolicyTests.noModelDownloads` |
 | Background inference entitlement present | `PolicyTests.inferenceEntitlement` |
 
@@ -228,5 +233,6 @@ Left out on purpose; reasons are in [docs/decisions.md](docs/decisions.md):
 [0BSD](LICENSE): use it for anything, no attribution required, no warranty. The code
 was written almost entirely by AI, so a public-domain-style licence is the honest fit.
 
-Dependencies keep their own licences: FluidAudio is Apache-2.0, and the bundled models
-are CC-BY-4.0 (pyannote) and OpenMDW-1.1 (Nemotron 3).
+Dependencies keep their own licences: FluidAudio is Apache-2.0, the bundled models are
+CC-BY-4.0 (pyannote) and OpenMDW-1.1 (Nemotron 3), and the offline place names come
+from [GeoNames](https://www.geonames.org) (CC-BY 4.0).

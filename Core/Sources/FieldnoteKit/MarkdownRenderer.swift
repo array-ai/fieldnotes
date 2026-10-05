@@ -125,6 +125,7 @@ public struct MarkdownRenderer: Sendable {
 
     private func header(_ meeting: MeetingSnapshot) -> String {
         var parts = [meeting.startedAt.formatted(dateStyle)]
+        if let place = meeting.placeName { parts.append(place) }
         if meeting.duration > 0 { parts.append(Timecode.short(meeting.duration)) }
         if let folder = meeting.folderName { parts.append(folder) }
         let speakers = meeting.speakerNames.values.sorted()
@@ -154,7 +155,7 @@ public struct MarkdownRenderer: Sendable {
 
     private func transcriptBody(_ meeting: MeetingSnapshot) -> String {
         meeting.segments.map { segment in
-            let speaker = segment.speakerID.map { meeting.speakerNames[$0] ?? $0 } ?? "Unknown"
+            let speaker = SpeakerLabel.name(segment.speakerID, names: meeting.speakerNames)
             let stamp = includeTimestamps ? "[\(Timecode.short(segment.start))] " : ""
             return "**\(stamp)\(speaker):** \(segment.text)"
         }

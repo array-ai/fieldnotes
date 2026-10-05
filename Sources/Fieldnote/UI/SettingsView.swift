@@ -61,6 +61,22 @@ struct SettingsView: View {
                 }
 
                 Section {
+                    Toggle("Name places with Apple Maps", isOn: $settings.appleMapsPlaceNames)
+                } header: {
+                    Text("Location")
+                } footer: {
+                    Text(
+                        """
+                        Meetings recorded with location get the nearest suburb or town \
+                        from a list built into the app, without going online. Turn this \
+                        on to also look up the business, building or street with Apple \
+                        Maps: that sends the meeting's coordinates to Apple, and nothing \
+                        else.
+                        """
+                    )
+                }
+
+                Section {
                     Toggle("Debug mode", isOn: $settings.debugMode)
                     if settings.debugMode {
                         NavigationLink("Activity log") { DebugLogView() }
@@ -82,7 +98,12 @@ struct SettingsView: View {
                 }
 
                 Section {
-                    Label("No accounts, no server, no network", systemImage: "network.slash")
+                    Label(
+                        settings.appleMapsPlaceNames
+                            ? "No accounts, no server; Apple Maps for place names only"
+                            : "No accounts, no server, no network",
+                        systemImage: "network.slash"
+                    )
                     Label("Audio, transcripts and summaries stay on this device", systemImage: "iphone")
                     Label("Nothing is added to Spotlight or Siri", systemImage: "magnifyingglass")
                 } header: {
@@ -90,8 +111,9 @@ struct SettingsView: View {
                 } footer: {
                     Text(
                         """
-                        Fieldnote makes no outbound requests. Content leaves only when \
-                        you drive the share sheet yourself, and then it is the \
+                        Fieldnote makes no outbound requests, apart from Apple Maps \
+                        place lookups if you turn them on. Meeting content leaves only \
+                        when you drive the share sheet yourself, and then it is the \
                         destination app's business, not Fieldnote's.
                         """
                     )
@@ -165,7 +187,8 @@ struct BackupView: View {
                         speakerEmbeddings: [:],
                         summary: meeting.summary,
                         latitude: meeting.latitude,
-                        longitude: meeting.longitude
+                        longitude: meeting.longitude,
+                        placeName: meeting.placeName
                     )
                 }
             )

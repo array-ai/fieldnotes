@@ -27,7 +27,7 @@ public struct TranscriptChunk: Sendable, Identifiable {
     /// unambiguous even though the model only ever sees one chunk at a time.
     public func promptText(speakerNames: [String: String] = [:]) -> String {
         zip(lineNumbers, segments).map { number, segment in
-            let speaker = segment.speakerID.map { speakerNames[$0] ?? $0 } ?? "Unknown"
+            let speaker = SpeakerLabel.name(segment.speakerID, names: speakerNames)
             return "\(number) | \(speaker): \(segment.text)"
         }
         .joined(separator: "\n")
@@ -95,7 +95,7 @@ public struct TranscriptChunker: Sendable {
 
         // Cost each line once, including its line-number and speaker prefix.
         let costs = segments.enumerated().map { index, segment -> Int in
-            let speaker = segment.speakerID ?? "Unknown"
+            let speaker = SpeakerLabel.display(segment.speakerID)
             return countTokens("\(index + 1) | \(speaker): \(segment.text)\n")
         }
 

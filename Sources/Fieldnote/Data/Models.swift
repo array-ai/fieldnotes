@@ -27,6 +27,8 @@ public final class Meeting {
     /// reverse geocoding, which would be an outbound request (constraint 1).
     public var latitude: Double?
     public var longitude: Double?
+    /// Readable name for the coordinates. See `PlaceNamer`.
+    public var placeName: String?
     public var processingStateRaw: String = ProcessingState.recording.rawValue
     public var failureMessage: String?
     /// Denormalised title + transcript + summary text, lowercased. See the note above.
@@ -145,7 +147,7 @@ public final class Speaker {
         }
     }
 
-    public var name: String { displayName ?? label }
+    public var name: String { displayName ?? SpeakerLabel.display(label) }
 
     public var embeddingVector: [Float]? {
         guard let embedding else { return nil }

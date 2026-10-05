@@ -62,7 +62,7 @@ public actor RemindersExporter {
         if let owner = item.owner, !owner.isEmpty { parts.append("Owner: \(owner)") }
         if let spoken = item.dueDate, !spoken.isEmpty { parts.append("Said: \(spoken)") }
         if let segment = meeting.segments.first(where: { $0.id == item.sourceSegmentID }) {
-            let speaker = segment.speakerID.map { meeting.speakerNames[$0] ?? $0 } ?? "Unknown"
+            let speaker = SpeakerLabel.name(segment.speakerID, names: meeting.speakerNames)
             parts.append("[\(Timecode.short(segment.start))] \(speaker): \(segment.text)")
         }
         parts.append("From \"\(meeting.title)\", \(meeting.startedAt.formatted(date: .abbreviated, time: .shortened))")

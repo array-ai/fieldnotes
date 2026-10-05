@@ -17,7 +17,7 @@ public enum PromptTemplates {
         they look misspelt. They were transcribed from speech and the spelling is the \
         user's to fix.
         - Do not describe people. No traits, no tone, no judgements about anyone.
-        - Speaker labels (like "S1" or "Unknown") are line formatting, not something \
+        - Speaker labels (like "Speaker A" or "Unknown") are line formatting, not something \
         anyone said. Never report one as a name or a point of its own.
         - If the excerpt contains nothing of substance, return empty lists rather than \
         padding with detail the transcript does not contain.

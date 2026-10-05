@@ -86,6 +86,6 @@ struct TranscriptChunkerTests {
         let text = chunks[0].promptText(speakerNames: ["S1": "Dave"])
 
         #expect(text.contains("1 | Dave: word word"))
-        #expect(text.contains("2 | S2: word word"))
+        #expect(text.contains("2 | Speaker B: word word"))
     }
 }

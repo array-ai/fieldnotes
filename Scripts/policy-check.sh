@@ -72,6 +72,13 @@ for needle in "loadFromHuggingFace" "ModelHub" "DownloadUtils" "prepareModels(" 
 done
 
 echo
+echo "== Place lookups: Apple Maps only in PlaceNamer, which is opt-in"
+for needle in "MKReverseGeocodingRequest" "MKLocalSearch" "MKLocalPointsOfInterestRequest" \
+              "MKGeocodingRequest" "CLGeocoder" "MKLookAroundSceneRequest"; do
+  check_absent "$needle" "$needle only in PlaceNamer" "Sources/Fieldnote/Location/PlaceNamer.swift"
+done
+
+echo
 echo "== Entitlements"
 ENTITLEMENTS=Config/Fieldnote.entitlements
 if grep -q "com.apple.developer.background-tasks.continued-processing.inference" "$ENTITLEMENTS"; then

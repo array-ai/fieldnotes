@@ -36,6 +36,7 @@ public final class AppModel {
     public func onLaunch() async {
         refreshCapability()
         await refresh()
+        await nameUnnamedPlaces()
         #if os(iOS)
         // Anything left unfinished by a kill or a restart resumes from its last
         // checkpoint rather than from raw audio.
@@ -72,6 +73,10 @@ public final class AppModel {
         // recording instead of delaying the results after stop.
         let method = settings.diarizationMethod
         Task(priority: .utility) { await DiarizationService.shared.prewarm(method) }
+        if let coordinate {
+            let useAppleMaps = settings.appleMapsPlaceNames
+            Task(priority: .utility) { await self.namePlace(id, coordinate, useAppleMaps: useAppleMaps) }
+        }
         await refresh()
     }
 
@@ -88,6 +93,33 @@ public final class AppModel {
         let title = meetings.first { $0.id == result.meetingID }?.title ?? "meeting"
         await coordinator.submitAfterRecording(title: title)
         #endif
+        await refresh()
+    }
+
+    // MARK: - Places
+
+    /// Offline name first, so the meeting has one straight away; Apple Maps then
+    /// replaces it with a business or street name if that is turned on and finds one.
+    private func namePlace(_ id: UUID, _ coordinate: (latitude: Double, longitude: Double), useAppleMaps: Bool) async {
+        if let offline = await PlaceNamer.shared.offlineName(latitude: coordinate.latitude, longitude: coordinate.longitude) {
+            try? await store.setPlaceName(offline, for: id)
+        }
+        if useAppleMaps,
+           let named = await PlaceNamer.appleMapsName(latitude: coordinate.latitude, longitude: coordinate.longitude) {
+            try? await store.setPlaceName(named, for: id)
+        }
+        await refresh()
+    }
+
+    /// Gives older meetings (recorded before place names existed) an offline name.
+    /// Never calls Apple Maps: that only happens for new recordings, by choice.
+    private func nameUnnamedPlaces() async {
+        guard let pending = try? await store.meetingsNeedingPlaceNames(), !pending.isEmpty else { return }
+        for meeting in pending {
+            let name = await PlaceNamer.shared.offlineName(latitude: meeting.latitude, longitude: meeting.longitude)
+            try? await store.setPlaceName(name ?? "", for: meeting.id)
+        }
+        DebugLog.shared.log("place", "named \(pending.count) older meeting location(s) offline")
         await refresh()
     }
 
@@ -136,6 +168,12 @@ public final class AppModel {
             didSet { UserDefaults.standard.set(locationEnabled, forKey: "locationEnabled") }
         }
 
+        /// Off by default. When on, new recordings' coordinates are sent to Apple Maps
+        /// to name the business, building or street. Otherwise naming is offline.
+        public var appleMapsPlaceNames: Bool {
+            didSet { UserDefaults.standard.set(appleMapsPlaceNames, forKey: "appleMapsPlaceNames") }
+        }
+
         /// Shows the log viewer and the redo actions.
         public var debugMode: Bool {
             didSet { UserDefaults.standard.set(debugMode, forKey: "debugMode") }
@@ -148,6 +186,7 @@ public final class AppModel {
 
         public init() {
             self.debugMode = UserDefaults.standard.bool(forKey: "debugMode")
+            self.appleMapsPlaceNames = UserDefaults.standard.bool(forKey: "appleMapsPlaceNames")
             self.diarizationMethod = DiarizationMethod(
                 storedValue: UserDefaults.standard.string(forKey: DiarizationMethod.defaultsKey)
             )

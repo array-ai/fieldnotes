@@ -138,6 +138,23 @@ public actor MeetingStore {
 
     // MARK: - Editing
 
+    public func setPlaceName(_ name: String?, for meetingID: UUID) throws {
+        guard let meeting = try meeting(with: meetingID) else { return }
+        meeting.placeName = name
+        rebuildSearchText(for: meeting)
+        try modelContext.save()
+    }
+
+    /// Meetings with coordinates but no place name yet: recorded before place names
+    /// existed, or before the lookup finished.
+    public func meetingsNeedingPlaceNames() throws -> [(id: UUID, latitude: Double, longitude: Double)] {
+        let descriptor = FetchDescriptor<Meeting>(predicate: #Predicate { $0.latitude != nil && $0.placeName == nil })
+        return try modelContext.fetch(descriptor).compactMap { meeting in
+            guard let latitude = meeting.latitude, let longitude = meeting.longitude else { return nil }
+            return (meeting.id, latitude, longitude)
+        }
+    }
+
     public func renameMeeting(_ meetingID: UUID, to title: String) throws {
         let trimmed = title.trimmed()
         guard !trimmed.isEmpty, let meeting = try meeting(with: meetingID) else { return }
@@ -290,6 +307,7 @@ public actor MeetingStore {
 
     private func rebuildSearchText(for meeting: Meeting) {
         var parts = [meeting.title]
+        if let place = meeting.placeName?.nilIfEmpty { parts.append(place) }
         parts.append(contentsOf: meeting.segments.map(\.text))
         if let summary = meeting.summary?.summary {
             parts.append(summary.overview)

@@ -102,3 +102,28 @@ struct DiarizationMethodTests {
         #expect(DiarizationMethod.allCases.map(\.rawValue) == ["nemotron3", "pyannoteCommunity1", "pyannoteLegacy"])
     }
 }
+
+@Suite("Speaker labels")
+struct SpeakerLabelTests {
+
+    @Test("Diarization labels read as letters")
+    func letters() {
+        #expect(SpeakerLabel.display("S1") == "Speaker A")
+        #expect(SpeakerLabel.display("S2") == "Speaker B")
+        #expect(SpeakerLabel.display("S26") == "Speaker Z")
+        #expect(SpeakerLabel.display("S27") == "Speaker AA")
+    }
+
+    @Test("Anything else is left alone")
+    func passthrough() {
+        #expect(SpeakerLabel.display(nil) == "Unknown")
+        #expect(SpeakerLabel.display("SPEAKER_00") == "SPEAKER_00")
+        #expect(SpeakerLabel.display("S0") == "S0")
+    }
+
+    @Test("A given name wins over the letter")
+    func givenName() {
+        #expect(SpeakerLabel.name("S1", names: ["S1": "Priya"]) == "Priya")
+        #expect(SpeakerLabel.name("S2", names: ["S1": "Priya"]) == "Speaker B")
+    }
+}

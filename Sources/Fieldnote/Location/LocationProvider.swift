@@ -4,9 +4,8 @@ import CoreLocation
 import Foundation
 
 /// One-shot coordinate capture at the moment a recording starts. Opt-in
-/// (`Settings.locationEnabled`), and coordinates only: no reverse geocoding, which
-/// would be an outbound request to Apple's servers (constraint 1). CoreLocation
-/// itself makes no networking call the app's code performs or can be blamed for.
+/// (`Settings.locationEnabled`). Naming the place is `PlaceNamer`'s job: offline by
+/// default, Apple Maps only when the user turns that on.
 @MainActor
 public final class LocationProvider: NSObject {
 
