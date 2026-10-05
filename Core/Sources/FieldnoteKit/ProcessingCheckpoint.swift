@@ -19,6 +19,9 @@ public struct ProcessingCheckpoint: Codable, Sendable {
     /// recording ("Redo transcript" in debug mode). Optional so checkpoints written
     /// before it existed still decode.
     public var redoTranscript: Bool?
+    /// How many times summarising was put off because the model wouldn't run
+    /// (usually because the app was in the background). Optional for old checkpoints.
+    public var summaryDeferrals: Int?
 
     public init(meetingID: UUID) {
         self.meetingID = meetingID

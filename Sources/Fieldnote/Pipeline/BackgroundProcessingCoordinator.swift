@@ -218,6 +218,13 @@ public final class BackgroundProcessingCoordinator: @unchecked Sendable {
                     title: job.title,
                     headline: output.summary.topics?.first?.title
                 )
+            } catch let deferred as SummarizationService.Deferred {
+                // The model won't run for us right now (usually: app in the
+                // background). Stop here; the rest would hit the same wall. The app
+                // resumes everything next time it's open.
+                await provider.markWaiting(meetingID: job.meetingID, message: deferred.localizedDescription)
+                await ProcessingNotifier.shared.notifyWaiting(meetingID: job.meetingID, title: job.title)
+                return
             } catch is CancellationError {
                 log.notice("Processing cancelled for \(job.meetingID.uuidString, privacy: .public); checkpoint holds")
                 debug.log("pipeline", "\(DebugLog.short(job.meetingID)): cancelled; will resume from the last finished stage")

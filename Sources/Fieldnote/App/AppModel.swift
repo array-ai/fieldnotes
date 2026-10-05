@@ -117,6 +117,15 @@ public final class AppModel {
         await refresh()
     }
 
+    public func resumeWaitingWork() async {
+        await refresh()
+        guard meetings.contains(where: { !$0.state.isTerminal && $0.state != .recording }) else { return }
+        await ProcessingNotifier.shared.requestPermissionIfNeeded()
+        #if os(iOS)
+        coordinator.resumeUnfinishedWork()
+        #endif
+    }
+
     // MARK: - Import
 
     /// Imports a recording from another app (Files, share sheet, "Open in"), then
@@ -205,6 +214,7 @@ public final class AppModel {
 
     /// Debug mode: re-run one stage (and everything after it) for a finished meeting.
     public func redo(_ stage: MeetingStore.RedoStage, meetingID: UUID, title: String) async {
+        await ProcessingNotifier.shared.requestPermissionIfNeeded()
         do {
             try await store.prepareRedo(stage, meetingID: meetingID)
         } catch {

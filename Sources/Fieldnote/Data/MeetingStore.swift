@@ -64,6 +64,15 @@ public actor MeetingStore {
         guard let meeting = try? meeting(with: meetingID) else { return }
         meeting.processingState = ProcessingState(stage: stage)
         meeting.estimatedCompletion = estimatedCompletion
+        meeting.failureMessage = nil
+        try? modelContext.save()
+    }
+
+    public func markWaiting(meetingID: UUID, message: String) async {
+        guard let meeting = try? meeting(with: meetingID) else { return }
+        meeting.processingState = .queued
+        meeting.failureMessage = message
+        meeting.estimatedCompletion = nil
         try? modelContext.save()
     }
 

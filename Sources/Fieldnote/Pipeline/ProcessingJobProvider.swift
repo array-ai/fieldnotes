@@ -10,4 +10,6 @@ public protocol ProcessingJobProvider: Sendable {
     func markStage(_ stage: ProcessingStage, meetingID: UUID, estimatedCompletion: Date?) async
     func apply(_ output: ProcessingPipeline.Output, to meetingID: UUID) async
     func markFailed(meetingID: UUID, message: String) async
+    /// Paused, not failed: stays queued with a note saying why.
+    func markWaiting(meetingID: UUID, message: String) async
 }

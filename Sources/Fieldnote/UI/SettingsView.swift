@@ -262,6 +262,12 @@ struct BenchmarkView: View {
     @State private var benchmark = ModelBenchmark()
     @State private var meetingID: UUID?
 
+    /// The benchmark competes with real processing for the same models (and the
+    /// summary model rate-limits concurrent requests), so it waits its turn.
+    private var processing: Bool {
+        model.meetings.contains { !$0.state.isTerminal && $0.state != .recording }
+    }
+
     private var candidates: [MeetingSnapshot] {
         model.meetings.filter { $0.state == .complete && $0.duration > 0 }
     }
@@ -288,11 +294,11 @@ struct BenchmarkView: View {
                         Text("Run benchmark")
                     }
                 }
-                .disabled(meetingID == nil || benchmark.isRunning || model.recorder.isActive)
+                .disabled(meetingID == nil || benchmark.isRunning || model.recorder.isActive || processing)
             } footer: {
                 Text(
                     """
-                    Times each speaker model (cold and warm load, then up to five \
+                    \(processing ? "Available once meetings finish processing. " : "")Times each speaker model (cold and warm load, then up to five \
                     minutes of the recording), Apple's speech model on the first five \
                     minutes, and the summary model on one excerpt. Takes a minute or \
                     two and warms the phone. Results also go to the Activity log.

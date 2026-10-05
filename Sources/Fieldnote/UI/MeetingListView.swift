@@ -177,7 +177,7 @@ struct ProcessingBadge: View {
         case .recording:
             Label("Recording", systemImage: "record.circle").foregroundStyle(.red)
         case .queued:
-            Label("Queued", systemImage: "clock")
+            Label(message == nil ? "Queued" : "Waiting to summarise", systemImage: message == nil ? "clock" : "hourglass")
         case .transcribing, .diarizing, .summarising:
             HStack(spacing: 4) {
                 ProgressView().controlSize(.mini)

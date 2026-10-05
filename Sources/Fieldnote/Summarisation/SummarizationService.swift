@@ -41,14 +41,31 @@ public actor SummarizationService {
 
     public init() {}
 
+    /// The model won't summarise right now: rate limited, or refused by the system
+    /// (Apple throttles the on-device model for apps in the background). The
+    /// meeting waits and is summarised the next time the app is open, rather than
+    /// ending up with empty notes.
+    public struct Deferred: Error, LocalizedError {
+        public var detail: String
+        public var errorDescription: String? {
+            "Waiting to summarise. Open Fieldnote to finish the notes."
+        }
+    }
+
+    /// Whether this run may defer (the pipeline allows it a few times per meeting,
+    /// then accepts thinner notes rather than waiting forever).
+    private var allowDeferral = true
+
     /// - Parameter progress: called with 0...1 as chunks complete. Called often and
     ///   honestly: the system kills continued-processing tasks that report minimal
     ///   progress first.
     public func summarise(
         segments: [TranscriptSegment],
         meeting: MeetingContext,
+        allowDeferral: Bool = true,
         progress: @Sendable (Double) -> Void = { _ in }
     ) async throws -> MeetingSummary {
+        self.allowDeferral = allowDeferral
         let finalized = segments.filter { $0.isFinalized && !$0.text.trimmed().isEmpty }
         guard !finalized.isEmpty else {
             debug.log("summary", "\(DebugLog.short(meeting.id)): no finalized transcript, nothing to summarise")
@@ -83,7 +100,7 @@ public actor SummarizationService {
             try Task.checkCancellation()
             let started = ContinuousClock.now
             var chunkDegraded: [DegradedChunk] = []
-            let chunkNotes = await summarisePiece(
+            let chunkNotes = try await summarisePiece(
                 chunk, of: chunks.count, budget: budget, depth: 0, degraded: &chunkDegraded
             )
             notes.append(chunkNotes)
@@ -167,13 +184,13 @@ public actor SummarizationService {
         budget: PromptBudget,
         depth: Int,
         degraded: inout [DegradedChunk]
-    ) async -> ChunkNotes {
+    ) async throws -> ChunkNotes {
         let prompt = PromptTemplates.chunkPrompt(chunk: piece, chunkIndex: piece.index, chunkCount: total, request: self.prompt.effectiveRequest)
         let tokens = await cost(of: prompt)
 
         if !budget.fits(promptTokens: tokens), depth < maxSplitDepth, let halves = piece.halves() {
             debug.log("summary", "chunk \(piece.index + 1): prompt is \(tokens) tokens, over the \(budget.promptLimit) limit; splitting \(piece.segments.count) lines in two")
-            return await splitAndMerge(halves, of: total, budget: budget, depth: depth, degraded: &degraded)
+            return try await splitAndMerge(halves, of: total, budget: budget, depth: depth, degraded: &degraded)
         }
 
         do {
@@ -186,6 +203,9 @@ public actor SummarizationService {
             )
             return response.content.notes
         } catch {
+            // An expired background task cancels the run; that's a pause, not a
+            // model failure. The checkpoint resumes it.
+            if error is CancellationError || Task.isCancelled { throw CancellationError() }
             let failure = Failure(error)
             debug.log("summary", "chunk \(piece.index + 1): \(failure.reason.rawValue) with a \(tokens)-token prompt: \(failure.detail)")
             log.warning("Chunk \(piece.index, privacy: .public) failed: \(failure.reason.rawValue, privacy: .public)")
@@ -193,21 +213,29 @@ public actor SummarizationService {
             switch failure.reason {
             case .contextOverflow:
                 if depth < maxSplitDepth, let halves = piece.halves() {
-                    return await splitAndMerge(halves, of: total, budget: budget, depth: depth, degraded: &degraded)
+                    return try await splitAndMerge(halves, of: total, budget: budget, depth: depth, degraded: &degraded)
                 }
                 degraded.append(failure.degraded(piece, recovered: false))
                 return ChunkNotes()
 
             case .guardrail, .refusal:
-                return await retryNeutral(piece, of: total, failure: failure, degraded: &degraded)
+                return try await retryNeutral(piece, of: total, failure: failure, degraded: &degraded)
 
             case .rateLimited:
-                try? await Task.sleep(for: .seconds(failure.retryAfter ?? 5))
-                if let notes = try? await respond(to: prompt) { return notes }
-                degraded.append(failure.degraded(piece, recovered: false))
-                return ChunkNotes()
+                try await Task.sleep(for: .seconds(failure.retryAfter ?? 15))
+                do {
+                    return try await respond(to: prompt)
+                } catch {
+                    if error is CancellationError || Task.isCancelled { throw CancellationError() }
+                    let again = Failure(error)
+                    debug.log("summary", "chunk \(piece.index + 1): retry after rate limit failed: \(again.reason.rawValue)")
+                    if allowDeferral, again.isTemporary { throw Deferred(detail: again.detail) }
+                    degraded.append(again.degraded(piece, recovered: false))
+                    return ChunkNotes()
+                }
 
             case .timeout, .modelError:
+                if allowDeferral, failure.isTemporary { throw Deferred(detail: failure.detail) }
                 degraded.append(failure.degraded(piece, recovered: false))
                 return ChunkNotes()
             }
@@ -220,9 +248,9 @@ public actor SummarizationService {
         budget: PromptBudget,
         depth: Int,
         degraded: inout [DegradedChunk]
-    ) async -> ChunkNotes {
-        let first = await summarisePiece(halves.0, of: total, budget: budget, depth: depth + 1, degraded: &degraded)
-        let second = await summarisePiece(halves.1, of: total, budget: budget, depth: depth + 1, degraded: &degraded)
+    ) async throws -> ChunkNotes {
+        let first = try await summarisePiece(halves.0, of: total, budget: budget, depth: depth + 1, degraded: &degraded)
+        let second = try await summarisePiece(halves.1, of: total, budget: budget, depth: depth + 1, degraded: &degraded)
         return first.merged(with: second)
     }
 
@@ -238,7 +266,7 @@ public actor SummarizationService {
         of total: Int,
         failure: Failure,
         degraded: inout [DegradedChunk]
-    ) async -> ChunkNotes {
+    ) async throws -> ChunkNotes {
         let prompt = PromptTemplates.neutralChunkPrompt(chunk: piece, chunkIndex: piece.index, chunkCount: total)
         do {
             let session = try OnDeviceModel.session(tier: tier, instructions: PromptTemplates.groundingRules)
@@ -247,6 +275,7 @@ public actor SummarizationService {
             degraded.append(failure.degraded(piece, recovered: true))
             return response.content.notes
         } catch {
+            if error is CancellationError || Task.isCancelled { throw CancellationError() }
             debug.log("summary", "chunk \(piece.index + 1): neutral retry failed too: \(Failure(error).detail)")
             degraded.append(failure.degraded(piece, recovered: false))
             return ChunkNotes()
@@ -358,6 +387,16 @@ public actor SummarizationService {
                 reason = .timeout
             default:
                 reason = .modelError
+            }
+        }
+
+        /// Worth waiting for rather than giving up on: rate limits, timeouts, and the
+        /// system's model service refusing work (it does this to background apps).
+        var isTemporary: Bool {
+            switch reason {
+            case .rateLimited, .timeout: true
+            case .modelError: detail.contains("ModelManager") || detail.contains("SensitiveContentAnalysis")
+            default: false
             }
         }
 

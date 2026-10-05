@@ -292,8 +292,18 @@ public actor ProcessingPipeline {
             title: input.title,
             date: input.date
         )
-        let summary = try await summariser.summarise(segments: segments, meeting: context) { fraction in
-            progress(.summarising, fraction)
+        let deferrals = checkpoint.summaryDeferrals ?? 0
+        let summary: MeetingSummary
+        do {
+            // After a few waits, accept thinner notes rather than waiting forever.
+            summary = try await summariser.summarise(segments: segments, meeting: context, allowDeferral: deferrals < 3) { fraction in
+                progress(.summarising, fraction)
+            }
+        } catch let deferred as SummarizationService.Deferred {
+            checkpoint.summaryDeferrals = deferrals + 1
+            try await store.save(checkpoint)
+            debug.log("pipeline", "\(DebugLog.short(input.meetingID)): summarising put off (\(deferrals + 1)/3), will finish when the app is open: \(deferred.detail.prefix(160))")
+            throw deferred
         }
 
         try await store.saveSummary(summary)

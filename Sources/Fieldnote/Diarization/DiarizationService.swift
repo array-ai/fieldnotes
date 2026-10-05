@@ -164,7 +164,8 @@ public actor DiarizationService {
     public func unload(_ method: DiarizationMethod) {
         switch method {
         case .nemotron3:
-            guard live == nil, !liveRequested else { return }
+            // Never drop a load that's still running: something may be waiting on it.
+            guard live == nil, !liveRequested, aneLoad == nil || aneModels != nil else { return }
             aneModels = nil
             aneLoad = nil
             cpuModels = nil
@@ -208,7 +209,10 @@ public actor DiarizationService {
         _ samples: [Float],
         progress: @Sendable (Double) -> Void
     ) async throws -> Output {
-        try await runNemotron(samples, models: try await nemotronModelsForRun(), progress: progress)
+        let waited = ContinuousClock.now
+        let models = try await nemotronModelsForRun()
+        debug.log("speakers", "nemotron3: model ready for this run after \(DebugLog.elapsed(since: waited))")
+        return try await runNemotron(samples, models: models, progress: progress)
     }
 
     /// Benchmark only: runs Nemotron on the CPU model, whatever else is loaded.

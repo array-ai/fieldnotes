@@ -37,6 +37,14 @@ public final class ProcessingNotifier: NSObject, UNUserNotificationCenterDelegat
         )
     }
 
+    public func notifyWaiting(meetingID: UUID, title: String) async {
+        await post(
+            meetingID: meetingID,
+            title: "Almost there",
+            body: "\(title): transcript and speakers are done. Open Fieldnote to finish the notes."
+        )
+    }
+
     public func notifyFailed(meetingID: UUID, title: String) async {
         await post(
             meetingID: meetingID,

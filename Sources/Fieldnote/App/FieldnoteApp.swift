@@ -4,6 +4,7 @@ import UserNotifications
 
 @main
 struct FieldnoteApp: App {
+    @Environment(\.scenePhase) private var scenePhase
 
     @State private var model: AppModel
     private let container: ModelContainer
@@ -42,6 +43,12 @@ struct FieldnoteApp: App {
                 // sheet, for any audio file (see CFBundleDocumentTypes).
                 .onOpenURL { url in
                     Task { await model.importRecording(from: url) }
+                }
+                // Meetings left waiting (the on-device model won't summarise for a
+                // backgrounded app) finish as soon as the app is open again.
+                .onChange(of: scenePhase) { _, phase in
+                    guard phase == .active else { return }
+                    Task { await model.resumeWaitingWork() }
                 }
         }
     }

@@ -216,6 +216,9 @@ struct ProcessingStatusBanner: View {
             if meeting.state == .failed {
                 Image(systemName: "exclamationmark.triangle").foregroundStyle(.orange)
                 Text(meeting.failureMessage ?? "Processing failed. It will resume from the last completed stage.")
+            } else if meeting.state == .queued, let waiting = meeting.failureMessage {
+                Image(systemName: "hourglass").foregroundStyle(.secondary)
+                Text(waiting)
             } else {
                 ProgressView().controlSize(.small)
                 Text(statusText)
