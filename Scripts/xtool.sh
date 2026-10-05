@@ -55,4 +55,34 @@ EOF
 
 chmod +x "$SHIM_DIR/swift-build" "$SHIM_DIR/swift-package"
 
+# swift-crypto (pulled in by Apple's coreai-models via swift-transformers) declares
+# a privacy-manifest resource on its CXKCPShims target, but only builds that target
+# for non-Apple platforms. xtool reads the manifest, expects the target's resource
+# bundle, and fails packing when SwiftPM never produced it. Nothing in it is used on
+# iOS, so provide the bundle swift-crypto would have: its privacy manifest plus a
+# minimal Info.plist. Harmless if SwiftPM ever starts building it.
+SHIMS_SOURCE=".build/checkouts/swift-crypto/Sources/CXKCPShims/PrivacyInfo.xcprivacy"
+[ -f "$SHIMS_SOURCE" ] || "$REAL_SWIFT_PACKAGE" resolve >/dev/null
+for config in debug release; do
+  bundle=".build/arm64-apple-ios/$config/swift-crypto_CXKCPShims.bundle"
+  mkdir -p "$bundle"
+  [ -f "$SHIMS_SOURCE" ] && cp "$SHIMS_SOURCE" "$bundle/PrivacyInfo.xcprivacy"
+  cat > "$bundle/Info.plist" <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleIdentifier</key>
+	<string>swift-crypto.CXKCPShims.resources</string>
+	<key>CFBundleName</key>
+	<string>swift-crypto_CXKCPShims</string>
+	<key>CFBundlePackageType</key>
+	<string>BNDL</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+</dict>
+</plist>
+PLIST
+done
+
 SWIFTPM_CUSTOM_BIN_DIR="$SHIM_DIR" exec xtool "$@"
