@@ -75,10 +75,11 @@ embed_profile PROVISION_APP_BASE64 "$APP" "$WORKDIR/app.entitlements.plist"
 # the build instead.
 for key in \
   "com.apple.developer.background-tasks.continued-processing.inference" \
-  "com.apple.developer.background-tasks.continued-processing.gpu"; do
+  "com.apple.developer.background-tasks.continued-processing.gpu" \
+  "com.apple.developer.kernel.increased-memory-limit"; do
   /usr/libexec/PlistBuddy -c "Print :$key" "$WORKDIR/app.entitlements.plist" >/dev/null 2>&1 || {
     echo "error: the app's IOS_APP_STORE profile does not grant '$key'." >&2
-    echo "Enable Background Tasks (continued processing) for com.publicarray.fieldnotes" >&2
+    echo "Enable Background Tasks (continued processing) and Increased Memory Limit for com.publicarray.fieldnotes" >&2
     echo "in Certificates, Identifiers & Profiles, then regenerate the profile." >&2
     exit 1
   }

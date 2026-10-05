@@ -10,6 +10,11 @@
 	     BGTaskScheduler.supportedResources.contains(.gpu) at runtime. -->
 	<key>com.apple.developer.background-tasks.continued-processing.gpu</key>
 	<true/>
+	<!-- Raises the memory iOS lets the app use. Preparing and running Qwen3 1.7B
+	     needs about 2.4 GB on top of the app; without this, iOS closed the app
+	     while preparing it (build 37 log). App ID capability: Increased Memory Limit. -->
+	<key>com.apple.developer.kernel.increased-memory-limit</key>
+	<true/>
 	<!-- Deliberately absent: com.apple.security.network.client and
 	     com.apple.security.network.server. Fieldnote makes no outbound requests. -->
 </dict>
