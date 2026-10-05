@@ -173,6 +173,14 @@ public final class ModelDownloads {
             _ = try AsrModels.loadLocal(from: final, version: version)
             DebugLog.shared.log("models", "\(pack.id.rawValue): first compile took \(DebugLog.elapsed(since: compileStarted))")
         }
+        if pack.id == .nemotronStreaming {
+            report(.preparing)
+            let compileStarted = ContinuousClock.now
+            _ = try await StreamingNemotronMultilingualAsrManager.preloadShared(
+                from: final.appendingPathComponent(NemotronStreamingTranscriber.variantPath, isDirectory: true)
+            )
+            DebugLog.shared.log("models", "nemotronStreaming: first compile took \(DebugLog.elapsed(since: compileStarted))")
+        }
         if pack.id == .qwen3 {
             // Core AI compiles the portable model for this phone on first load.
             report(.preparing)
@@ -429,7 +437,9 @@ final class BackgroundDownloader: NSObject, URLSessionDownloadDelegate, @uncheck
         let completion = systemCompletion
         systemCompletion = nil
         lock.unlock()
-        if let completion { DispatchQueue.main.async(execute: completion) }
+        // The system's handler: called once, on the main queue, as UIKit requires.
+        nonisolated(unsafe) let handler = completion
+        if handler != nil { DispatchQueue.main.async { handler?() } }
     }
 }
 

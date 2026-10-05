@@ -52,6 +52,7 @@ public struct ProcessingEstimator: Codable, Sendable, Equatable {
     /// - Apple speech, from the audio files: 18.6 min in 80 s (4.3 s/min).
     /// - Parakeet TDT-CTC 110M: 68 min in 49 s and 18.6 min in 5 s (0.3–0.7 s/min).
     ///   Parakeet v3 and v2 (0.6B) aren't measured yet; ~3× the 110M model.
+    ///   Nemotron 3.5 Streaming runs while recording; from a file it's unmeasured.
     /// - Nemotron on the Neural Engine: 68 min in 33 s (0.5 s/min). Its one-off
     ///   compile (25–40 s on first use) is not counted: it happens once per install.
     /// - pyannote community-1: 5 min in 1.4 s; pyannote 3.1: 5 min in 3.4 s.
@@ -62,6 +63,8 @@ public struct ProcessingEstimator: Codable, Sendable, Equatable {
         switch (stage, model) {
         case (.transcribing, "parakeetCtc110m"): Rate(fixed: 5, perMinute: 0.8)
         case (.transcribing, "parakeet"), (.transcribing, "parakeetV2"): Rate(fixed: 8, perMinute: 2)
+        // Only when the live transcript is missing (imports, redo); unmeasured.
+        case (.transcribing, "nemotronStreaming"): Rate(fixed: 10, perMinute: 1.5)
         case (.transcribing, _): Rate(fixed: 3, perMinute: 4.5)
         case (.diarizing, "pyannoteCommunity1"): Rate(fixed: 3, perMinute: 0.6)
         case (.diarizing, "pyannoteLegacy"): Rate(fixed: 3, perMinute: 1)

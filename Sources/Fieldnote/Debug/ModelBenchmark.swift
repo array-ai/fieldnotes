@@ -49,6 +49,7 @@ public final class ModelBenchmark {
         await benchmarkSpeakers(meeting)
         await benchmarkTranscription(meeting, locale: locale)
         await benchmarkParakeet(meeting, locale: locale)
+        await benchmarkNemotronStreaming(meeting, locale: locale)
         await benchmarkSummary(meeting)
 
         add("Device", "Thermal state after", Self.thermal(ProcessInfo.processInfo.thermalState))
@@ -162,7 +163,7 @@ public final class ModelBenchmark {
     }
 
     private func benchmarkParakeet(_ meeting: MeetingSnapshot, locale: Locale) async {
-        for engine in TranscriptionEngine.allCases where engine != .apple {
+        for engine in TranscriptionEngine.allCases where engine != .apple && engine != .nemotronStreaming {
             let name = engine.card.title
             guard let pack = engine.modelPack, ModelDownloads.installedDirectory(for: pack) != nil else {
                 add("Transcription", name, "not downloaded (Settings → Models)")
@@ -190,6 +191,35 @@ public final class ModelBenchmark {
             } catch {
                 add("Transcription", name, "failed: \(error.localizedDescription)")
             }
+        }
+    }
+
+    private func benchmarkNemotronStreaming(_ meeting: MeetingSnapshot, locale: Locale) async {
+        let name = TranscriptionEngine.nemotronStreaming.card.title
+        guard NemotronStreamingTranscriber.modelDirectory() != nil else {
+            add("Transcription", name, "not downloaded (Settings → Models)")
+            return
+        }
+        guard TranscriptionEngine.nemotronStreaming.supports(locale.identifier) else {
+            add("Transcription", name, "doesn't support this language")
+            return
+        }
+        status = "Transcription: \(name)…"
+        let started = ContinuousClock.now
+        do {
+            let lines = try await NemotronStreamingTranscriber.transcribe(
+                meetingID: meeting.id,
+                localeIdentifier: locale.identifier
+            ) { _ in }
+            let elapsed = seconds(since: started)
+            add(
+                "Transcription",
+                name,
+                String(format: "whole meeting, %.1f s of audio in %.2f s (%.0f× real time, including load) · %d line(s)",
+                       meeting.duration, elapsed, meeting.duration / max(elapsed, 0.001), lines.count)
+            )
+        } catch {
+            add("Transcription", name, "failed: \(error.localizedDescription)")
         }
     }
 

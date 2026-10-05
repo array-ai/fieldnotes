@@ -10,7 +10,11 @@ import Observation
 /// mic ──┬── TranscriptionSession (SpeechAnalyzer) → live transcript
 ///       ├── ChunkedAudioWriter                    → m4a chunks on disk
 ///       └── DiarizationBuffer                     → 16 kHz mono for the stop-time pass
+///                 └── NemotronStreamingTranscriber → live transcript, if chosen
 /// ```
+///
+/// With Nemotron 3.5 Streaming chosen, it writes the live transcript instead of
+/// Apple's model; the two never run together.
 ///
 /// Buffers leave the tap through an `AsyncStream` rather than being handed straight
 /// to actors: the tap callback runs on the audio render thread, where allocating,
@@ -49,6 +53,7 @@ public final class RecordingController {
     private var writer: ChunkedAudioWriter?
     private var diarizationBuffer: DiarizationBuffer?
     private var transcription: TranscriptionSession?
+    private var nemotron: NemotronStreamingTranscriber?
     private var pump: Task<Void, Never>?
     private var updates: Task<Void, Never>?
     private var bufferContinuation: AsyncStream<CapturedAudio>.Continuation?
@@ -97,10 +102,19 @@ public final class RecordingController {
         writer = try ChunkedAudioWriter(meetingID: meetingID)
         diarizationBuffer = try DiarizationBuffer(meetingID: meetingID)
 
-        let transcription = TranscriptionSession(locale: locale)
-        self.transcription = transcription
-        try await transcription.start()
-        observe(transcription)
+        if NemotronStreamingTranscriber.isSelected(for: locale.identifier) {
+            let nemotron = NemotronStreamingTranscriber { [weak self] lines in
+                Task { @MainActor in self?.showNemotronLines(lines) }
+            }
+            await nemotron.begin(localeIdentifier: locale.identifier)
+            self.nemotron = nemotron
+            DebugLog.shared.log("recording", "\(DebugLog.short(meetingID)): live transcript by nemotronStreaming")
+        } else {
+            let transcription = TranscriptionSession(locale: locale)
+            self.transcription = transcription
+            try await transcription.start()
+            observe(transcription)
+        }
 
         if identifySpeakersLive {
             // Returns at once: audio queues until a model is ready, so pressing
@@ -173,8 +187,12 @@ public final class RecordingController {
             }
             identifiesSpeakersLive = false
         }
-        let liveSegments = (try? await transcription?.finish()) ?? []
+        var liveSegments = (try? await transcription?.finish()) ?? []
         transcription = nil
+        if let nemotron {
+            liveSegments = await nemotron.finish() ?? []
+            self.nemotron = nil
+        }
 
         #if os(iOS)
         sessionController.deactivate()
@@ -224,6 +242,7 @@ public final class RecordingController {
         let writer = writer
         let diarization = diarizationBuffer
         let transcription = transcription
+        let nemotron = nemotron
         let live = identifiesSpeakersLive
 
         // Detached on purpose. A Task created here would inherit this type's
@@ -255,9 +274,17 @@ public final class RecordingController {
                     }
                 }
                 await transcription?.append(captured)
+                await nemotron?.append(samples)
                 await self?.meter(peak: captured.peakLevel)
             }
         }
+    }
+
+    /// The last line is still being heard; show it as the volatile text.
+    private func showNemotronLines(_ lines: [TranscriptSegment]) {
+        guard state != .stopping, state != .idle else { return }
+        segments = Array(lines.dropLast())
+        volatileText = lines.last?.text ?? ""
     }
 
     private func updateLiveSpans(_ spans: [DiarizedSpan]) {

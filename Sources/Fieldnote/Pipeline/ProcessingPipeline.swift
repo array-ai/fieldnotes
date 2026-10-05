@@ -102,7 +102,9 @@ public actor ProcessingPipeline {
         )
         var estimator = ProcessingEstimates.load()
         estimator.models = [
-            .transcribing: (ParakeetTranscriber.selectedEngine(for: input.locale.identifier) ?? .apple).rawValue,
+            .transcribing: NemotronStreamingTranscriber.isSelected(for: input.locale.identifier)
+                ? TranscriptionEngine.nemotronStreaming.rawValue
+                : (ParakeetTranscriber.selectedEngine(for: input.locale.identifier) ?? .apple).rawValue,
             .diarizing: {
                 let method = DiarizationMethod(storedValue: UserDefaults.standard.string(forKey: DiarizationMethod.defaultsKey))
                 return (method.isInstalled ? method : .nemotron3).rawValue
@@ -216,6 +218,31 @@ public actor ProcessingPipeline {
                 throw CancellationError()
             } catch {
                 debug.log("pipeline", "\(DebugLog.short(input.meetingID)): Parakeet failed (\(error)); using Apple's transcript")
+            }
+        }
+
+        // Nemotron 3.5 normally wrote the transcript live (reused just below). From
+        // disk only when that's missing: an import, a redo, or a live run that failed.
+        if NemotronStreamingTranscriber.isSelected(for: input.locale.identifier),
+           redo || !coversRecording(input.liveSegments, duration: input.duration) {
+            do {
+                let segments = try await NemotronStreamingTranscriber.transcribe(
+                    meetingID: input.meetingID,
+                    localeIdentifier: input.locale.identifier
+                ) { fraction in
+                    progress(.transcribing, fraction)
+                }
+                if !segments.isEmpty {
+                    try await store.saveSegments(segments)
+                    try await store.markComplete(.transcribing, in: &checkpoint)
+                    progress(.transcribing, 1.0)
+                    return segments
+                }
+                debug.log("pipeline", "\(DebugLog.short(input.meetingID)): Nemotron returned nothing; using Apple's transcript")
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                debug.log("pipeline", "\(DebugLog.short(input.meetingID)): Nemotron failed (\(error)); using Apple's transcript")
             }
         }
 

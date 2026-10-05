@@ -31,7 +31,7 @@ public enum ParakeetTranscriber {
     /// one chosen in Settings, if it's downloaded and handles the language.
     public static func selectedEngine(for localeIdentifier: String) -> TranscriptionEngine? {
         let engine = TranscriptionEngine(storedValue: UserDefaults.standard.string(forKey: TranscriptionEngine.defaultsKey))
-        guard let pack = engine.modelPack,
+        guard !engine.runsLive, let pack = engine.modelPack,
               ModelDownloads.installedDirectory(for: pack) != nil,
               engine.supports(localeIdentifier) else { return nil }
         return engine
@@ -47,7 +47,7 @@ public enum ParakeetTranscriber {
         case .parakeetV3: .v3
         case .parakeetV2: .v2
         case .parakeetTdtCtc110m: .tdtCtc110m
-        case .pyannoteCommunity1, .pyannoteLegacy, .qwen3: nil
+        case .pyannoteCommunity1, .pyannoteLegacy, .qwen3, .nemotronStreaming: nil
         }
     }
 

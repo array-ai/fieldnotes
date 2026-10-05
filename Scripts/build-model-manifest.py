@@ -50,6 +50,17 @@ PACKS = [
                   "parakeet_vocab.json"],
     },
     {
+        "id": "nemotronStreaming",
+        "name": "Nemotron 3.5 Streaming (NVIDIA)",
+        "repo": "FluidInference/Nemotron-3.5-ASR-Streaming-Multilingual-0.6b-CoreML",
+        "revision": "1a41b75758b0337ff67db7d5408280aaaf23074e",
+        "license": "OpenMDW-1.1",
+        # The Latin-script ship (en, es, fr, it, pt, de: a smaller vocabulary, faster
+        # joint) at 2,240 ms chunks, FluidAudio's recommended tier. Loaded with
+        # StreamingNemotronMultilingualAsrManager.preloadShared(from: <pack>/latin/2240ms).
+        "paths": ["latin/2240ms"],
+    },
+    {
         "id": "qwen3",
         "name": "Qwen3 1.7B (Core AI)",
         "repo": "darylap/Qwen3-1.7B-coreai-ios",

@@ -1,16 +1,19 @@
 import Foundation
 
-/// Which speech model writes the transcript after a recording stops.
+/// Which speech model writes the transcript.
 ///
-/// Apple's model always produces the live transcript while recording. With a
-/// Parakeet model selected (optional downloads), the transcript is redone after stop
-/// with that model; the live text is what you see until then.
+/// Apple's model writes the live transcript while recording. With a Parakeet model
+/// selected (optional downloads), the transcript is redone after stop with that
+/// model; the live text is what you see until then. Nemotron 3.5 Streaming replaces
+/// Apple's model while recording, so its live transcript is the final one.
 public enum TranscriptionEngine: String, Codable, CaseIterable, Sendable {
     case apple
     /// Parakeet TDT v3, multilingual. Raw value kept from when it was the only one.
     case parakeet
     case parakeetV2
     case parakeetCtc110m
+    /// NVIDIA Nemotron 3.5 ASR Streaming, the Latin-script build at 2,240 ms chunks.
+    case nemotronStreaming
 
     public static let defaultsKey = "transcriptionEngine"
 
@@ -27,6 +30,7 @@ public enum TranscriptionEngine: String, Codable, CaseIterable, Sendable {
         case .parakeet: .parakeetV3
         case .parakeetV2: .parakeetV2
         case .parakeetCtc110m: .parakeetTdtCtc110m
+        case .nemotronStreaming: .nemotronStreaming
         }
     }
 
@@ -36,6 +40,12 @@ public enum TranscriptionEngine: String, Codable, CaseIterable, Sendable {
         "lv", "lt", "mt", "pl", "pt", "ro", "sk", "sl", "es", "sv", "ru", "uk",
     ]
 
+    /// The languages of Nemotron 3.5's Latin-script build.
+    public static let nemotronLatinLanguages: Set<String> = ["en", "es", "fr", "it", "pt", "de"]
+
+    /// Transcribes while recording, rather than redoing the transcript after stop.
+    public var runsLive: Bool { self == .apple || self == .nemotronStreaming }
+
     /// Whether this engine can transcribe a locale; Apple's model is used otherwise.
     public func supports(_ localeIdentifier: String) -> Bool {
         let language = Self.language(of: localeIdentifier)
@@ -43,6 +53,7 @@ public enum TranscriptionEngine: String, Codable, CaseIterable, Sendable {
         case .apple: return true
         case .parakeet: return Self.parakeetLanguages.contains(language)
         case .parakeetV2, .parakeetCtc110m: return language == "en"
+        case .nemotronStreaming: return Self.nemotronLatinLanguages.contains(language)
         }
     }
 
@@ -108,6 +119,11 @@ extension TranscriptionEngine {
                 title: "Parakeet TDT-CTC 110M",
                 summary: "Small and quick English model. Half the download, slightly less accurate.",
                 accuracy: 0.75, speed: 0.95, languages: "English only", runs: "After stop")
+        case .nemotronStreaming:
+            ModelCard(
+                title: "Nemotron 3.5 Streaming",
+                summary: "NVIDIA's streaming model. Writes the transcript live while you record; nothing to redo after stop.",
+                accuracy: 0.85, speed: 0.9, languages: "English, Spanish, French, Italian, Portuguese, German", runs: "Live")
         }
     }
 }

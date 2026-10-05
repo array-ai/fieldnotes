@@ -16,8 +16,11 @@ two things you choose: optional model downloads, and Apple Maps place names.
 - **Transcribes** live with Apple's `SpeechAnalyzer`. Optionally, one of NVIDIA's
   Parakeet models rewrites the transcript after you stop, for better accuracy:
   TDT v3 (483 MB, 25 European languages), TDT v2 English (464 MB, the most accurate
-  for English) or TDT-CTC 110M English (228 MB, smaller and quicker). Settings shows
-  each model as a card with relative accuracy and speed, so the choice is easy.
+  for English) or TDT-CTC 110M English (228 MB, smaller and quicker). Or NVIDIA's
+  Nemotron 3.5 Streaming (612 MB; English, Spanish, French, Italian, Portuguese,
+  German) replaces Apple's model while recording, so the live transcript is the final
+  one. Settings shows each model as a card with relative accuracy and speed, so the
+  choice is easy.
 - **Identifies speakers** on device, chosen in Settings:
 
   | Method | What it is | |
@@ -285,6 +288,6 @@ was written almost entirely by AI, so a public-domain-style licence is the hones
 Dependencies keep their own licences: FluidAudio is Apache-2.0, Apple's coreai-models
 is BSD-3-Clause (its swift-transformers and xgrammar dependencies are Apache-2.0; the
 download code in swift-transformers is never called — the policy checks ban it in the
-app's sources), Qwen3 is Apache-2.0, Nemotron 3 is
-OpenMDW-1.1, the optional pyannote and Parakeet models are CC-BY-4.0, and the offline place names come
+app's sources), Qwen3 is Apache-2.0, Nemotron 3 and the optional Nemotron 3.5
+Streaming are OpenMDW-1.1, the optional pyannote and Parakeet models are CC-BY-4.0, and the offline place names come
 from [GeoNames](https://www.geonames.org) (CC-BY 4.0).

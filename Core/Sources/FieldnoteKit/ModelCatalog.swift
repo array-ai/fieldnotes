@@ -13,6 +13,7 @@ public struct ModelPack: Sendable, Identifiable, Equatable {
         case parakeetV3
         case parakeetV2
         case parakeetTdtCtc110m
+        case nemotronStreaming
         case qwen3
         case pyannoteCommunity1
         case pyannoteLegacy
