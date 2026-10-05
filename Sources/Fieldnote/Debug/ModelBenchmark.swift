@@ -263,6 +263,36 @@ public final class ModelBenchmark {
         }
         let promptTokens = await OnDeviceModel.tokenCount(prompt: prompt, tier: .coreAdvanced)
 
+        if local {
+            // The local model writes plain labelled lines, as in real processing.
+            let plainPrompt = PlainNotes.prompt(chunk: chunk, chunkIndex: 0, chunkCount: 1)
+            do {
+                let session = try OnDeviceModel.session(tier: .coreAdvanced, instructions: PlainNotes.instructions)
+                let started = ContinuousClock.now
+                let response = try await session.respond(to: plainPrompt, contextOptions: OnDeviceModel.contextOptions)
+                let elapsed = seconds(since: started)
+                let notes = PlainNotes.parse(response.content, chunk: chunk)
+                let output = response.usage.output.totalTokenCount
+                add(
+                    "Summary",
+                    "One excerpt",
+                    String(format: "%d line(s) · %d tokens in, %d out · %.2f s · %.0f output tokens/s · %d topic(s), %d point(s), %d task(s)",
+                           chunk.segments.count,
+                           response.usage.input.totalTokenCount,
+                           output,
+                           elapsed,
+                           Double(output) / max(elapsed, 0.001),
+                           notes.topics.count,
+                           notes.topics.reduce(0) { $0 + $1.points.count },
+                           notes.actionItems.count)
+                )
+                add("Summary", "Answer (start)", String(response.content.prefix(400)))
+            } catch {
+                add("Summary", "One excerpt", "failed: \(String(describing: error))")
+            }
+            return
+        }
+
         do {
             let session = try OnDeviceModel.session(tier: .coreAdvanced, instructions: summaryPrompt.instructions)
             let started = ContinuousClock.now

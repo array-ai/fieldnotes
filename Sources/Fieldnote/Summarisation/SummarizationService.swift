@@ -69,6 +69,15 @@ public actor SummarizationService {
         }
     }
 
+    /// The local model writes plain labelled lines (`PlainNotes`) instead of filling
+    /// the structured schema, which it doesn't follow. Set per run.
+    private var plain = false
+
+    /// Session instructions for this run.
+    private var instructions: String {
+        plain ? PlainNotes.instructions : prompt.instructions
+    }
+
     /// Whether this run may defer (the pipeline allows it a few times per meeting,
     /// then accepts thinner notes rather than waiting forever).
     private var allowDeferral = true
@@ -94,13 +103,14 @@ public actor SummarizationService {
         prompt = SummaryPromptStore.load()
         try await OnDeviceModel.prepareSummaryModel()
         defer { OnDeviceModel.releaseSummaryModel() }
-        debug.log("summary", "\(DebugLog.short(meeting.id)): writing notes with \(OnDeviceModel.usesLocalModel ? "MiniCPM5 1B (Core AI)" : "Apple's model")")
+        plain = OnDeviceModel.usesLocalModel
+        debug.log("summary", "\(DebugLog.short(meeting.id)): writing notes with \(plain ? "MiniCPM5 1B (Core AI), plain-text notes" : "Apple's model")")
         if !prompt.isBuiltIn {
             debug.log("summary", "\(DebugLog.short(meeting.id)): using an edited summary prompt")
         }
 
         // Fails early, with a clear reason, if the on-device model isn't available.
-        _ = try OnDeviceModel.session(tier: tier, instructions: self.prompt.instructions)
+        _ = try OnDeviceModel.session(tier: tier, instructions: instructions)
 
         let budget = await measureBudget()
         answerCap = budget.outputReserve
@@ -186,16 +196,15 @@ public actor SummarizationService {
     // MARK: - Budget
 
     private func measureBudget() async -> PromptBudget {
-        if OnDeviceModel.usesLocalModel {
+        if plain {
             // MiniCPM5's own tokenizer isn't exposed; Apple's counts are a close proxy and
-            // the margins absorb the difference.
-            let instructions = await OnDeviceModel.tokenCount(instructions: prompt.instructions, tier: tier) ?? 300
-            let schema = await OnDeviceModel.tokenCount(schema: DraftChunkNotes.generationSchema, tier: tier) ?? 800
+            // the margins absorb the difference. No schema in the prompt; the format
+            // lines of the plain prompt cost about 200 tokens; plain notes are short.
+            let instructions = await OnDeviceModel.tokenCount(instructions: PlainNotes.instructions, tier: tier) ?? 80
             return PromptBudget(
                 contextSize: OnDeviceModel.localContextSize,
-                fixedCost: Int(Double(instructions + schema) * 1.2),
-                // Same 4,096-token context as Apple's model, so the same answer room.
-                outputReserve: 1_800,
+                fixedCost: Int(Double(instructions + 200) * 1.2),
+                outputReserve: 1_000,
                 isMeasured: false
             )
         }
@@ -230,7 +239,9 @@ public actor SummarizationService {
         depth: Int,
         degraded: inout [DegradedChunk]
     ) async throws -> ChunkNotes {
-        let prompt = PromptTemplates.chunkPrompt(chunk: piece, chunkIndex: piece.index, chunkCount: total, request: self.prompt.effectiveRequest)
+        let prompt = plain
+            ? PlainNotes.prompt(chunk: piece, chunkIndex: piece.index, chunkCount: total)
+            : PromptTemplates.chunkPrompt(chunk: piece, chunkIndex: piece.index, chunkCount: total, request: self.prompt.effectiveRequest)
         let tokens = await cost(of: prompt)
 
         if !budget.fits(promptTokens: tokens), depth < maxSplitDepth, let halves = piece.halves() {
@@ -239,8 +250,20 @@ public actor SummarizationService {
         }
 
         do {
-            let session = try OnDeviceModel.session(tier: tier, instructions: self.prompt.instructions)
+            let session = try OnDeviceModel.session(tier: tier, instructions: instructions)
             let started = ContinuousClock.now
+            if plain {
+                let response = try await session.respond(to: prompt, options: GenerationOptions(maximumResponseTokens: answerCap), contextOptions: OnDeviceModel.contextOptions)
+                let notes = PlainNotes.parse(response.content, chunk: piece)
+                debug.log(
+                    "summary",
+                    "chunk \(piece.index + 1): \(response.usage.input.totalTokenCount) tokens in, \(response.usage.output.totalTokenCount) out, \(DebugLog.elapsed(since: started)), \(notes.topics.flatMap(\.points).count) usable point(s)"
+                )
+                if notes.topics.isEmpty, notes.actionItems.isEmpty, notes.decisions.isEmpty {
+                    debug.log("summary", "chunk \(piece.index + 1): nothing usable in the answer: \(response.content.prefix(300))")
+                }
+                return notes
+            }
             let response = try await session.respond(to: prompt, generating: DraftChunkNotes.self, options: GenerationOptions(maximumResponseTokens: answerCap), contextOptions: OnDeviceModel.contextOptions)
             debug.log(
                 "summary",
@@ -269,7 +292,7 @@ public actor SummarizationService {
             case .rateLimited:
                 try await Task.sleep(for: .seconds(failure.retryAfter ?? 15))
                 do {
-                    return try await respond(to: prompt)
+                    return try await respond(to: prompt, piece: piece)
                 } catch {
                     if error is CancellationError || Task.isCancelled { throw CancellationError() }
                     let again = Failure(error)
@@ -306,8 +329,12 @@ public actor SummarizationService {
         return first.merged(with: second)
     }
 
-    private func respond(to prompt: String) async throws -> ChunkNotes {
-        let session = try OnDeviceModel.session(tier: tier, instructions: self.prompt.instructions)
+    private func respond(to prompt: String, piece: TranscriptChunk) async throws -> ChunkNotes {
+        let session = try OnDeviceModel.session(tier: tier, instructions: instructions)
+        if plain {
+            let text = try await session.respond(to: prompt, options: GenerationOptions(maximumResponseTokens: answerCap), contextOptions: OnDeviceModel.contextOptions).content
+            return PlainNotes.parse(text, chunk: piece)
+        }
         return try await session.respond(to: prompt, generating: DraftChunkNotes.self, options: GenerationOptions(maximumResponseTokens: answerCap), contextOptions: OnDeviceModel.contextOptions).content.notes
     }
 
@@ -319,6 +346,12 @@ public actor SummarizationService {
         failure: Failure,
         degraded: inout [DegradedChunk]
     ) async throws -> ChunkNotes {
+        if plain {
+            // Apple's content guardrails don't apply to the local model; a refusal
+            // here is the model's own, and the same prompt again won't change it.
+            degraded.append(failure.degraded(piece, recovered: false))
+            return ChunkNotes()
+        }
         let prompt = PromptTemplates.neutralChunkPrompt(chunk: piece, chunkIndex: piece.index, chunkCount: total)
         do {
             let session = try OnDeviceModel.session(tier: tier, instructions: PromptTemplates.groundingRules)
@@ -347,6 +380,13 @@ public actor SummarizationService {
         guard !candidates.isEmpty else {
             return (await rollup(points: fallbackPoints, meeting: meeting, budget: budget), [])
         }
+        if plain {
+            // No structured outline from the local model: join topics by title, and
+            // ask only for the overview, in plain text.
+            let merged = TopicMerger.mergeByTitle(candidates, time: time)
+            let overview = await rollup(points: merged.map { "\($0.title): \($0.summary)" }, meeting: meeting, budget: budget)
+            return (overview, merged)
+        }
 
         // Full summaries first; if that's too long, just the start of each.
         var listing = candidates.map { (title: $0.title, summary: $0.summary) }
@@ -358,7 +398,7 @@ public actor SummarizationService {
 
         if budget.fits(promptTokens: await cost(of: prompt)) {
             do {
-                let session = try OnDeviceModel.session(tier: tier, instructions: self.prompt.instructions)
+                let session = try OnDeviceModel.session(tier: tier, instructions: instructions)
                 let response = try await session.respond(to: prompt, generating: DraftOutline.self, options: GenerationOptions(maximumResponseTokens: 800), contextOptions: OnDeviceModel.contextOptions)
                 let sections = response.content.sections.map {
                     TopicMerger.Section(
@@ -387,16 +427,25 @@ public actor SummarizationService {
         // A long meeting can produce more points than one prompt holds. Keep the
         // earliest ones that fit rather than overflowing.
         var kept = points
-        var prompt = PromptTemplates.rollupPrompt(points: kept, meetingTitle: meeting.title)
+        let makePrompt: ([String]) -> String = { [plain] points in
+            plain
+                ? PlainNotes.overviewPrompt(points: points, meetingTitle: meeting.title)
+                : PromptTemplates.rollupPrompt(points: points, meetingTitle: meeting.title)
+        }
+        var prompt = makePrompt(kept)
         while kept.count > 1, !budget.fits(promptTokens: await cost(of: prompt)) {
             kept = Array(kept.prefix(kept.count * 3 / 4))
-            prompt = PromptTemplates.rollupPrompt(points: kept, meetingTitle: meeting.title)
+            prompt = makePrompt(kept)
         }
         if kept.count < points.count {
             debug.log("summary", "overview uses \(kept.count) of \(points.count) points to fit the context")
         }
         do {
-            let session = try OnDeviceModel.session(tier: tier, instructions: self.prompt.instructions)
+            let session = try OnDeviceModel.session(tier: tier, instructions: instructions)
+            if plain {
+                let response = try await session.respond(to: prompt, options: GenerationOptions(maximumResponseTokens: 300), contextOptions: OnDeviceModel.contextOptions)
+                return PlainNotes.cleanOverview(response.content)
+            }
             let response = try await session.respond(to: prompt, generating: DraftRollup.self, options: GenerationOptions(maximumResponseTokens: 800), contextOptions: OnDeviceModel.contextOptions)
             return response.content.overview.trimmed()
         } catch {
