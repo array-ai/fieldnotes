@@ -34,9 +34,25 @@ public actor FileTranscriptionService {
         var all: [TranscriptSegment] = []
         for (position, chunk) in pending.enumerated() {
             try Task.checkCancellation()
+            // A chunk cut off by the app closing mid-recording can't be opened. Skip
+            // it rather than fail the whole meeting (and every Try again after).
+            let file: AVAudioFile
+            do {
+                file = try AVAudioFile(forReading: chunk.url)
+            } catch {
+                DebugLog.shared.log("transcript", "audio chunk \(chunk.index + 1) of \(chunks.count) can't be read; skipping it (\(error.localizedDescription))")
+                progress(Double(position + 1) / Double(pending.count), chunk.index)
+                continue
+            }
             let session = TranscriptionSession(locale: locale, timeOffset: chunk.startTime)
             try await session.start()
-            try await feed(chunk.url, into: session)
+            do {
+                try await feed(file, into: session)
+            } catch {
+                // Release the speech model before giving up on this run.
+                await session.cancel()
+                throw error
+            }
             let segments = try await session.finish()
             all.append(contentsOf: segments)
             progress(Double(position + 1) / Double(pending.count), chunk.index)
@@ -45,8 +61,7 @@ public actor FileTranscriptionService {
         return all.sorted { $0.start < $1.start }
     }
 
-    private func feed(_ url: URL, into session: TranscriptionSession) async throws {
-        let file = try AVAudioFile(forReading: url)
+    private func feed(_ file: AVAudioFile, into session: TranscriptionSession) async throws {
         let format = file.processingFormat
         let frameCapacity: AVAudioFrameCount = 8192
 

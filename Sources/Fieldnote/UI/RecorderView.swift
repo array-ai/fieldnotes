@@ -18,6 +18,8 @@ struct RecorderView: View {
                 }
             }
             .padding()
+            // A swipe down mustn't leave a recording running with no way back to Stop.
+            .interactiveDismissDisabled(model.recorder.isActive)
             .navigationTitle(model.recorder.isActive ? "Recording" : "New meeting")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -87,6 +89,13 @@ struct RecorderView: View {
             LevelMeter(level: model.recorder.level)
                 .frame(height: 12)
 
+            if let notice = recorderNotice {
+                Label(notice, systemImage: "exclamationmark.triangle.fill")
+                    .font(.callout)
+                    .foregroundStyle(.orange)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
             ScrollView {
                 VStack(alignment: .leading, spacing: 8) {
                     ForEach(recentLines) { segment in
@@ -110,22 +119,25 @@ struct RecorderView: View {
             }
 
             HStack(spacing: 16) {
-                Button {
-                    Task {
-                        if model.recorder.state == .paused {
-                            await model.recorder.resume()
-                        } else {
-                            await model.recorder.pause()
+                if !isFailed {
+                    Button {
+                        Task {
+                            if canResume {
+                                await model.recorder.resume()
+                            } else {
+                                await model.recorder.pause()
+                            }
                         }
+                    } label: {
+                        Label(
+                            canResume ? "Resume" : "Pause",
+                            systemImage: canResume ? "play.fill" : "pause.fill"
+                        )
+                        .frame(maxWidth: .infinity)
                     }
-                } label: {
-                    Label(
-                        model.recorder.state == .paused ? "Resume" : "Pause",
-                        systemImage: model.recorder.state == .paused ? "play.fill" : "pause.fill"
-                    )
-                    .frame(maxWidth: .infinity)
+                    .buttonStyle(.bordered)
+                    .disabled(model.recorder.state == .preparing || model.recorder.state == .stopping)
                 }
-                .buttonStyle(.bordered)
 
                 Button {
                     Task {
@@ -133,7 +145,7 @@ struct RecorderView: View {
                         dismiss()
                     }
                 } label: {
-                    Label("Stop", systemImage: "stop.fill").frame(maxWidth: .infinity)
+                    Label(isFailed ? "Save recording" : "Stop", systemImage: "stop.fill").frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.red)
@@ -143,6 +155,27 @@ struct RecorderView: View {
             Text("Processing continues if you lock the phone.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+        }
+    }
+
+    private var canResume: Bool {
+        model.recorder.state == .paused || model.recorder.state == .interrupted
+    }
+
+    private var isFailed: Bool {
+        if case .failed = model.recorder.state { return true }
+        return false
+    }
+
+    /// Why the recording isn't capturing, when it isn't.
+    private var recorderNotice: String? {
+        switch model.recorder.state {
+        case .interrupted:
+            "Recording paused by a call or another app. Tap Resume to carry on."
+        case .failed(let message):
+            "Recording stopped by a problem. What was recorded is saved; tap Save recording. (\(message))"
+        default:
+            nil
         }
     }
 

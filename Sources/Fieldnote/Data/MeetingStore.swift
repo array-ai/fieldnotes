@@ -60,6 +60,36 @@ public actor MeetingStore {
         try modelContext.save()
     }
 
+    /// Meetings still marked as recording when the app starts: the app was closed
+    /// mid-recording (a crash, or iOS freeing memory). What reached disk is queued
+    /// for processing like a stopped recording; the live transcript is lost, so the
+    /// pipeline transcribes the saved audio.
+    @discardableResult
+    public func recoverInterruptedRecordings(except activeID: UUID?) -> Int {
+        let recording = ProcessingState.recording.rawValue
+        let descriptor = FetchDescriptor<Meeting>(predicate: #Predicate { $0.processingStateRaw == recording })
+        let stuck: [Meeting] = ((try? modelContext.fetch(descriptor)) ?? []).filter { $0.id != activeID }
+        for meeting in stuck {
+            let chunks = ChunkedAudioWriter.existingChunks(in: FieldnoteStorage.audioChunkDirectory(for: meeting.id))
+            let saved = chunks.reduce(0) { $0 + $1.duration }
+            // The 16 kHz copy also holds the last chunk, which a kill leaves unreadable.
+            let buffer = FieldnoteStorage.meetingDirectory(for: meeting.id).appendingPathComponent("diarization.f32")
+            let bytes = (try? FileManager.default.attributesOfItem(atPath: buffer.path(percentEncoded: false))[.size] as? Int) ?? 0
+            let duration = max(saved, Double(bytes / MemoryLayout<Float>.size) / 16_000)
+            if duration < 1 {
+                meeting.processingState = .failed
+                meeting.failureMessage = "Fieldnote closed while recording, before any audio was saved."
+            } else {
+                meeting.duration = duration
+                meeting.processingState = .queued
+                meeting.failureMessage = nil
+            }
+            DebugLog.shared.log("store", "\(DebugLog.short(meeting.id)): recording was cut off by the app closing; \(String(format: "%.1f", duration))s of audio saved\(duration < 1 ? "" : ", queued for processing")")
+        }
+        if !stuck.isEmpty { try? modelContext.save() }
+        return stuck.count
+    }
+
     public func markStage(_ stage: ProcessingStage, meetingID: UUID, estimatedCompletion: Date?) async {
         guard let meeting = try? meeting(with: meetingID), !isStoppedByUser(meeting) else { return }
         meeting.processingState = ProcessingState(stage: stage)

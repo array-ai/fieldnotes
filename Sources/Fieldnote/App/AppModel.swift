@@ -45,6 +45,7 @@ public final class AppModel {
         #endif
         refreshCapability()
         await store.reindexIfNeeded()
+        await store.recoverInterruptedRecordings(except: recorder.isActive ? recorder.meetingID : nil)
         await refresh()
         // The first Neural Engine load compiles the speaker model (minutes, once per
         // install). Start it now so it's done before the first meeting ends.
