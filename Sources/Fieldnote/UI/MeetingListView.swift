@@ -100,6 +100,21 @@ struct MeetingListView: View {
                 }
             }
             .refreshable { await model.refresh() }
+            // Processing runs in the background and writes straight to the store, so
+            // the list re-reads it while anything is in flight (the meeting screen
+            // already polls the same way). Idle lists cost nothing.
+            .task {
+                while !Task.isCancelled {
+                    try? await Task.sleep(for: .seconds(2))
+                    if model.meetings.contains(where: { !$0.state.isTerminal }) {
+                        await model.refresh()
+                    }
+                }
+            }
+            // Back from a meeting: show what happened while it was open.
+            .onChange(of: path) { _, newPath in
+                if newPath.isEmpty { Task { await model.refresh() } }
+            }
         }
         .onChange(of: model.openMeetingID) { _, id in
             guard let id else { return }
