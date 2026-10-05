@@ -5,8 +5,9 @@ import Foundation
 ///
 /// `OSLogStore` only sees the current process, and processing often runs in a
 /// background task long after the screen that started it is gone, so this writes its
-/// own file. It records metadata only — stage names, durations, counts, short meeting
-/// IDs and error text. Never transcript text or titles: the log is meant to be shared.
+/// own file. It records metadata — stage names, durations, counts, short meeting IDs —
+/// and full error text, which can include bits of a meeting; that's accepted for
+/// debugging. Never transcript text or titles logged on purpose.
 ///
 /// Writes go through a serial queue and one long-lived file handle. The pipeline
 /// runs with the phone locked, and a file under complete protection can't be
@@ -79,14 +80,6 @@ public final class DebugLog: @unchecked Sendable {
         let duration = start.duration(to: .now)
         let seconds = Double(duration.components.seconds) + Double(duration.components.attoseconds) / 1e18
         return String(format: "%.2fs", seconds)
-    }
-
-    /// An error as its kind and code only, for errors whose description can carry a
-    /// file name or other user text (an imported file's name is often a meeting
-    /// title).
-    public static func kind(of error: Error) -> String {
-        let ns = error as NSError
-        return "\(ns.domain) \(ns.code)"
     }
 
     /// The first 8 characters of a meeting ID: enough to tell meetings apart in the

@@ -410,49 +410,37 @@ public actor SummarizationService {
     /// A model error, sorted into what to do about it.
     struct Failure {
         var reason: DegradedChunk.Reason
-        /// What the log and the saved notes show: the kind of failure and numbers,
-        /// never the error's own text, which can quote the meeting.
+        /// The error's own text, for the debug log: it can quote the meeting, which is
+        /// accepted there for debugging.
         var detail: String
         var retryAfter: Double?
-        /// The error's full text. Read for `isTemporary` only; never logged or saved.
-        private let raw: String
 
         init(_ error: Error) {
-            raw = String(describing: error)
+            detail = String(describing: error)
             retryAfter = nil
-            let kind = DebugLog.kind(of: error)
             guard let modelError = error as? LanguageModelError else {
                 reason = .modelError
-                detail = Self.modelErrorDetail(raw: raw, kind: kind)
                 return
             }
             switch modelError {
             case .contextSizeExceeded(let info):
                 reason = .contextOverflow
-                detail = "needed \(info.tokenCount) of \(info.contextSize) tokens"
-            case .guardrailViolation:
+                detail = "needed \(info.tokenCount) of \(info.contextSize) tokens. \(info.debugDescription)"
+            case .guardrailViolation(let info):
                 reason = .guardrail
-                detail = "the model's content check stopped this part (\(kind))"
-            case .refusal:
+                detail = info.debugDescription
+            case .refusal(let info):
                 reason = .refusal
-                detail = "the model declined to write notes for this part"
+                detail = info.debugDescription
             case .rateLimited(let info):
                 reason = .rateLimited
+                detail = info.debugDescription
                 retryAfter = info.resetDate.map { max(1, min(30, $0.timeIntervalSinceNow)) }
-                detail = "rate limited\(retryAfter.map { String(format: ", retry in %.0f s", $0) } ?? "")"
             case .timeout:
                 reason = .timeout
-                detail = "timed out"
             default:
                 reason = .modelError
-                detail = Self.modelErrorDetail(raw: raw, kind: kind)
             }
-        }
-
-        private static func modelErrorDetail(raw: String, kind: String) -> String {
-            if raw.contains("ModelManager") { return "the system's model service refused the request (\(kind))" }
-            if raw.contains("SensitiveContentAnalysis") { return "the system's content check refused the request (\(kind))" }
-            return "model error (\(kind))"
         }
 
         /// Worth waiting for rather than giving up on: rate limits, timeouts, and the
@@ -460,7 +448,7 @@ public actor SummarizationService {
         var isTemporary: Bool {
             switch reason {
             case .rateLimited, .timeout: true
-            case .modelError: raw.contains("ModelManager") || raw.contains("SensitiveContentAnalysis")
+            case .modelError: detail.contains("ModelManager") || detail.contains("SensitiveContentAnalysis")
             default: false
             }
         }

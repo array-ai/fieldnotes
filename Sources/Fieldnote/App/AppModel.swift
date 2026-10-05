@@ -184,7 +184,7 @@ public final class AppModel {
             await coordinator.submitAfterRecording(title: title)
             #endif
         } catch {
-            DebugLog.shared.log("import", "import failed: \(DebugLog.kind(of: error))")
+            DebugLog.shared.log("import", "import failed: \(error)")
             importError = error.localizedDescription
             if let meetingID { try? await store.delete(meetingID: meetingID) }
         }
