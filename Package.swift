@@ -44,7 +44,7 @@ let package = Package(
         // 0.17.5 for Nemotron 3 diarization (`Nemotron3Diarizer`) and its split
         // W8A8 bundles; see DiarizationService.
         .package(url: "https://github.com/FluidInference/FluidAudio", from: "0.17.5"),
-        // Apple's Core AI language-model runtime: runs the optional Qwen3 summary model
+        // Apple's Core AI language-model runtime: runs the optional MiniCPM5 summary model
         // through the Foundation Models API. Exact pin: a model-runtime bump is a
         // reviewed change, like a model bump.
         .package(url: "https://github.com/apple/coreai-models", exact: "1.0.0"),

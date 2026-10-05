@@ -5,7 +5,7 @@ import Foundation
 ///
 /// Each stage is modelled as a fixed cost (loading models, starting sessions) plus a
 /// rate per minute of audio. Rates are kept per model, since Parakeet and Apple's
-/// speech model, or Qwen and Apple's language model, differ several-fold. Each starts
+/// speech model, or MiniCPM5 and Apple's language model, differ several-fold. Each starts
 /// from a default measured on an iPhone 16 (see `defaultRate`) and is then learned:
 /// after every stage that really ran, the measured time nudges that model's rate with
 /// an exponential moving average, so the estimate settles on this hardware within a
@@ -58,7 +58,7 @@ public struct ProcessingEstimator: Codable, Sendable, Equatable {
     /// - pyannote community-1: 5 min in 1.4 s; pyannote 3.1: 5 min in 3.4 s.
     /// - Apple's language model: 18.6 min summarised in 290 s (15.6 s/min) at
     ///   ~35 tokens/s; on a hot or locked phone it ran at ~10 tokens/s (~30 s/min).
-    ///   Qwen3 1.7B isn't measured yet.
+    ///   MiniCPM5 1B isn't measured yet.
     public static func defaultRate(_ stage: ProcessingStage, model: String?) -> Rate {
         switch (stage, model) {
         case (.transcribing, "parakeetCtc110m"): Rate(fixed: 5, perMinute: 0.8)
@@ -69,7 +69,7 @@ public struct ProcessingEstimator: Codable, Sendable, Equatable {
         case (.diarizing, "pyannoteCommunity1"): Rate(fixed: 3, perMinute: 0.6)
         case (.diarizing, "pyannoteLegacy"): Rate(fixed: 3, perMinute: 1)
         case (.diarizing, _): Rate(fixed: 3, perMinute: 0.6)
-        case (.summarising, "qwen3"): Rate(fixed: 15, perMinute: 16)
+        case (.summarising, "minicpm5"): Rate(fixed: 15, perMinute: 12)
         case (.summarising, _): Rate(fixed: 10, perMinute: 18)
         }
     }

@@ -36,8 +36,8 @@ two things you choose: optional model downloads, and Apple Maps place names.
   so on. Picks up names from
   self-introductions ("Hi, I'm Priya") and lets you rename speakers by hand.
 - **Summarises** into notes on the phone, with Apple's on-device Foundation Models
-  model or, optionally, Qwen3 1.7B (a 1.4 GB download, run through Apple's Core AI
-  runtime: twice the context and no false content refusals): an overview,
+  model or, optionally, MiniCPM5 1B (a 1.1 GB download, run through Apple's Core AI
+  runtime, without Apple's rate limits): an overview,
   topic sections (headline, one-line summary, timestamped key points with supporting
   details), action items grouped by owner, decisions and open questions. The meeting
   list shows each meeting's top topics at a glance. Every point cites the transcript lines it came
@@ -210,7 +210,7 @@ your own from Settings → Debug → Benchmark.
 
 - Nemotron's Neural Engine model compiles once per install (23–40 s). The CPU model covers that first run.
 - Apple's language model ran at about 10 tokens/s in one long run, three to four times slower; likely a hot or locked phone. In background tasks on battery it is rate-limited.
-- Parakeet v3, v2 English and Qwen3 1.7B are not measured yet.
+- Parakeet v3, v2 English and MiniCPM5 1B are not measured yet. Qwen3 1.7B, offered before, ran out of memory compiling on an iPhone 16 (about 2.4 GB) and was dropped.
 - Processing-time estimates start from these numbers and then learn this phone's speed for each model.
 
 ## How it works
@@ -288,6 +288,6 @@ was written almost entirely by AI, so a public-domain-style licence is the hones
 Dependencies keep their own licences: FluidAudio is Apache-2.0, Apple's coreai-models
 is BSD-3-Clause (its swift-transformers and xgrammar dependencies are Apache-2.0; the
 download code in swift-transformers is never called — the policy checks ban it in the
-app's sources), Qwen3 is Apache-2.0, Nemotron 3 and the optional Nemotron 3.5
+app's sources), MiniCPM5 is Apache-2.0, Nemotron 3 and the optional Nemotron 3.5
 Streaming are OpenMDW-1.1, the optional pyannote and Parakeet models are CC-BY-4.0, and the offline place names come
 from [GeoNames](https://www.geonames.org) (CC-BY 4.0).

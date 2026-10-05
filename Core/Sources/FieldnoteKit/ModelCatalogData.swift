@@ -119,19 +119,19 @@ extension ModelPack {
             ]
         ),
         ModelPack(
-            id: .qwen3,
-            name: "Qwen3 1.7B (Core AI)",
-            repo: "darylap/Qwen3-1.7B-coreai-ios",
-            revision: "a9ea1e57f6c5b09615e688e58345d4c2e7bf636c",
+            id: .minicpm5,
+            name: "MiniCPM5 1B (Core AI)",
+            repo: "mlboydaisuke/MiniCPM5-1B-CoreAI",
+            revision: "f38d143ec50cb2e54d8388479b919e3b9283943b",
             license: "Apache-2.0",
             files: [
-                ModelFile(path: "metadata.json", size: 577, sha256: "3abbd235fb70cff5972ede86bc0e03ac2aa0c200101bbff7cb8444b7a5408a07"),
-                ModelFile(path: "qwen3_1_7b_6bit_static.aimodel/main.hash", size: 32, sha256: "8736d07b7ad7d9b7c3aff9d5f4b195ee67792926ef9cc7479470b701c95a2f7a"),
-                ModelFile(path: "qwen3_1_7b_6bit_static.aimodel/main.mlirb", size: 1399268764, sha256: "47df537cab262cb8d6b00b51f086f8b6bb54a94465f3d50eb43ee31c77eac49c"),
-                ModelFile(path: "qwen3_1_7b_6bit_static.aimodel/metadata.json", size: 307, sha256: "bed35f1beaadddd29384951254d018b8813c0616dd0c814a834aeb6921c400a0"),
-                ModelFile(path: "tokenizer/chat_template.jinja", size: 4168, sha256: "a55ee1b1660128b7098723e0abcd92caa0788061051c62d51cbe87d9cf1974d8"),
-                ModelFile(path: "tokenizer/tokenizer.json", size: 11422650, sha256: "be75606093db2094d7cd20f3c2f385c212750648bd6ea4fb2bf507a6a4c55506"),
-                ModelFile(path: "tokenizer/tokenizer_config.json", size: 694, sha256: "04b1682c59acbd057f4c9072297faa73d56fc9de053094c659cdb4c464f58f86"),
+                ModelFile(path: "ios-static/metadata.json", size: 615, sha256: "b61e4eb32f39946b740b20ed76f7d64058d4c4bea0e7397f87a460aa4f5b846d"),
+                ModelFile(path: "ios-static/minicpm5_1b_minicpm5_pal8_g32_static.aimodel/main.hash", size: 32, sha256: "50f3bdb633823ab8217fd92740aaa9d139ccee94b8f36eda5e4f62bbee1aae05"),
+                ModelFile(path: "ios-static/minicpm5_1b_minicpm5_pal8_g32_static.aimodel/main.mlirb", size: 1101244047, sha256: "f466aa0c9d3514e9870ecaf6e600985a3978f542fae2e0ebabea9879dc3f6319"),
+                ModelFile(path: "ios-static/minicpm5_1b_minicpm5_pal8_g32_static.aimodel/metadata.json", size: 408, sha256: "50d453dae560802175dd15df34a77b71684ec6742d468222488243714e6f50fe"),
+                ModelFile(path: "ios-static/tokenizer/chat_template.jinja", size: 9062, sha256: "7451a05cf1e28a79d97d7c0bc951028c0b1915119bf9046acd06a0e3d931f47c"),
+                ModelFile(path: "ios-static/tokenizer/tokenizer.json", size: 9894271, sha256: "3e065a558a034185fe299917b398685c1facd0169a9eea1e629eb30c171fed81"),
+                ModelFile(path: "ios-static/tokenizer/tokenizer_config.json", size: 465, sha256: "211c792e3281bf244d3ee303a4522414a7611293ba3d833738f21dce44291aac"),
             ]
         ),
         ModelPack(

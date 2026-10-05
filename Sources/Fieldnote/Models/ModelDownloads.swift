@@ -44,13 +44,14 @@ public final class ModelDownloads {
 
     private init() {
         defer { UserDefaults.standard.removeObject(forKey: Self.preparingKey) }
+        Self.removeRetiredPacks()
         for id in ModelPack.ID.allCases {
             if Self.installedDirectory(for: id) != nil {
                 states[id] = .installed
             } else if Self.closedWhilePreparing(id),
                       UserDefaults.standard.string(forKey: Self.preparingKey) == id.rawValue {
                 // The app was closed part-way through the first compile: almost
-                // always iOS closing it for memory (build 37: Qwen took 2.4 GB).
+                // always iOS closing it for memory (build 37: Qwen3 1.7B took 2.4 GB).
                 states[id] = .failed("Fieldnote closed while preparing this model, most likely out of memory. The download is kept; tap Download to try again.")
                 DebugLog.shared.log("models", "\(id.rawValue): the app closed while preparing it (most likely out of memory)")
             } else if FileManager.default.fileExists(atPath: Self.staging(for: id).path)
@@ -61,6 +62,20 @@ public final class ModelDownloads {
             } else {
                 states[id] = .notInstalled
             }
+        }
+    }
+
+    /// Deletes downloads of models the app no longer offers (Qwen3 1.7B: 1.4 GB),
+    /// finished or part-way.
+    nonisolated private static func removeRetiredPacks() {
+        let manager = FileManager.default
+        let known = Set(ModelPack.ID.allCases.map(\.rawValue))
+        guard let folders = try? manager.contentsOfDirectory(at: root, includingPropertiesForKeys: nil) else { return }
+        for folder in folders {
+            let id = folder.lastPathComponent.replacingOccurrences(of: ".partial", with: "")
+            guard !known.contains(id) else { continue }
+            try? manager.removeItem(at: folder)
+            DebugLog.shared.log("models", "\(id): no longer offered; removed its files")
         }
     }
 
@@ -222,7 +237,7 @@ public final class ModelDownloads {
             )
             DebugLog.shared.log("models", "nemotronStreaming: first compile took \(DebugLog.elapsed(since: compileStarted))")
         }
-        if pack.id == .qwen3 {
+        if pack.id == .minicpm5 {
             // Core AI compiles the portable model for this phone on first load.
             report(.preparing)
             // Two big compiles at once (after an update, the speaker model rebuilds
@@ -230,15 +245,21 @@ public final class ModelDownloads {
             let waitStarted = ContinuousClock.now
             await DiarizationService.shared.waitForWarmUp()
             if waitStarted.duration(to: .now) > .seconds(1) {
-                DebugLog.shared.log("models", "qwen3: waited \(DebugLog.elapsed(since: waitStarted)) for the speaker model to finish loading")
+                DebugLog.shared.log("models", "minicpm5: waited \(DebugLog.elapsed(since: waitStarted)) for the speaker model to finish loading")
             }
             let compileStarted = ContinuousClock.now
             #if os(iOS)
-            DebugLog.shared.log("models", "qwen3: compiling, \(CrashWatch.memoryLeft) memory left")
+            DebugLog.shared.log("models", "minicpm5: compiling, \(CrashWatch.memoryLeft) memory left")
             #endif
-            let model = try await OnDeviceModel.loadLocalModel(at: final, eager: true)
+            let model = try await OnDeviceModel.loadLocalModel(
+                at: final.appendingPathComponent("ios-static", isDirectory: true),
+                eager: true
+            )
             model.unload()
-            DebugLog.shared.log("models", "qwen3: first compile took \(DebugLog.elapsed(since: compileStarted))")
+            #if os(iOS)
+            DebugLog.shared.log("models", "minicpm5: \(CrashWatch.memoryLeft) memory left after compiling")
+            #endif
+            DebugLog.shared.log("models", "minicpm5: first compile took \(DebugLog.elapsed(since: compileStarted))")
         }
         try pack.revision.write(to: Self.markerURL(for: pack.id), atomically: true, encoding: .utf8)
         DebugLog.shared.log("models", "\(pack.id.rawValue): \(pack.files.count) files verified in \(DebugLog.elapsed(since: started))")

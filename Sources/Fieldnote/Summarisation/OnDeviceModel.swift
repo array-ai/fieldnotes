@@ -96,27 +96,33 @@ public enum OnDeviceModel {
         return LanguageModelSession(model: model, instructions: instructions)
     }
 
-    // MARK: - Optional local model (Qwen3 on Core AI)
+    // MARK: - Optional local model (MiniCPM5 on Core AI)
 
     /// Loaded by `prepareSummaryModel()`, released by `releaseSummaryModel()`.
     private static let localModel = Mutex<CoreAILanguageModel?>(nil)
 
-    /// Qwen is chosen in Settings and fully downloaded.
+    /// MiniCPM5 is chosen in Settings and fully downloaded.
     public static var usesLocalModel: Bool {
-        SummaryEngine(storedValue: UserDefaults.standard.string(forKey: SummaryEngine.defaultsKey)) == .qwen3
-            && ModelDownloads.installedDirectory(for: .qwen3) != nil
+        SummaryEngine(storedValue: UserDefaults.standard.string(forKey: SummaryEngine.defaultsKey)) == .minicpm5
+            && localModelDirectory != nil
     }
 
-    /// Loads Qwen if it's the chosen summary model (tokenizer now, weights on first
-    /// use). A no-op for Apple's model.
+    /// The model bundle inside the download: the pack keeps the repo's layout, and
+    /// the portable iOS export is in `ios-static/`.
+    public static var localModelDirectory: URL? {
+        ModelDownloads.installedDirectory(for: .minicpm5)?.appendingPathComponent("ios-static", isDirectory: true)
+    }
+
+    /// Loads MiniCPM5 if it's the chosen summary model (tokenizer now, weights on
+    /// first use). A no-op for Apple's model.
     public static func prepareSummaryModel() async throws {
         guard usesLocalModel, localModel.withLock({ $0 }) == nil,
-              let directory = ModelDownloads.installedDirectory(for: .qwen3) else { return }
+              let directory = localModelDirectory else { return }
         let model = try await loadLocalModel(at: directory, eager: false)
         localModel.withLock { $0 = model }
     }
 
-    /// Frees Qwen's memory: it, Nemotron and Parakeet together are too much to keep
+    /// Frees MiniCPM5's memory: it, Nemotron and Parakeet together are too much to keep
     /// resident in a background task.
     public static func releaseSummaryModel() {
         localModel.withLock { model in
@@ -142,16 +148,17 @@ public enum OnDeviceModel {
         }
     }
 
-    /// Generation context for every summary request. Qwen3 "thinks" out loud by
-    /// default, which would spend the answer budget; this turns that off.
+    /// Generation context for every summary request. MiniCPM5 can "think" out loud
+    /// (its chat template's enable_thinking), which would spend the answer budget;
+    /// this turns that off.
     public static var contextOptions: ContextOptions {
         usesLocalModel
             ? ContextOptions(includeSchemaInPrompt: true, reasoningLevel: .custom("none"))
             : ContextOptions(includeSchemaInPrompt: true)
     }
 
-    /// Qwen's context from the export (`max_context_length` in its metadata.json).
-    public static let localContextSize = 8_192
+    /// MiniCPM5's context from the export (`max_context_length` in its metadata.json).
+    public static let localContextSize = 4_096
 
     // MARK: - Measuring
 

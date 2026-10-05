@@ -2,8 +2,8 @@ name: Compile summary models ahead of time
 
 # Manual only. Compiles the portable Core AI summary models (.aimodel) into
 # chip-specific .aimodelc files on a Mac, so a phone downloads a ready model
-# instead of compiling it itself (Qwen3 1.7B ran out of memory doing that on an
-# iPhone 16, build 37).
+# instead of compiling it itself (Qwen3 1.7B, offered before, ran out of memory
+# doing that on an iPhone 16, build 37).
 #
 # Every run lists what it produced, with sizes and SHA-256s. With `upload` set,
 # the output goes to the Hugging Face repo with `hf upload` (Xet storage is
@@ -22,8 +22,6 @@ on:
 
 env:
   # Pinned sources, the same revisions the app's catalogue pins.
-  QWEN_REPO: darylap/Qwen3-1.7B-coreai-ios
-  QWEN_REV: a9ea1e57f6c5b09615e688e58345d4c2e7bf636c
   MINICPM_REPO: mlboydaisuke/MiniCPM5-1B-CoreAI
   MINICPM_REV: f38d143ec50cb2e54d8388479b919e3b9283943b
 
@@ -54,7 +52,6 @@ jobs:
       - name: Download the portable models
         run: |
           set -euo pipefail
-          hf download "$QWEN_REPO" --revision "$QWEN_REV" --local-dir src/qwen3
           hf download "$MINICPM_REPO" --revision "$MINICPM_REV" --include "ios-static/*" --local-dir src/minicpm5
           find src -name "*.aimodel" -maxdepth 3
 

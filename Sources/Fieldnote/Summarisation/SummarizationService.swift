@@ -94,7 +94,7 @@ public actor SummarizationService {
         prompt = SummaryPromptStore.load()
         try await OnDeviceModel.prepareSummaryModel()
         defer { OnDeviceModel.releaseSummaryModel() }
-        debug.log("summary", "\(DebugLog.short(meeting.id)): writing notes with \(OnDeviceModel.usesLocalModel ? "Qwen3 1.7B (Core AI)" : "Apple's model")")
+        debug.log("summary", "\(DebugLog.short(meeting.id)): writing notes with \(OnDeviceModel.usesLocalModel ? "MiniCPM5 1B (Core AI)" : "Apple's model")")
         if !prompt.isBuiltIn {
             debug.log("summary", "\(DebugLog.short(meeting.id)): using an edited summary prompt")
         }
@@ -187,14 +187,15 @@ public actor SummarizationService {
 
     private func measureBudget() async -> PromptBudget {
         if OnDeviceModel.usesLocalModel {
-            // Qwen's own tokenizer isn't exposed; Apple's counts are a close proxy and
+            // MiniCPM5's own tokenizer isn't exposed; Apple's counts are a close proxy and
             // the margins absorb the difference.
             let instructions = await OnDeviceModel.tokenCount(instructions: prompt.instructions, tier: tier) ?? 300
             let schema = await OnDeviceModel.tokenCount(schema: DraftChunkNotes.generationSchema, tier: tier) ?? 800
             return PromptBudget(
                 contextSize: OnDeviceModel.localContextSize,
                 fixedCost: Int(Double(instructions + schema) * 1.2),
-                outputReserve: 2_000,
+                // Same 4,096-token context as Apple's model, so the same answer room.
+                outputReserve: 1_800,
                 isMeasured: false
             )
         }

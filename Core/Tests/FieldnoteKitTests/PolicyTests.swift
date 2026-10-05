@@ -158,7 +158,7 @@ struct PolicyTests {
         }
     }
 
-    /// The optional Qwen summary model runs through Apple's Core AI runtime as a
+    /// The optional MiniCPM5 summary model runs through Apple's Core AI runtime as a
     /// Foundation Models `LanguageModel`. It is built in one file, and nothing may name
     /// Apple's cloud model or the Hugging Face loaders that runtime could fall back on.
     @Test("Local summary model confined; no cloud model, no downloading tokenizer")

@@ -47,7 +47,7 @@ public enum ParakeetTranscriber {
         case .parakeetV3: .v3
         case .parakeetV2: .v2
         case .parakeetTdtCtc110m: .tdtCtc110m
-        case .pyannoteCommunity1, .pyannoteLegacy, .qwen3, .nemotronStreaming: nil
+        case .pyannoteCommunity1, .pyannoteLegacy, .minicpm5, .nemotronStreaming: nil
         }
     }
 

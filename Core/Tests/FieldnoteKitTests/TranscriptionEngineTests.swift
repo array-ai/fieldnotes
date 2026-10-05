@@ -64,7 +64,7 @@ struct TranscriptionEngineTests {
         #expect(TranscriptionEngine.allCases.filter { $0 != .apple }.allSatisfy { $0.modelPack != nil })
         #expect(TranscriptionEngine(storedValue: "parakeet") == .parakeet)
         #expect(SummaryEngine(storedValue: nil) == .apple)
-        #expect(SummaryEngine.qwen3.modelPack == .qwen3)
+        #expect(SummaryEngine.minicpm5.modelPack == .minicpm5)
     }
 
     @Test("Cards rate every model within 0...1")

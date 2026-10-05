@@ -61,15 +61,17 @@ PACKS = [
         "paths": ["latin/2240ms"],
     },
     {
-        "id": "qwen3",
-        "name": "Qwen3 1.7B (Core AI)",
-        "repo": "darylap/Qwen3-1.7B-coreai-ios",
-        "revision": "a9ea1e57f6c5b09615e688e58345d4c2e7bf636c",
+        "id": "minicpm5",
+        "name": "MiniCPM5 1B (Core AI)",
+        "repo": "mlboydaisuke/MiniCPM5-1B-CoreAI",
+        "revision": "f38d143ec50cb2e54d8388479b919e3b9283943b",
         "license": "Apache-2.0",
-        # Exported with Apple's coreai-models (iOS preset qwen3_1_7b_6bit, 8,192-token
-        # context), portable .aimodel compiled on the phone. tokenizer/ must be
-        # present: without it the runtime would fetch one from Hugging Face.
-        "paths": ["metadata.json", "qwen3_1_7b_6bit_static.aimodel", "tokenizer"],
+        # OpenBMB's MiniCPM5-1B, the portable iOS static export (8-bit palettized,
+        # 4,096-token context), compiled on the phone. Loaded from <pack>/ios-static.
+        # tokenizer/ must be present: without it the runtime would fetch one from
+        # Hugging Face. (Qwen3 1.7B, used before, ran out of memory compiling on an
+        # iPhone 16.)
+        "paths": ["ios-static"],
     },
     {
         "id": "pyannoteCommunity1",
