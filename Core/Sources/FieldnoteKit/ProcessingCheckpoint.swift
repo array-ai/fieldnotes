@@ -15,6 +15,10 @@ public struct ProcessingCheckpoint: Codable, Sendable {
     public var lastTranscribedChunkIndex: Int?
     public var updatedAt: Date
     public var failureCount: Int
+    /// Transcribe from the saved audio even when the live transcript covers the
+    /// recording ("Redo transcript" in debug mode). Optional so checkpoints written
+    /// before it existed still decode.
+    public var redoTranscript: Bool?
 
     public init(meetingID: UUID) {
         self.meetingID = meetingID

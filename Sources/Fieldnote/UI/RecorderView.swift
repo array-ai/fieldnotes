@@ -6,8 +6,6 @@ struct RecorderView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var title = ""
-    @State private var titleEditedByUser = false
-    @State private var type: MeetingType = .general
     @State private var error: String?
 
     var body: some View {
@@ -33,7 +31,7 @@ struct RecorderView: View {
                 Text(error ?? "")
             }
             .task {
-                if title.isEmpty { title = MeetingTitleGenerator.defaultTitle(type: type) }
+                if title.isEmpty { title = MeetingTitleGenerator.defaultTitle(type: .general) }
             }
         }
     }
@@ -42,23 +40,9 @@ struct RecorderView: View {
 
     private var setup: some View {
         VStack(spacing: 20) {
-            TextField("Meeting title", text: Binding(
-                get: { title },
-                set: { title = $0; titleEditedByUser = true }
-            ))
+            TextField("Meeting title", text: $title)
             .textFieldStyle(.roundedBorder)
             .font(.title3)
-
-            Picker("Type", selection: $type) {
-                ForEach(MeetingType.allCases, id: \.self) { type in
-                    Label(type.displayName, systemImage: type.symbolName).tag(type)
-                }
-            }
-            .pickerStyle(.menu)
-            .onChange(of: type) { _, newType in
-                guard !titleEditedByUser else { return }
-                title = MeetingTitleGenerator.defaultTitle(type: newType)
-            }
 
             Toggle("Include location", isOn: Bindable(model.settings).locationEnabled)
             Text("Stored as coordinates only, for your own reference. Never sent anywhere.")
@@ -159,7 +143,7 @@ struct RecorderView: View {
         do {
             model.settings.consentAcknowledged = true
             let coordinate = model.settings.locationEnabled ? await model.locationProvider.currentCoordinate() : nil
-            try await model.startRecording(title: title.trimmed(), type: type, coordinate: coordinate)
+            try await model.startRecording(title: title.trimmed(), coordinate: coordinate)
         } catch {
             self.error = error.localizedDescription
         }

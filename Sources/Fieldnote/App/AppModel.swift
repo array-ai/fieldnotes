@@ -54,8 +54,10 @@ public final class AppModel {
 
     // MARK: - Recording
 
-    public func startRecording(title: String, type: MeetingType, coordinate: (latitude: Double, longitude: Double)?) async throws {
+    public func startRecording(title: String, coordinate: (latitude: Double, longitude: Double)?) async throws {
         let locale = settings.locale
+        // Meeting types are gone from the UI; every meeting is stored as `.general`.
+        let type = MeetingType.general
         let id = try await store.createMeeting(
             title: title,
             type: type,
@@ -65,6 +67,11 @@ public final class AppModel {
             longitude: coordinate?.longitude
         )
         try await recorder.start(meetingID: id, title: title, type: type, locale: locale)
+        DebugLog.shared.log("recording", "\(DebugLog.short(id)): started, speaker method \(settings.diarizationMethod.rawValue)")
+        // Load the speaker models now, so their first-load compile overlaps the
+        // recording instead of delaying the results after stop.
+        let method = settings.diarizationMethod
+        Task(priority: .utility) { await DiarizationService.shared.prewarm(method) }
         await refresh()
     }
 
@@ -72,10 +79,35 @@ public final class AppModel {
     /// phone from here (spec 4.7).
     public func stopRecording() async {
         guard let result = await recorder.stop() else { return }
+        DebugLog.shared.log(
+            "recording",
+            "\(DebugLog.short(result.meetingID)): stopped after \(String(format: "%.1f", result.duration))s, \(result.chunks.count) audio chunk(s), \(result.liveSegments.count) live lines"
+        )
         try? await store.finishRecording(result)
         #if os(iOS)
         let title = meetings.first { $0.id == result.meetingID }?.title ?? "meeting"
         await coordinator.submitAfterRecording(title: title)
+        #endif
+        await refresh()
+    }
+
+    // MARK: - Editing
+
+    public func renameMeeting(_ meetingID: UUID, to title: String) async {
+        try? await store.renameMeeting(meetingID, to: title)
+        await refresh()
+    }
+
+    /// Debug mode: re-run one stage (and everything after it) for a finished meeting.
+    public func redo(_ stage: MeetingStore.RedoStage, meetingID: UUID, title: String) async {
+        do {
+            try await store.prepareRedo(stage, meetingID: meetingID)
+        } catch {
+            DebugLog.shared.log("store", "\(DebugLog.short(meetingID)): could not queue redo of \(stage.rawValue): \(error)")
+            return
+        }
+        #if os(iOS)
+        await coordinator.submitRedo(title: "Redoing \(stage.rawValue) for \(title)")
         #endif
         await refresh()
     }
@@ -104,12 +136,18 @@ public final class AppModel {
             didSet { UserDefaults.standard.set(locationEnabled, forKey: "locationEnabled") }
         }
 
+        /// Shows the log viewer and the redo actions.
+        public var debugMode: Bool {
+            didSet { UserDefaults.standard.set(debugMode, forKey: "debugMode") }
+        }
+
         /// Applies to the next recording processed. See `DiarizationMethod`.
         public var diarizationMethod: DiarizationMethod {
             didSet { UserDefaults.standard.set(diarizationMethod.rawValue, forKey: DiarizationMethod.defaultsKey) }
         }
 
         public init() {
+            self.debugMode = UserDefaults.standard.bool(forKey: "debugMode")
             self.diarizationMethod = DiarizationMethod(
                 storedValue: UserDefaults.standard.string(forKey: DiarizationMethod.defaultsKey)
             )

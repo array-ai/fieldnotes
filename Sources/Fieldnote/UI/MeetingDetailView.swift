@@ -12,6 +12,10 @@ struct MeetingDetailView: View {
     @State private var scrollTarget: UUID?
     @State private var composing = false
     @State private var share = SharePresentation()
+    @State private var renaming = false
+    @State private var newTitle = ""
+    /// Bumped to restart polling after a redo is queued.
+    @State private var pollGeneration = 0
 
     enum Tab: String, CaseIterable { case summary, transcript }
 
@@ -23,7 +27,7 @@ struct MeetingDetailView: View {
                 ProgressView()
             }
         }
-        .task { await loadAndPollWhileProcessing() }
+        .task(id: pollGeneration) { await loadAndPollWhileProcessing() }
         .navigationTitle(meeting?.title ?? "Meeting")
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
@@ -43,7 +47,36 @@ struct MeetingDetailView: View {
                         Label("Share", systemImage: "square.and.arrow.up")
                     }
                 }
+                ToolbarItem(placement: .secondaryAction) {
+                    Button("Rename", systemImage: "pencil") {
+                        newTitle = meeting.title
+                        renaming = true
+                    }
+                }
+                if model.settings.debugMode {
+                    ToolbarItem(placement: .secondaryAction) {
+                        Menu {
+                            Button("Redo transcript", systemImage: "waveform") { redo(.transcript, meeting) }
+                            Button("Redo speakers", systemImage: "person.2") { redo(.speakers, meeting) }
+                            Button("Redo summary", systemImage: "text.badge.star") { redo(.summary, meeting) }
+                        } label: {
+                            Label("Redo", systemImage: "arrow.clockwise")
+                        }
+                        .disabled(!meeting.state.isTerminal)
+                    }
+                }
             }
+        }
+        .alert("Rename meeting", isPresented: $renaming) {
+            TextField("Title", text: $newTitle)
+            Button("Cancel", role: .cancel) {}
+            Button("Rename") {
+                Task {
+                    await model.renameMeeting(meetingID, to: newTitle)
+                    await load()
+                }
+            }
+            .disabled(newTitle.trimmed().isEmpty)
         }
         .sharePresentation(share)
         .sheet(isPresented: $composing) {
@@ -96,7 +129,7 @@ struct MeetingDetailView: View {
                 List {
                     switch tab {
                     case .summary:
-                        SummarySections(meeting: meeting) { segmentID in
+                        SummarySections(meeting: meeting, showsDetail: model.settings.debugMode) { segmentID in
                             // Tapping a citation jumps to the line it came from
                             // (spec 4.5). Every claim has one or it was not saved.
                             tab = .transcript
@@ -116,6 +149,13 @@ struct MeetingDetailView: View {
                     scrollTarget = nil
                 }
             }
+        }
+    }
+
+    private func redo(_ stage: MeetingStore.RedoStage, _ meeting: MeetingSnapshot) {
+        Task {
+            await model.redo(stage, meetingID: meeting.id, title: meeting.title)
+            pollGeneration += 1
         }
     }
 
@@ -180,6 +220,8 @@ struct ProcessingStatusBanner: View {
 
 struct SummarySections: View {
     let meeting: MeetingSnapshot
+    /// Debug mode: show the model's own error text under each Coverage line.
+    var showsDetail = false
     var onCitation: (UUID) -> Void
 
     var body: some View {
@@ -245,12 +287,16 @@ struct SummarySections: View {
             }
             if !summary.degradedChunks.isEmpty {
                 Section("Coverage") {
-                    ForEach(summary.degradedChunks, id: \.chunkIndex) { chunk in
-                        Label(
-                            "\(Timecode.short(chunk.startTime))–\(Timecode.short(chunk.endTime)) summarised with a reduced prompt"
-                                + (chunk.recovered ? "" : " and could not be summarised"),
-                            systemImage: "exclamationmark.circle"
-                        )
+                    ForEach(Array(summary.degradedChunks.enumerated()), id: \.offset) { _, chunk in
+                        VStack(alignment: .leading, spacing: 2) {
+                            Label(
+                                "\(Timecode.short(chunk.startTime))–\(Timecode.short(chunk.endTime)) \(chunk.explanation)",
+                                systemImage: "exclamationmark.circle"
+                            )
+                            if showsDetail, let detail = chunk.detail {
+                                Text(detail).font(.caption2.monospaced())
+                            }
+                        }
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     }

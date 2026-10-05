@@ -1,12 +1,9 @@
 import Foundation
 
-/// `general` plus the four v1 presets. The type selects a prompt template (see
-/// `PromptTemplates`) and nothing else — it never changes which model runs or where
-/// it runs.
-///
-/// `general` is the floor: a new meeting starts here rather than on any specific
-/// preset, because nothing is known about it yet. `MeetingTypeClassifier` only ever
-/// upgrades away from it; it is never a suggestion in its own right.
+/// Legacy. Meetings used to pick a type that selected a summary template; there is
+/// now one prompt for every meeting and new meetings are always `.general`. The enum
+/// stays because the value is persisted (SwiftData, backups, Live Activity
+/// attributes) and older meetings still carry other types.
 public enum MeetingType: String, Codable, CaseIterable, Sendable {
     case general
     case siteVisit

@@ -36,7 +36,12 @@ public actor DiarizationService {
         public var embeddings: [String: [Float]]
     }
 
+    /// One instance for the app, so models loaded for one meeting (or prewarmed
+    /// while it was recording) are still loaded for the next.
+    public static let shared = DiarizationService()
+
     private let log = Logger(subsystem: "com.publicarray.fieldnotes", category: "diarization")
+    private let debug = DebugLog.shared
 
     // One cached engine per method: loading compiles CoreML graphs, which is slow
     // enough to matter when a backlog of meetings is processed in one task.
@@ -57,18 +62,66 @@ public actor DiarizationService {
         }
 
         progress(0.05)
+        let seconds = String(format: "%.1f", Double(samples.count) / 16_000)
+        debug.log("speakers", "\(method.rawValue): \(seconds)s of audio")
+
+        let loadStarted = ContinuousClock.now
+        let wasLoaded = isLoaded(method)
+        try await load(method)
+        debug.log("speakers", "\(method.rawValue): models \(wasLoaded ? "already loaded" : "loaded in \(DebugLog.elapsed(since: loadStarted))")")
+
+        let runStarted = ContinuousClock.now
         let output: Output
-        switch method {
-        case .nemotron3:
-            output = try await diarizeNemotron(samples, progress: progress)
-        case .pyannoteCommunity1:
-            output = try await diarizeCommunity1(samples, progress: progress)
-        case .pyannoteLegacy:
-            output = try diarizeLegacy(samples, progress: progress)
+        do {
+            switch method {
+            case .nemotron3:
+                output = try await diarizeNemotron(samples, progress: progress)
+            case .pyannoteCommunity1:
+                output = try await diarizeCommunity1(samples, progress: progress)
+            case .pyannoteLegacy:
+                output = try diarizeLegacy(samples, progress: progress)
+            }
+        } catch {
+            debug.log("speakers", "\(method.rawValue): failed after \(DebugLog.elapsed(since: runStarted)): \(error)")
+            throw error
         }
+        debug.log(
+            "speakers",
+            "\(method.rawValue): \(output.spans.count) spans, \(Set(output.spans.map(\.speakerID)).count) speaker(s), inference \(DebugLog.elapsed(since: runStarted))"
+        )
         progress(1.0)
         log.notice("\(method.rawValue, privacy: .public): diarized \(output.spans.count, privacy: .public) spans across \(Set(output.spans.map(\.speakerID)).count, privacy: .public) speakers")
         return output
+    }
+
+    /// Loads a method's models ahead of time — called when a recording starts, so
+    /// CoreML's first-load compile (often the slowest part for a short meeting)
+    /// happens while the user is still talking rather than after stop.
+    public func prewarm(_ method: DiarizationMethod) async {
+        guard !isLoaded(method) else { return }
+        let started = ContinuousClock.now
+        do {
+            try await load(method)
+            debug.log("speakers", "\(method.rawValue): prewarmed in \(DebugLog.elapsed(since: started))")
+        } catch {
+            debug.log("speakers", "\(method.rawValue): prewarm failed: \(error)")
+        }
+    }
+
+    private func isLoaded(_ method: DiarizationMethod) -> Bool {
+        switch method {
+        case .nemotron3: nemotron != nil
+        case .pyannoteCommunity1: community1Models != nil
+        case .pyannoteLegacy: legacyManager != nil
+        }
+    }
+
+    private func load(_ method: DiarizationMethod) async throws {
+        switch method {
+        case .nemotron3: _ = try await preparedNemotron()
+        case .pyannoteCommunity1: _ = try preparedCommunity1Models()
+        case .pyannoteLegacy: _ = try preparedLegacyManager()
+        }
     }
 
     /// Per-meeting labels only. "S1" is a label in this meeting, not a person, and it

@@ -60,8 +60,21 @@ struct SettingsView: View {
                     Text("Reminders stay on this device and in your own iCloud, if you use it. Fieldnote never sends them anywhere.")
                 }
 
-                Section("Templates") {
-                    NavigationLink("Summary templates") { TemplateListView() }
+                Section {
+                    Toggle("Debug mode", isOn: $settings.debugMode)
+                    if settings.debugMode {
+                        NavigationLink("Activity log") { DebugLogView() }
+                    }
+                } header: {
+                    Text("Debug")
+                } footer: {
+                    Text(
+                        """
+                        Shows a log of what ran and how long it took, and adds Redo \
+                        actions to each meeting. The log holds timings and errors only, \
+                        never what was said.
+                        """
+                    )
                 }
 
                 Section("Backup") {
@@ -94,72 +107,6 @@ struct SettingsView: View {
                     let exporter = RemindersExporter()
                     if (try? await exporter.requestRemindersAccess()) == true {
                         reminderLists = await exporter.availableLists()
-                    }
-                }
-            }
-        }
-    }
-}
-
-struct TemplateListView: View {
-    @State private var editing: SummaryTemplate?
-
-    var body: some View {
-        List(MeetingType.allCases, id: \.self) { type in
-            Button {
-                Task { editing = await TemplateStore.shared.template(for: type) }
-            } label: {
-                Label(type.displayName, systemImage: type.symbolName)
-            }
-        }
-        .navigationTitle("Templates")
-        .sheet(item: $editing) { template in
-            TemplateEditor(template: template)
-        }
-    }
-}
-
-struct TemplateEditor: View {
-    @State var template: SummaryTemplate
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section("Instructions") {
-                    TextEditor(text: $template.instructions).frame(minHeight: 160)
-                }
-                Section {
-                    TextEditor(text: $template.focus).frame(minHeight: 100)
-                } header: {
-                    Text("Focus")
-                } footer: {
-                    Text(
-                        """
-                        Prompt edits are code changes with no compiler. Re-run your \
-                        fixed set of test recordings after changing this and read the \
-                        output yourself.
-                        """
-                    )
-                }
-                Section {
-                    Button("Restore built-in", role: .destructive) {
-                        Task {
-                            try? await TemplateStore.shared.resetToBuiltIn(template.meetingType)
-                            dismiss()
-                        }
-                    }
-                }
-            }
-            .navigationTitle(template.name)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        Task {
-                            try? await TemplateStore.shared.save(template)
-                            dismiss()
-                        }
                     }
                 }
             }
@@ -230,5 +177,45 @@ struct BackupView: View {
         } catch {
             status = error.localizedDescription
         }
+    }
+}
+
+struct DebugLogView: View {
+    @State private var text = ""
+    @State private var confirmingClear = false
+
+    var body: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                Text(text.isEmpty ? "Nothing logged yet." : text)
+                    .font(.caption2.monospaced())
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding()
+                Color.clear.frame(height: 1).id("end")
+            }
+            .onChange(of: text) { _, _ in proxy.scrollTo("end", anchor: .bottom) }
+        }
+        .navigationTitle("Activity log")
+        .toolbar {
+            ToolbarItemGroup(placement: .primaryAction) {
+                Button("Reload", systemImage: "arrow.clockwise") { reload() }
+                ShareLink(item: DebugLog.shared.fileURL) {
+                    Label("Share", systemImage: "square.and.arrow.up")
+                }
+                Button("Clear", systemImage: "trash", role: .destructive) { confirmingClear = true }
+            }
+        }
+        .confirmationDialog("Clear the activity log?", isPresented: $confirmingClear, titleVisibility: .visible) {
+            Button("Clear", role: .destructive) {
+                DebugLog.shared.clear()
+                reload()
+            }
+        }
+        .task { reload() }
+    }
+
+    private func reload() {
+        text = DebugLog.shared.contents()
     }
 }

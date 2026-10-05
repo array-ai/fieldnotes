@@ -23,15 +23,6 @@ struct DraftChunkNotes {
     var openQuestions: [DraftClaim]
 
     @Guide(description: """
-        Product, vendor, system and site names a participant actually said. Copy them \
-        exactly as transcribed, even if they look misspelt. Never include a speaker \
-        label (like 'S1' or 'Unknown' — those are formatting, not content), a person's \
-        name, or a word just because it looks distinctive. Empty if none were \
-        mentioned; an empty list is a normal, correct answer.
-        """)
-    var mentionedSystems: [String]
-
-    @Guide(description: """
         A speaker's real name, only when a participant actually said it -- someone \
         introducing themselves ("My name is X", "This is X"), or another speaker \
         addressing them by name ("Thanks, X"). Cite the line where the name was said \
@@ -79,8 +70,7 @@ struct DraftClaim {
 struct DraftRollup {
     @Guide(description: """
         An overview of the whole meeting, using only the notes given -- never anything \
-        from your own instructions (recording conditions, meeting type framing, etc.), \
-        since those describe the setup, not what happened. Match the length to how much \
+        from your own instructions, since those describe the setup, not what happened. Match the length to how much \
         the notes actually contain: a one- or two-sentence answer is correct and \
         preferred over padding when the notes are thin. No preamble, no 'in this \
         meeting'.
@@ -99,7 +89,8 @@ extension DraftChunkNotes {
                 NoteActionItem(task: $0.task, owner: $0.owner, dueDate: $0.dueDate, sourceLines: $0.sourceLines)
             },
             openQuestions: openQuestions.map { NoteClaim(text: $0.text, sourceLines: $0.sourceLines) },
-            mentionedSystems: mentionedSystems,
+            // No longer asked for: it cost context on every call for little use.
+            mentionedSystems: [],
             speakerNames: speakerNames.map { NoteClaim(text: $0.text, sourceLines: $0.sourceLines) }
         )
     }

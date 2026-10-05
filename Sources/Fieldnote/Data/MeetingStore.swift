@@ -68,9 +68,15 @@ public actor MeetingStore {
     public func apply(_ output: ProcessingPipeline.Output, to meetingID: UUID) async {
         guard let meeting = try? meeting(with: meetingID) else { return }
 
-        replaceSegments(output.segments, on: meeting)
+        replaceSegments(output.segments, on: meeting, keepEdits: !output.replacesEditedSegments)
 
-        // Speakers are per-meeting labels. The embeddings ride along for v2.
+        // Speakers are per-meeting labels. The embeddings ride along for v2. A name
+        // the user gave a speaker survives re-processing; the summary's grounded
+        // names only fill labels that have none.
+        let existingNames = Dictionary(
+            meeting.speakers.compactMap { speaker in speaker.displayName.map { (speaker.label, $0) } },
+            uniquingKeysWith: { first, _ in first }
+        )
         meeting.speakers.forEach(modelContext.delete)
         meeting.speakers = []
         let labels = Set(output.segments.compactMap(\.speakerID)).sorted()
@@ -81,7 +87,7 @@ public actor MeetingStore {
             // about this speaker is (re)created from scratch.
             let speaker = Speaker(
                 label: label,
-                displayName: output.summary.speakerNames[label],
+                displayName: existingNames[label] ?? output.summary.speakerNames[label],
                 embedding: output.embeddings[label]
             )
             speaker.meeting = meeting
@@ -119,7 +125,6 @@ public actor MeetingStore {
             ProcessingPipeline.Input(
                 meetingID: meeting.id,
                 title: meeting.title,
-                type: meeting.type,
                 date: meeting.startedAt,
                 locale: meeting.locale,
                 chunks: ChunkedAudioWriter.existingChunks(
@@ -132,6 +137,60 @@ public actor MeetingStore {
     }
 
     // MARK: - Editing
+
+    public func renameMeeting(_ meetingID: UUID, to title: String) throws {
+        let trimmed = title.trimmed()
+        guard !trimmed.isEmpty, let meeting = try meeting(with: meetingID) else { return }
+        meeting.title = trimmed
+        rebuildSearchText(for: meeting)
+        try modelContext.save()
+    }
+
+    /// What "Redo" in debug mode re-runs. Each one re-runs that stage and every
+    /// stage after it.
+    public enum RedoStage: String, Sendable {
+        case transcript, speakers, summary
+    }
+
+    /// Queues a finished meeting to run again from `stage`, by writing a checkpoint
+    /// that marks the earlier stages done with the meeting's current results. The
+    /// caller then submits the background task. Current results stay in place
+    /// until the new ones replace them, so a failed redo loses nothing.
+    public func prepareRedo(_ stage: RedoStage, meetingID: UUID) async throws {
+        guard let meeting = try meeting(with: meetingID), meeting.processingState.isTerminal else { return }
+        let segments = meeting.orderedSegments.map(\.value)
+
+        let checkpoints = try ProcessingCheckpointStore(meetingID: meetingID)
+        await checkpoints.clear()
+        let fresh = try ProcessingCheckpointStore(meetingID: meetingID)
+        var checkpoint = ProcessingCheckpoint(meetingID: meetingID)
+
+        switch stage {
+        case .transcript:
+            checkpoint.redoTranscript = true
+        case .speakers:
+            try await fresh.saveSegments(segments)
+            checkpoint.completedStages = [.transcribing]
+        case .summary:
+            try await fresh.saveSegments(segments)
+            // No new spans: alignment leaves the current speaker labels as they are.
+            let embeddings = Dictionary(
+                meeting.speakers.compactMap { speaker -> (String, [Float])? in
+                    guard let data = speaker.embedding else { return nil }
+                    return (speaker.label, data.withUnsafeBytes { Array($0.bindMemory(to: Float.self)) })
+                },
+                uniquingKeysWith: { first, _ in first }
+            )
+            try await fresh.saveSpans([], embeddings: embeddings)
+            checkpoint.completedStages = [.transcribing, .diarizing]
+        }
+        try await fresh.save(checkpoint)
+
+        meeting.processingState = .queued
+        meeting.failureMessage = nil
+        try modelContext.save()
+        DebugLog.shared.log("store", "\(DebugLog.short(meetingID)): queued to redo \(stage.rawValue)")
+    }
 
     /// Manual transcript edit. Marks the segment so re-running diarization does not
     /// undo it.
@@ -212,9 +271,10 @@ public actor MeetingStore {
         try modelContext.fetch(FetchDescriptor<Segment>(predicate: #Predicate { $0.id == id })).first
     }
 
-    private func replaceSegments(_ segments: [TranscriptSegment], on meeting: Meeting) {
-        // Manual edits win over anything the pipeline produces.
-        let edited = meeting.segments.filter(\.editedByUser)
+    private func replaceSegments(_ segments: [TranscriptSegment], on meeting: Meeting, keepEdits: Bool = true) {
+        // Manual edits win over anything the pipeline produces, unless the transcript
+        // itself is being redone.
+        let edited = keepEdits ? meeting.segments.filter(\.editedByUser) : []
         let editedIDs = Set(edited.map(\.id))
         meeting.segments.filter { !editedIDs.contains($0.id) }.forEach(modelContext.delete)
 

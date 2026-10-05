@@ -24,16 +24,20 @@ summarises, all on the device. No server, no account, no network access at all.
 
   Picks up names from self-introductions ("Hi, I'm Priya") and lets you rename
   speakers by hand.
-- **Summarises** with Apple's on-device Foundation Models: decisions, tasks, open
-  questions. Every point cites the transcript lines it came from, and a point whose
-  citation doesn't check out is dropped.
+- **Summarises** into minutes with Apple's on-device Foundation Models: overview,
+  decisions, tasks, open questions. Every point cites the transcript lines it came
+  from, and a point whose citation doesn't check out is dropped. Long transcripts are
+  sized against the model's measured context and split where needed.
 - **Exports** through the share sheet as Markdown, plain text, PDF, SRT/VTT subtitles
   or audio, sends tasks to Reminders, and makes encrypted backups.
 - **Keeps working in the background** after you press stop. Processing runs as a
   continued-processing task and resumes from its last checkpoint if iOS kills it.
 
-It was designed for IT field work (site visits, scoping calls, incident reviews), and
-the meeting-type templates reflect that. The templates are editable.
+- **Debug mode** (Settings) adds an activity log of what ran, for how long and what
+  failed, and Redo actions on each meeting for the transcript, speakers or summary.
+  The log records timings and errors only, never what was said.
+
+Meetings can be renamed at any time from the meeting screen.
 
 ## Privacy
 
@@ -58,7 +62,7 @@ SDKs are included.
 
 | | |
 |---|---|
-| Core logic (`Core/`) | Builds and tests on Linux, no Apple SDK. 75 tests, run in CI on every push |
+| Core logic (`Core/`) | Builds and tests on Linux, no Apple SDK. 83 tests, run in CI on every push |
 | App and widget | Build for `arm64-apple-ios27.0` in CI with Xcode 27, both through xtool and `xcodebuild` |
 | On a device | Runs on iPhone, with known small bugs. The device checks under [Testing](#testing) haven't all been done |
 | Linux device builds | Blocked: the bundled LLD can't read the iOS 27 SDK's stubs (see [Build](#build)) |
@@ -200,7 +204,6 @@ behaviour. Each is isolated so a change is a one-place fix:
 | What | Where |
 |---|---|
 | On-device model tier selection | `OnDeviceModel.pinnedModel(for:)` |
-| Context size and token counting | `ContextBudget.measure` (falls back to an estimate) |
 | `AnalysisContext.contextualStrings` | `TranscriptionSession.applyContextualStrings` |
 | `BGContinuedProcessingTask` submission | `BackgroundProcessingCoordinator.submit` |
 

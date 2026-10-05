@@ -91,6 +91,27 @@ public enum OnDeviceModel {
         return LanguageModelSession(model: model, instructions: instructions)
     }
 
+    // MARK: - Measuring
+
+    /// The pinned model's context window, in tokens.
+    public static func contextSize(tier: ModelTier) -> Int {
+        pinnedModel(for: tier).contextSize
+    }
+
+    /// Exact token cost of a prompt, from the pinned model's own tokenizer. Nil if
+    /// the framework can't answer, so callers fall back rather than fail.
+    public static func tokenCount(prompt: String, tier: ModelTier) async -> Int? {
+        try? await pinnedModel(for: tier).tokenCount(for: prompt)
+    }
+
+    public static func tokenCount(instructions: String, tier: ModelTier) async -> Int? {
+        try? await pinnedModel(for: tier).tokenCount(for: Instructions(instructions))
+    }
+
+    public static func tokenCount(schema: GenerationSchema, tier: ModelTier) async -> Int? {
+        try? await pinnedModel(for: tier).tokenCount(for: schema)
+    }
+
     public struct ModelUnavailable: Error, LocalizedError, Sendable {
         public let status: DeviceCapability.Status
         public var errorDescription: String? { status.headline }

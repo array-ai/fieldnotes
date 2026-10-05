@@ -97,10 +97,14 @@ public struct OpenQuestion: Codable, Hashable, Sendable, Identifiable {
 }
 
 public struct DegradedChunk: Codable, Hashable, Sendable {
+    /// Raw values are persisted in stored summaries: add cases, never rename them.
     public enum Reason: String, Codable, Sendable {
         case guardrail
         case contextOverflow
         case modelError
+        case refusal
+        case rateLimited
+        case timeout
     }
 
     public var chunkIndex: Int
@@ -109,12 +113,36 @@ public struct DegradedChunk: Codable, Hashable, Sendable {
     public var recovered: Bool
     public var startTime: TimeInterval
     public var endTime: TimeInterval
+    /// The model's own error text, for the debug log and debug view. Optional so
+    /// summaries stored before it existed still decode.
+    public var detail: String?
 
-    public init(chunkIndex: Int, reason: Reason, recovered: Bool, startTime: TimeInterval, endTime: TimeInterval) {
+    public init(
+        chunkIndex: Int,
+        reason: Reason,
+        recovered: Bool,
+        startTime: TimeInterval,
+        endTime: TimeInterval,
+        detail: String? = nil
+    ) {
         self.chunkIndex = chunkIndex
         self.reason = reason
         self.recovered = recovered
         self.startTime = startTime
         self.endTime = endTime
+        self.detail = detail
+    }
+
+    /// Completes "This part of the meeting …" in the summary's Coverage section.
+    public var explanation: String {
+        let why: String = switch reason {
+        case .guardrail: "tripped the model's safety filter"
+        case .refusal: "was refused by the model"
+        case .contextOverflow: "was too long for the model"
+        case .rateLimited: "hit the model's rate limit"
+        case .timeout: "timed out"
+        case .modelError: "failed in the model"
+        }
+        return recovered ? "\(why); summarised with a shorter prompt" : "\(why); not summarised"
     }
 }

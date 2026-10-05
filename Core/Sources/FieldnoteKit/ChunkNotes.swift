@@ -44,6 +44,20 @@ public struct ChunkNotes: Sendable, Hashable {
         self.mentionedSystems = mentionedSystems
         self.speakerNames = speakerNames
     }
+
+    /// Joins the notes from pieces of one chunk that had to be split to fit the
+    /// model's context. Citations are global line numbers, so they still resolve
+    /// against the original chunk; duplicates are dropped later by the grounder.
+    public func merged(with other: ChunkNotes) -> ChunkNotes {
+        ChunkNotes(
+            points: points + other.points,
+            decisions: decisions + other.decisions,
+            actionItems: actionItems + other.actionItems,
+            openQuestions: openQuestions + other.openQuestions,
+            mentionedSystems: mentionedSystems + other.mentionedSystems,
+            speakerNames: speakerNames + other.speakerNames
+        )
+    }
 }
 
 public struct NoteDecision: Sendable, Hashable {

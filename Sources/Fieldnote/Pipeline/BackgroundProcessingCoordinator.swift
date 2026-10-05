@@ -24,6 +24,7 @@ public final class BackgroundProcessingCoordinator: @unchecked Sendable {
     public static let taskIdentifier = "com.publicarray.fieldnotes.processing"
 
     private let log = Logger(subsystem: "com.publicarray.fieldnotes", category: "background")
+    private let debug = DebugLog.shared
     private let provider: any ProcessingJobProvider
     private let pipelineFactory: @Sendable (Locale) -> ProcessingPipeline
 
@@ -80,6 +81,11 @@ public final class BackgroundProcessingCoordinator: @unchecked Sendable {
         await submit(title: "Processing \(title)")
     }
 
+    /// Called from the debug "Redo" actions, which are also a foreground tap.
+    public func submitRedo(title: String) async {
+        await submit(title: title)
+    }
+
     /// Async because iOS 27 deprecated the synchronous `submit`, in its own words,
     /// "to capture all error conditions" — and this call site depends on catching a
     /// failed submission to fall back to in-process work.
@@ -95,7 +101,8 @@ public final class BackgroundProcessingCoordinator: @unchecked Sendable {
         // Only ask for the GPU if the system says it can give it. Developers have hit
         // cases where this returns false on capable hardware with a valid entitlement,
         // so a false answer is handled, not treated as broken provisioning.
-        if BGTaskScheduler.supportedResources.contains(.gpu) {
+        let gpu = BGTaskScheduler.supportedResources.contains(.gpu)
+        if gpu {
             request.requiredResources = .gpu
         } else {
             log.notice("GPU resources unavailable for background tasks; running on CPU and Neural Engine")
@@ -104,8 +111,10 @@ public final class BackgroundProcessingCoordinator: @unchecked Sendable {
         do {
             try await BGTaskScheduler.shared.submitTaskRequest(request)
             log.notice("Submitted continued-processing task")
+            debug.log("background", "submitted background task (GPU \(gpu ? "requested" : "unavailable")); waiting for the system to start it")
         } catch {
             log.error("Could not submit background task: \(error.localizedDescription, privacy: .public)")
+            debug.log("background", "background task refused (\(error)); processing in the app instead")
             // The work still has to happen. Run it in-process; if the app is killed
             // before it finishes, the checkpoints mean the next launch resumes it.
             runInProcess()
@@ -115,6 +124,7 @@ public final class BackgroundProcessingCoordinator: @unchecked Sendable {
     // MARK: - Execution
 
     private func handle(_ task: BGContinuedProcessingTask) {
+        debug.log("background", "system started the background task")
         let reporter = ProgressReporter(progress: task.progress, task: task)
 
         stateLock.lock()
@@ -136,6 +146,7 @@ public final class BackgroundProcessingCoordinator: @unchecked Sendable {
             // Expiry is normal on long runs. Stop promptly; the last completed stage is
             // already on disk, and the next launch resumes from it.
             self?.log.notice("Continued-processing task expired; checkpoint holds")
+            self?.debug.log("background", "background task expired; stopping, the last finished stage is saved")
             work.cancel()
         }
     }
@@ -199,9 +210,11 @@ public final class BackgroundProcessingCoordinator: @unchecked Sendable {
                 await provider.apply(output, to: job.meetingID)
             } catch is CancellationError {
                 log.notice("Processing cancelled for \(job.meetingID.uuidString, privacy: .public); checkpoint holds")
+                debug.log("pipeline", "\(DebugLog.short(job.meetingID)): cancelled; will resume from the last finished stage")
                 return
             } catch {
                 log.error("Processing failed: \(error.localizedDescription, privacy: .public)")
+                debug.log("pipeline", "\(DebugLog.short(job.meetingID)): failed: \(error)")
                 await provider.markFailed(meetingID: job.meetingID, message: error.localizedDescription)
             }
         }

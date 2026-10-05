@@ -17,7 +17,6 @@ public actor ProcessingPipeline {
     public struct Input: Sendable {
         public var meetingID: UUID
         public var title: String
-        public var type: MeetingType
         public var date: Date
         public var locale: Locale
         public var chunks: [ChunkedAudioWriter.Chunk]
@@ -29,7 +28,6 @@ public actor ProcessingPipeline {
         public init(
             meetingID: UUID,
             title: String,
-            type: MeetingType,
             date: Date,
             locale: Locale,
             chunks: [ChunkedAudioWriter.Chunk],
@@ -38,7 +36,6 @@ public actor ProcessingPipeline {
         ) {
             self.meetingID = meetingID
             self.title = title
-            self.type = type
             self.date = date
             self.locale = locale
             self.chunks = chunks
@@ -51,19 +48,24 @@ public actor ProcessingPipeline {
         public var segments: [TranscriptSegment]
         public var embeddings: [String: [Float]]
         public var summary: MeetingSummary
+        /// A redone transcript replaces hand-edited lines too; otherwise the edited
+        /// old lines would sit alongside their re-transcribed versions.
+        public var replacesEditedSegments: Bool = false
     }
 
     /// Fractional progress within a stage, 0...1.
     public typealias ProgressHandler = @Sendable (ProcessingStage, Double) -> Void
 
     private let log = Logger(subsystem: "com.publicarray.fieldnotes", category: "pipeline")
+    private let debug = DebugLog.shared
     private let transcriber: FileTranscriptionService
     private let diarizer: DiarizationService
     private let summariser: SummarizationService
 
     public init(
         locale: Locale = Locale(identifier: "en_AU"),
-        diarizer: DiarizationService = DiarizationService(),
+        // Shared, so loaded speaker models stay loaded from one meeting to the next.
+        diarizer: DiarizationService = .shared,
         summariser: SummarizationService = SummarizationService()
     ) {
         self.transcriber = FileTranscriptionService(locale: locale)
@@ -74,12 +76,24 @@ public actor ProcessingPipeline {
     public func run(_ input: Input, progress: @escaping ProgressHandler = { _, _ in }) async throws -> Output {
         let store = try ProcessingCheckpointStore(meetingID: input.meetingID)
         var checkpoint = await store.load()
+        let id = DebugLog.short(input.meetingID)
         if !checkpoint.completedStages.isEmpty {
             log.notice("Resuming meeting \(input.meetingID.uuidString, privacy: .public) after \(checkpoint.completedStages.count, privacy: .public) completed stages")
         }
+        let done = checkpoint.completedStages.map(\.rawValue).sorted().joined(separator: ", ")
+        debug.log("pipeline", "\(id): start, \(String(format: "%.1f", input.duration))s of audio in \(input.chunks.count) chunk(s), \(input.liveSegments.count) live lines\(done.isEmpty ? "" : ", already done: \(done)")")
+        let started = ContinuousClock.now
 
+        var stageStart = ContinuousClock.now
         let segments = try await transcribeStage(input, store: store, checkpoint: &checkpoint, progress: progress)
+        debug.log("pipeline", "\(id): transcribing finished in \(DebugLog.elapsed(since: stageStart)), \(segments.count) lines")
+
+        stageStart = .now
         let diarization = try await diarizeStage(input, segments: segments, store: store, checkpoint: &checkpoint, progress: progress)
+        let speakers = Set(diarization.segments.compactMap(\.speakerID)).count
+        debug.log("pipeline", "\(id): identifying speakers finished in \(DebugLog.elapsed(since: stageStart)), \(speakers) speaker(s)")
+
+        stageStart = .now
         let summary = try await summariseStage(
             input,
             segments: diarization.segments,
@@ -87,8 +101,15 @@ public actor ProcessingPipeline {
             checkpoint: &checkpoint,
             progress: progress
         )
+        debug.log("pipeline", "\(id): summarising finished in \(DebugLog.elapsed(since: stageStart)), \(summary.degradedChunks.count) degraded part(s)")
+        debug.log("pipeline", "\(id): done in \(DebugLog.elapsed(since: started))")
 
-        return Output(segments: diarization.segments, embeddings: diarization.embeddings, summary: summary)
+        return Output(
+            segments: diarization.segments,
+            embeddings: diarization.embeddings,
+            summary: summary,
+            replacesEditedSegments: checkpoint.redoTranscript == true
+        )
     }
 
     // MARK: - Stage 1: transcribe
@@ -100,14 +121,18 @@ public actor ProcessingPipeline {
         progress: @escaping ProgressHandler
     ) async throws -> [TranscriptSegment] {
         if checkpoint.isComplete(.transcribing), let saved = await store.loadSegments() {
+            debug.log("pipeline", "\(DebugLog.short(input.meetingID)): transcribing already done, using checkpoint")
             progress(.transcribing, 1.0)
             return saved
         }
+        progress(.transcribing, 0)
+        let redo = checkpoint.redoTranscript == true
 
         // The live transcript is the normal case: it was produced while the meeting
         // was happening and there is nothing to redo. The file path exists for the
         // abnormal one — app killed, transcription started late, audio imported.
-        if coversRecording(input.liveSegments, duration: input.duration) {
+        if !redo, coversRecording(input.liveSegments, duration: input.duration) {
+            debug.log("pipeline", "\(DebugLog.short(input.meetingID)): live transcript covers the recording, reusing it")
             try await store.saveSegments(input.liveSegments)
             try await store.markComplete(.transcribing, in: &checkpoint)
             progress(.transcribing, 1.0)
@@ -115,6 +140,10 @@ public actor ProcessingPipeline {
         }
 
         log.notice("Live transcript incomplete; transcribing from disk")
+        debug.log(
+            "pipeline",
+            "\(DebugLog.short(input.meetingID)): \(redo ? "redo requested" : "live transcript ends early"); transcribing \(input.chunks.count) audio chunk(s) from disk"
+        )
         let resumeFrom = checkpoint.lastTranscribedChunkIndex.map { $0 + 1 } ?? 0
         var recovered = await store.loadSegments() ?? []
 
@@ -159,6 +188,7 @@ public actor ProcessingPipeline {
         if checkpoint.isComplete(.diarizing),
            let spans = await store.loadSpans(),
            let saved = await store.loadSegments() {
+            debug.log("pipeline", "\(DebugLog.short(input.meetingID)): speakers already done, using checkpoint")
             progress(.diarizing, 1.0)
             return Diarization(
                 segments: SpeakerAlignment.apply(spans: spans, to: saved),
@@ -166,8 +196,15 @@ public actor ProcessingPipeline {
             )
         }
 
+        progress(.diarizing, 0)
         let buffer = try DiarizationBuffer(meetingID: input.meetingID)
-        let samples = try await buffer.samples()
+        let samples: [Float]
+        do {
+            samples = try await buffer.samples()
+        } catch {
+            debug.log("pipeline", "\(DebugLog.short(input.meetingID)): could not read the speaker audio buffer: \(error)")
+            throw error
+        }
         // Read at run time rather than captured at init: the pipeline runs off the main
         // actor inside a background task, long after Settings last changed.
         let method = DiarizationMethod(
@@ -195,14 +232,17 @@ public actor ProcessingPipeline {
         progress: @escaping ProgressHandler
     ) async throws -> MeetingSummary {
         if checkpoint.isComplete(.summarising), let saved = await store.loadSummary() {
+            debug.log("pipeline", "\(DebugLog.short(input.meetingID)): summary already done, using checkpoint")
             progress(.summarising, 1.0)
             return saved
         }
+        // Reported now, not after the first model call: otherwise the meeting keeps
+        // showing the previous stage for the whole first generation.
+        progress(.summarising, 0)
 
         let context = SummarizationService.MeetingContext(
             id: input.meetingID,
             title: input.title,
-            type: input.type,
             date: input.date
         )
         let summary = try await summariser.summarise(segments: segments, meeting: context) { fraction in

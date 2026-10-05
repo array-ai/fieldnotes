@@ -19,7 +19,7 @@ struct RecordingLiveActivity: Widget {
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    Label(context.attributes.meetingType.displayName, systemImage: context.attributes.meetingType.symbolName)
+                    Label("Recording", systemImage: "mic.fill")
                         .font(.caption)
                 }
                 DynamicIslandExpandedRegion(.trailing) {

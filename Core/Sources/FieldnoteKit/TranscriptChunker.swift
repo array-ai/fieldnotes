@@ -33,6 +33,27 @@ public struct TranscriptChunk: Sendable, Identifiable {
         .joined(separator: "\n")
     }
 
+    /// Splits the chunk in two by line count, for a prompt that turned out too big
+    /// for the model's context. Both halves keep this chunk's index, so their notes
+    /// merge back into one entry for the grounder. Nil when there is only one line.
+    public func halves() -> (TranscriptChunk, TranscriptChunk)? {
+        guard segments.count > 1 else { return nil }
+        let middle = segments.count / 2
+        let first = TranscriptChunk(
+            index: index,
+            lineNumbers: Array(lineNumbers[..<middle]),
+            segments: Array(segments[..<middle]),
+            overlapCount: min(overlapCount, middle)
+        )
+        let second = TranscriptChunk(
+            index: index,
+            lineNumbers: Array(lineNumbers[middle...]),
+            segments: Array(segments[middle...]),
+            overlapCount: 0
+        )
+        return (first, second)
+    }
+
     public func segmentID(forLine line: Int) -> UUID? {
         guard let position = lineNumbers.firstIndex(of: line) else { return nil }
         return segments[position].id
