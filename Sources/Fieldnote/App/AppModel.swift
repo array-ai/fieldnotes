@@ -12,6 +12,9 @@ public final class AppModel {
 
     public private(set) var capability: DeviceCapability.Status = .ready
     public private(set) var meetings: [MeetingSnapshot] = []
+    /// 0...1 while a recording is being imported, nil otherwise.
+    public private(set) var importProgress: Double?
+    public var importError: String?
     public var searchQuery: String = "" {
         didSet { Task { await refresh() } }
     }
@@ -67,12 +70,18 @@ public final class AppModel {
             latitude: coordinate?.latitude,
             longitude: coordinate?.longitude
         )
-        try await recorder.start(meetingID: id, title: title, type: type, locale: locale)
-        DebugLog.shared.log("recording", "\(DebugLog.short(id)): started, speaker method \(settings.diarizationMethod.rawValue)")
-        // Load the speaker models now, so their first-load compile overlaps the
-        // recording instead of delaying the results after stop.
-        let method = settings.diarizationMethod
-        Task(priority: .utility) { await DiarizationService.shared.prewarm(method) }
+        let live = settings.identifiesSpeakersLive
+        try await recorder.start(meetingID: id, title: title, type: type, locale: locale, identifySpeakersLive: live)
+        DebugLog.shared.log(
+            "recording",
+            "\(DebugLog.short(id)): started, speaker method \(settings.diarizationMethod.rawValue)\(recorder.identifiesSpeakersLive ? ", identifying speakers live" : "")"
+        )
+        if !recorder.identifiesSpeakersLive {
+            // Load the speaker models now, so their first-load compile overlaps the
+            // recording instead of delaying the results after stop.
+            let method = settings.diarizationMethod
+            Task(priority: .utility) { await DiarizationService.shared.prewarm(method) }
+        }
         if let coordinate {
             let useAppleMaps = settings.appleMapsPlaceNames
             Task(priority: .utility) { await self.namePlace(id, coordinate, useAppleMaps: useAppleMaps) }
@@ -89,10 +98,65 @@ public final class AppModel {
             "\(DebugLog.short(result.meetingID)): stopped after \(String(format: "%.1f", result.duration))s, \(result.chunks.count) audio chunk(s), \(result.liveSegments.count) live lines"
         )
         try? await store.finishRecording(result)
+        if let spans = result.liveSpeakerSpans,
+           let checkpoints = try? ProcessingCheckpointStore(meetingID: result.meetingID) {
+            try? await checkpoints.saveLiveSpans(spans)
+        }
         #if os(iOS)
         let title = meetings.first { $0.id == result.meetingID }?.title ?? "meeting"
         await coordinator.submitAfterRecording(title: title)
         #endif
+        await refresh()
+    }
+
+    // MARK: - Import
+
+    /// Imports a recording from another app (Files, share sheet, "Open in"), then
+    /// queues it for transcription, speakers and summary like a recording made here.
+    public func importRecording(from url: URL) async {
+        guard importProgress == nil else { return }
+        let scoped = url.startAccessingSecurityScopedResource()
+        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+
+        importProgress = 0
+        defer { importProgress = nil }
+
+        let title = url.deletingPathExtension().lastPathComponent
+        let created = (try? url.resourceValues(forKeys: [.creationDateKey]))?.creationDate ?? Date()
+        let started = ContinuousClock.now
+        var meetingID: UUID?
+        do {
+            let id = try await store.createMeeting(
+                title: title,
+                type: .general,
+                locale: settings.locale,
+                consentAcknowledged: settings.consentAcknowledged,
+                startedAt: created
+            )
+            meetingID = id
+            DebugLog.shared.log("import", "\(DebugLog.short(id)): importing a .\(url.pathExtension.lowercased()) file")
+            let result = try await RecordingImporter.importAudio(from: url, meetingID: id) { fraction in
+                Task { @MainActor in self.importProgress = fraction }
+            }
+            try await store.finishRecording(RecordingResult(
+                meetingID: id,
+                chunks: result.chunks,
+                liveSegments: [],
+                duration: result.duration,
+                locale: settings.locale
+            ))
+            DebugLog.shared.log(
+                "import",
+                "\(DebugLog.short(id)): imported \(String(format: "%.1f", result.duration))s in \(result.chunks.count) chunk(s) in \(DebugLog.elapsed(since: started))"
+            )
+            #if os(iOS)
+            await coordinator.submitAfterRecording(title: title)
+            #endif
+        } catch {
+            DebugLog.shared.log("import", "import failed: \(error)")
+            importError = error.localizedDescription
+            if let meetingID { try? await store.delete(meetingID: meetingID) }
+        }
         await refresh()
     }
 
@@ -174,6 +238,17 @@ public final class AppModel {
             didSet { UserDefaults.standard.set(appleMapsPlaceNames, forKey: "appleMapsPlaceNames") }
         }
 
+        /// Identify speakers while recording (Nemotron 3 only). On by default: the
+        /// results are ready at stop, and the model is cheap to run alongside capture.
+        public var liveSpeakers: Bool {
+            didSet { UserDefaults.standard.set(liveSpeakers, forKey: "liveSpeakers") }
+        }
+
+        /// Whether the next recording identifies speakers as it goes.
+        public var identifiesSpeakersLive: Bool {
+            liveSpeakers && diarizationMethod == .nemotron3
+        }
+
         /// Shows the log viewer and the redo actions.
         public var debugMode: Bool {
             didSet { UserDefaults.standard.set(debugMode, forKey: "debugMode") }
@@ -186,6 +261,7 @@ public final class AppModel {
 
         public init() {
             self.debugMode = UserDefaults.standard.bool(forKey: "debugMode")
+            self.liveSpeakers = UserDefaults.standard.object(forKey: "liveSpeakers") as? Bool ?? true
             self.appleMapsPlaceNames = UserDefaults.standard.bool(forKey: "appleMapsPlaceNames")
             self.diarizationMethod = DiarizationMethod(
                 storedValue: UserDefaults.standard.string(forKey: DiarizationMethod.defaultsKey)

@@ -32,9 +32,17 @@ public actor MeetingStore {
         locale: Locale,
         consentAcknowledged: Bool,
         latitude: Double? = nil,
-        longitude: Double? = nil
+        longitude: Double? = nil,
+        startedAt: Date = Date()
     ) throws -> UUID {
-        let meeting = Meeting(title: title, type: type, locale: locale, latitude: latitude, longitude: longitude)
+        let meeting = Meeting(
+            title: title,
+            type: type,
+            startedAt: startedAt,
+            locale: locale,
+            latitude: latitude,
+            longitude: longitude
+        )
         meeting.consentAcknowledged = consentAcknowledged
         modelContext.insert(meeting)
         try modelContext.save()

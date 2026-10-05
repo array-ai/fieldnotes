@@ -37,6 +37,10 @@ public final class RecordingController {
     public private(set) var volatileText: String = ""
     public private(set) var segments: [TranscriptSegment] = []
     public private(set) var meetingID: UUID?
+    /// Speakers identified so far, when live identification is on. Lags the audio
+    /// by the model's window (about ten seconds).
+    public private(set) var liveSpans: [DiarizedSpan] = []
+    public private(set) var identifiesSpeakersLive = false
 
     private let engine = AVAudioEngine()
     #if os(iOS)
@@ -65,11 +69,19 @@ public final class RecordingController {
 
     // MARK: - Lifecycle
 
-    public func start(meetingID: UUID, title: String, type: MeetingType, locale: Locale) async throws {
+    public func start(
+        meetingID: UUID,
+        title: String,
+        type: MeetingType,
+        locale: Locale,
+        identifySpeakersLive: Bool = false
+    ) async throws {
         guard !isActive else { return }
         state = .preparing
         self.meetingID = meetingID
         self.locale = locale
+        liveSpans = []
+        identifiesSpeakersLive = false
 
         #if os(iOS)
         guard await sessionController.requestPermission() else {
@@ -89,6 +101,16 @@ public final class RecordingController {
         self.transcription = transcription
         try await transcription.start()
         observe(transcription)
+
+        if identifySpeakersLive {
+            do {
+                try await DiarizationService.shared.beginLive()
+                identifiesSpeakersLive = true
+            } catch {
+                // Not fatal: speakers are identified after stop instead.
+                DebugLog.shared.log("speakers", "live identification unavailable, will run after stop: \(error)")
+            }
+        }
 
         startPump()
         try installTapAndStart()
@@ -144,6 +166,16 @@ public final class RecordingController {
 
         let chunks = (try? await writer?.finish()) ?? []
         try? await diarizationBuffer?.close()
+        var liveSpeakerSpans: [DiarizedSpan]?
+        if identifiesSpeakersLive {
+            do {
+                liveSpeakerSpans = try await DiarizationService.shared.finishLive()?.spans
+            } catch {
+                DebugLog.shared.log("speakers", "live identification failed at stop, will run after stop instead: \(error)")
+                await DiarizationService.shared.cancelLive()
+            }
+            identifiesSpeakersLive = false
+        }
         let liveSegments = (try? await transcription?.finish()) ?? []
         transcription = nil
 
@@ -162,7 +194,8 @@ public final class RecordingController {
             chunks: chunks,
             liveSegments: liveSegments,
             duration: duration,
-            locale: locale
+            locale: locale,
+            liveSpeakerSpans: liveSpeakerSpans
         )
     }
 
@@ -194,25 +227,50 @@ public final class RecordingController {
         let writer = writer
         let diarization = diarizationBuffer
         let transcription = transcription
+        let live = identifiesSpeakersLive
 
         // Detached on purpose. A Task created here would inherit this type's
         // main-actor isolation, putting every audio buffer in the main actor's
         // region — and routing an hour of audio through the main actor to reach the
         // file writer would be wrong even if the compiler allowed it.
         pump = Task.detached(priority: .userInitiated) { [weak self] in
+            var liveRunning = live
             for await captured in stream {
                 // CapturedAudio is Sendable, so the same slice can go to all three
                 // actors without any of them taking ownership of the others' copy.
+                var samples: [Float] = []
                 do {
                     try await writer?.write(captured)
-                    try await diarization?.append(captured)
+                    samples = try await diarization?.append(captured) ?? []
                 } catch {
                     await self?.recordFailure(error)
+                }
+                if liveRunning {
+                    do {
+                        if let spans = try await DiarizationService.shared.appendLive(samples) {
+                            await self?.updateLiveSpans(spans)
+                        }
+                    } catch {
+                        // The recording carries on; speakers are found after stop.
+                        liveRunning = false
+                        await DiarizationService.shared.cancelLive()
+                        await self?.liveIdentificationFailed(error)
+                    }
                 }
                 await transcription?.append(captured)
                 await self?.meter(peak: captured.peakLevel)
             }
         }
+    }
+
+    private func updateLiveSpans(_ spans: [DiarizedSpan]) {
+        liveSpans = spans
+    }
+
+    private func liveIdentificationFailed(_ error: Error) {
+        identifiesSpeakersLive = false
+        liveSpans = []
+        DebugLog.shared.log("speakers", "live identification stopped, will run after stop instead: \(error)")
     }
 
     /// The meter and clock live on the main actor; the pump does not.
@@ -293,6 +351,9 @@ public struct RecordingResult: Sendable {
     public var liveSegments: [TranscriptSegment]
     public var duration: TimeInterval
     public var locale: Locale
+    /// Speakers identified while recording, if that was on and worked. The pipeline
+    /// uses these instead of running the batch pass.
+    public var liveSpeakerSpans: [DiarizedSpan]? = nil
 }
 
 public enum RecordingError: Error, LocalizedError {

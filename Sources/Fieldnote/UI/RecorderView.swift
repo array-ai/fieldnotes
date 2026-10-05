@@ -89,8 +89,15 @@ struct RecorderView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 8) {
-                    ForEach(model.recorder.segments.suffix(12)) { segment in
-                        Text(segment.text).font(.callout)
+                    ForEach(recentLines) { segment in
+                        VStack(alignment: .leading, spacing: 1) {
+                            if let speaker = segment.speakerID {
+                                Text(SpeakerLabel.display(speaker))
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                            }
+                            Text(segment.text).font(.callout)
+                        }
                     }
                     if !model.recorder.volatileText.isEmpty {
                         // Interim text. Shown, never persisted (spec 4.3).
@@ -137,6 +144,14 @@ struct RecorderView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
+    }
+
+    /// The last lines, labelled with whoever live identification says spoke them.
+    /// Lines newer than the model's ~10 s window stay unlabelled until it catches up.
+    private var recentLines: [TranscriptSegment] {
+        let lines = Array(model.recorder.segments.suffix(12))
+        guard !model.recorder.liveSpans.isEmpty else { return lines }
+        return SpeakerAlignment.apply(spans: model.recorder.liveSpans, to: lines)
     }
 
     private func start() async {

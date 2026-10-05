@@ -33,12 +33,16 @@ struct SettingsView: View {
                             Text(method.displayName).tag(method)
                         }
                     }
+                    if settings.diarizationMethod == .nemotron3 {
+                        Toggle("Identify while recording", isOn: $settings.liveSpeakers)
+                    }
                 } header: {
                     Text("Speaker identification")
                 } footer: {
                     Text(
                         """
                         \(settings.diarizationMethod.summary) Runs on this device. \
+                        \(settings.identifiesSpeakersLive ? "Speakers are labelled about ten seconds behind the conversation, and are ready when you stop. " : "")\
                         Changing this affects the next meeting, not existing ones.
                         """
                     )

@@ -35,17 +35,20 @@ public actor DiarizationBuffer {
 
     public var fileURL: URL { url }
 
-    public func append(_ audio: CapturedAudio) throws {
+    /// - Returns: the 16 kHz samples just written, for live speaker identification.
+    @discardableResult
+    public func append(_ audio: CapturedAudio) throws -> [Float] {
         guard let buffer = audio.makeBuffer() else {
             throw DiarizationBufferError.unsupportedFormat
         }
         let converted = try converter.convert(buffer)
-        guard let channel = converted.floatChannelData?[0] else { return }
+        guard let channel = converted.floatChannelData?[0] else { return [] }
         let frames = Int(converted.frameLength)
-        guard frames > 0 else { return }
+        guard frames > 0 else { return [] }
         let data = Data(bytes: channel, count: frames * MemoryLayout<Float>.size)
         try handle?.write(contentsOf: data)
         frameCount += frames
+        return Array(UnsafeBufferPointer(start: channel, count: frames))
     }
 
     public func flush() throws {

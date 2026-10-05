@@ -197,6 +197,17 @@ public actor ProcessingPipeline {
         }
 
         progress(.diarizing, 0)
+
+        if let live = await store.loadLiveSpans() {
+            debug.log("pipeline", "\(DebugLog.short(input.meetingID)): using the \(live.count) speaker spans identified while recording")
+            let labelled = SpeakerAlignment.apply(spans: live, to: segments)
+            try await store.saveSpans(live, embeddings: [:])
+            try await store.saveSegments(labelled)
+            try await store.markComplete(.diarizing, in: &checkpoint)
+            progress(.diarizing, 1.0)
+            return Diarization(segments: labelled, embeddings: [:])
+        }
+
         let buffer = try DiarizationBuffer(meetingID: input.meetingID)
         let samples: [Float]
         do {

@@ -48,6 +48,14 @@ public actor DiarizationService {
     private var legacyManager: DiarizerManager?
     private var community1Models: OfflineDiarizerModels?
     private var nemotron: Nemotron3Diarizer?
+    private var nemotronModels: Nemotron3Models?
+
+    /// Live identification during a recording: its own stream state, sharing the
+    /// loaded model with the batch path. The two never run at once — this actor
+    /// serialises every call — so sharing the model's buffers is safe.
+    private var live: Nemotron3Diarizer?
+    private var liveProbabilities: [Float] = []
+    private var liveFrames = 0
 
     public init() {}
 
@@ -186,8 +194,73 @@ public actor DiarizationService {
             computeUnits: .cpuAndNeuralEngine
         )
         let created = Nemotron3Diarizer(config: config, models: models)
+        nemotronModels = models
         nemotron = created
         return created
+    }
+
+    // MARK: - Live (Nemotron 3, while recording)
+
+    /// Starts identifying speakers from audio as it is recorded. Nemotron 3 is a
+    /// streaming model; with the bundled preset it labels each stretch of speech about
+    /// ten seconds after it is spoken.
+    public func beginLive() async throws {
+        let started = ContinuousClock.now
+        _ = try await preparedNemotron()
+        guard let models = nemotronModels else { return }
+        let diarizer = Nemotron3Diarizer(config: DiarizationModelProvider.nemotronConfig, models: models)
+        diarizer.reset()
+        live = diarizer
+        liveProbabilities = []
+        liveFrames = 0
+        debug.log("speakers", "live identification started (model ready in \(DebugLog.elapsed(since: started)))")
+    }
+
+    /// Feeds 16 kHz mono samples. Returns the updated spans when this audio completed
+    /// at least one more chunk of the model's window, nil otherwise.
+    public func appendLive(_ samples: [Float]) throws -> [DiarizedSpan]? {
+        guard let live, !samples.isEmpty else { return nil }
+        live.appendAudio(samples)
+        let results = try live.processBufferedAudio()
+        guard !results.isEmpty else { return nil }
+        for chunk in results {
+            liveProbabilities.append(contentsOf: chunk.probabilities)
+            liveFrames += chunk.frameCount
+        }
+        return liveSpans()
+    }
+
+    /// Flushes the tail and returns the whole recording's speakers. Nil if live
+    /// identification wasn't running.
+    public func finishLive() throws -> Output? {
+        guard let live else { return nil }
+        for chunk in try live.finishStream() {
+            liveProbabilities.append(contentsOf: chunk.probabilities)
+            liveFrames += chunk.frameCount
+        }
+        let spans = liveSpans()
+        self.live = nil
+        liveProbabilities = []
+        liveFrames = 0
+        debug.log("speakers", "live identification finished: \(spans.count) spans, \(Set(spans.map(\.speakerID)).count) speaker(s)")
+        return Output(spans: spans, embeddings: [:])
+    }
+
+    /// Stops without a result, after a failure.
+    public func cancelLive() {
+        live = nil
+        liveProbabilities = []
+        liveFrames = 0
+    }
+
+    private func liveSpans() -> [DiarizedSpan] {
+        let config = DiarizationModelProvider.nemotronConfig
+        return SpeakerActivity.spans(
+            probabilities: liveProbabilities,
+            frameCount: liveFrames,
+            speakerCount: config.numSpeakers,
+            frameSeconds: Double(config.outputFrameSeconds)
+        )
     }
 
     // MARK: - pyannote community-1

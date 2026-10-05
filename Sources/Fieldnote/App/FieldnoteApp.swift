@@ -33,6 +33,11 @@ struct FieldnoteApp: App {
                 .environment(model)
                 .modelContainer(container)
                 .task { await model.onLaunch() }
+                // "Open in Fieldnote" / "Copy to Fieldnote" from another app's share
+                // sheet, for any audio file (see CFBundleDocumentTypes).
+                .onOpenURL { url in
+                    Task { await model.importRecording(from: url) }
+                }
         }
     }
 }

@@ -1,10 +1,12 @@
 import FieldnoteKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct MeetingListView: View {
     @Environment(AppModel.self) private var model
     @State private var showingRecorder = false
     @State private var showingSettings = false
+    @State private var importing = false
     @State private var share = SharePresentation()
 
     var body: some View {
@@ -38,10 +40,43 @@ struct MeetingListView: View {
                     }
                 }
                 ToolbarItem(placement: .secondaryAction) {
+                    Button { importing = true } label: {
+                        Label("Import recording", systemImage: "square.and.arrow.down")
+                    }
+                    .disabled(model.importProgress != nil)
+                }
+                ToolbarItem(placement: .secondaryAction) {
                     Button { showingSettings = true } label: {
                         Label("Settings", systemImage: "gearshape")
                     }
                 }
+            }
+            .fileImporter(
+                isPresented: $importing,
+                allowedContentTypes: [.audio, .mpeg4Movie, .quickTimeMovie]
+            ) { result in
+                if case .success(let url) = result {
+                    Task { await model.importRecording(from: url) }
+                }
+            }
+            .safeAreaInset(edge: .bottom) {
+                if let progress = model.importProgress {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Importing recording…").font(.footnote)
+                        ProgressView(value: progress)
+                    }
+                    .padding(12)
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+                    .padding()
+                }
+            }
+            .alert("Import failed", isPresented: Binding(
+                get: { model.importError != nil },
+                set: { if !$0 { model.importError = nil } }
+            )) {
+                Button("OK") { model.importError = nil }
+            } message: {
+                Text(model.importError ?? "")
             }
             .overlay {
                 if model.meetings.isEmpty {

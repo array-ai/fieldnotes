@@ -23,12 +23,18 @@ you turn on Apple Maps place names.
   | **pyannote community-1** | Segmentation, speaker embeddings, then clustering over the whole recording |
   | **pyannote 3.1 (legacy)** | The original pipeline, kept for comparison |
 
-  Unnamed speakers show as Speaker A, Speaker B and so on. Picks up names from
+  With Nemotron 3, speakers can be identified while you record (on by default), so
+  they're ready the moment you stop. Unnamed speakers show as Speaker A, Speaker B and
+  so on. Picks up names from
   self-introductions ("Hi, I'm Priya") and lets you rename speakers by hand.
 - **Summarises** into minutes with Apple's on-device Foundation Models: overview,
   decisions, tasks, open questions. Every point cites the transcript lines it came
   from, and a point whose citation doesn't check out is dropped. Long transcripts are
   sized against the model's measured context and split where needed.
+- **Imports** recordings made elsewhere (Voice Memos, a dictaphone, audio downloaded
+  from a meeting service such as Fireflies): use Import in the meeting list, or
+  "Open in Fieldnote" from another app's share sheet. Imported audio is transcribed,
+  split by speaker and summarised like a recording made in the app.
 - **Exports** through the share sheet as Markdown, plain text, PDF, SRT/VTT subtitles
   or audio, sends tasks to Reminders, and makes encrypted backups.
 - **Keeps working in the background** after you press stop. Processing runs as a

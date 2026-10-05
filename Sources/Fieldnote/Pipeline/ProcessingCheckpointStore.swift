@@ -69,6 +69,16 @@ public actor ProcessingCheckpointStore {
         read([String: [Float]].self, from: "embeddings.json")
     }
 
+    /// Speakers identified while recording. Used instead of the batch pass when
+    /// present; cleared with the rest of the checkpoint, so a redo starts fresh.
+    public func saveLiveSpans(_ spans: [DiarizedSpan]) throws {
+        try write(spans, to: "live-spans.json")
+    }
+
+    public func loadLiveSpans() -> [DiarizedSpan]? {
+        read([DiarizedSpan].self, from: "live-spans.json")
+    }
+
     public func saveSummary(_ summary: MeetingSummary) throws {
         try write(summary, to: "summary.json")
     }
