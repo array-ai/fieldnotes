@@ -63,8 +63,11 @@ chmod +x "$SHIM_DIR/swift-build" "$SHIM_DIR/swift-package"
 # minimal Info.plist. Harmless if SwiftPM ever starts building it.
 SHIMS_SOURCE=".build/checkouts/swift-crypto/Sources/CXKCPShims/PrivacyInfo.xcprivacy"
 [ -f "$SHIMS_SOURCE" ] || "$REAL_SWIFT_PACKAGE" resolve >/dev/null
-for config in debug release; do
-  bundle=".build/arm64-apple-ios/$config/swift-crypto_CXKCPShims.bundle"
+# Both product layouts: SwiftPM's native one, and the swiftbuild one newer xtool
+# versions select themselves (their own --build-system flag overrides the shim's).
+for dir in .build/arm64-apple-ios/debug .build/arm64-apple-ios/release \
+           .build/out/Products/Debug-iphoneos .build/out/Products/Release-iphoneos; do
+  bundle="$dir/swift-crypto_CXKCPShims.bundle"
   mkdir -p "$bundle"
   [ -f "$SHIMS_SOURCE" ] && cp "$SHIMS_SOURCE" "$bundle/PrivacyInfo.xcprivacy"
   cat > "$bundle/Info.plist" <<'PLIST'
