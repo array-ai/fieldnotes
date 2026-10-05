@@ -96,9 +96,16 @@ public actor SummarizationService {
             debug.log("summary", "discarded \(grounded.discardedClaims) claim(s) with citations that didn't resolve")
         }
 
-        let rollupStarted = ContinuousClock.now
-        let overview = await rollup(points: notes.flatMap(\.points), meeting: meeting, budget: budget)
-        debug.log("summary", "overview written in \(DebugLog.elapsed(since: rollupStarted))")
+        let starts = Dictionary(finalized.map { ($0.id, $0.start) }, uniquingKeysWith: { first, _ in first })
+        let outlineStarted = ContinuousClock.now
+        let (overview, topics) = await outline(
+            candidates: grounded.topics,
+            fallbackPoints: notes.flatMap(\.points),
+            meeting: meeting,
+            budget: budget,
+            time: { starts[$0] ?? .greatestFiniteMagnitude }
+        )
+        debug.log("summary", "overview and \(topics.count) section(s) from \(grounded.topics.count) excerpt topic(s) in \(DebugLog.elapsed(since: outlineStarted))")
         progress(1.0)
 
         // Deterministic self-introduction detection ("My name is X") runs regardless
@@ -111,6 +118,7 @@ public actor SummarizationService {
 
         return MeetingSummary(
             overview: overview,
+            topics: topics,
             decisions: grounded.decisions,
             actionItems: grounded.actionItems,
             openQuestions: grounded.openQuestions,
@@ -129,7 +137,8 @@ public actor SummarizationService {
         return PromptBudget(
             contextSize: OnDeviceModel.contextSize(tier: tier),
             fixedCost: instructions + schema,
-            outputReserve: 1_024,
+            // Topic notes with details run longer than a flat point list.
+            outputReserve: 1_400,
             isMeasured: true
         )
     }
@@ -233,6 +242,52 @@ public actor SummarizationService {
     }
 
     // MARK: - Reduce
+
+    /// The overview, and the excerpt topics joined into the meeting's sections.
+    private func outline(
+        candidates: [SummaryTopic],
+        fallbackPoints: [String],
+        meeting: MeetingContext,
+        budget: PromptBudget,
+        time: (UUID) -> TimeInterval
+    ) async -> (overview: String, topics: [SummaryTopic]) {
+        guard !candidates.isEmpty else {
+            return (await rollup(points: fallbackPoints, meeting: meeting, budget: budget), [])
+        }
+
+        // Full summaries first; if that's too long, just the start of each.
+        var listing = candidates.map { (title: $0.title, summary: $0.summary) }
+        var prompt = PromptTemplates.outlinePrompt(topics: listing, meetingTitle: meeting.title)
+        if !budget.fits(promptTokens: await cost(of: prompt)) {
+            listing = candidates.map { (title: $0.title, summary: String($0.summary.prefix(80))) }
+            prompt = PromptTemplates.outlinePrompt(topics: listing, meetingTitle: meeting.title)
+        }
+
+        if budget.fits(promptTokens: await cost(of: prompt)) {
+            do {
+                let session = try OnDeviceModel.session(tier: tier, instructions: PromptTemplates.instructions)
+                let response = try await session.respond(to: prompt, generating: DraftOutline.self)
+                let sections = response.content.sections.map {
+                    TopicMerger.Section(
+                        title: $0.title,
+                        summary: $0.summary,
+                        members: $0.topicNumbers.map { $0 - 1 },
+                        emoji: $0.emoji
+                    )
+                }
+                let merged = TopicMerger.merge(candidates, sections: sections, time: time)
+                return (response.content.overview.trimmed(), merged)
+            } catch {
+                debug.log("summary", "outline failed (\(Failure(error).detail)); joining topics by title instead")
+            }
+        } else {
+            debug.log("summary", "\(candidates.count) excerpt topics are too many for one outline prompt; joining by title instead")
+        }
+
+        let merged = TopicMerger.mergeByTitle(candidates, time: time)
+        let overview = await rollup(points: merged.map { "\($0.title): \($0.summary)" }, meeting: meeting, budget: budget)
+        return (overview, merged)
+    }
 
     private func rollup(points: [String], meeting: MeetingContext, budget: PromptBudget) async -> String {
         guard !points.isEmpty else { return "" }

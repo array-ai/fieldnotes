@@ -27,8 +27,10 @@ you turn on Apple Maps place names.
   they're ready the moment you stop. Unnamed speakers show as Speaker A, Speaker B and
   so on. Picks up names from
   self-introductions ("Hi, I'm Priya") and lets you rename speakers by hand.
-- **Summarises** into minutes with Apple's on-device Foundation Models: overview,
-  decisions, tasks, open questions. Every point cites the transcript lines it came
+- **Summarises** into notes with Apple's on-device Foundation Models: an overview,
+  topic sections (headline, one-line summary, timestamped key points with supporting
+  details), action items grouped by owner, decisions and open questions. The meeting
+  list shows each meeting's top topics at a glance. Every point cites the transcript lines it came
   from, and a point whose citation doesn't check out is dropped. Long transcripts are
   sized against the model's measured context and split where needed.
 - **Imports** recordings made elsewhere (Voice Memos, a dictaphone, audio downloaded
@@ -72,7 +74,7 @@ SDKs are included.
 
 | | |
 |---|---|
-| Core logic (`Core/`) | Builds and tests on Linux, no Apple SDK. 91 tests, run in CI on every push |
+| Core logic (`Core/`) | Builds and tests on Linux, no Apple SDK. 97 tests, run in CI on every push |
 | App and widget | Build for `arm64-apple-ios27.0` in CI with Xcode 27, both through xtool and `xcodebuild` |
 | On a device | Runs on iPhone, with known small bugs. The device checks under [Testing](#testing) haven't all been done |
 | Linux device builds | Blocked: the bundled LLD can't read the iOS 27 SDK's stubs (see [Build](#build)) |

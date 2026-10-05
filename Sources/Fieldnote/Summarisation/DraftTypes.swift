@@ -10,8 +10,8 @@ import FoundationModels
 
 @Generable
 struct DraftChunkNotes {
-    @Guide(description: "Key points discussed in this excerpt, in the order they came up. Plain sentences, no bullets.")
-    var points: [String]
+    @Guide(description: "What was discussed in this excerpt, grouped into one to four topics, in the order they came up.")
+    var topics: [DraftTopic]
 
     @Guide(description: "Decisions the participants actually settled in this excerpt. Omit anything still open.")
     var decisions: [DraftDecision]
@@ -30,6 +30,30 @@ struct DraftChunkNotes {
         from context, tone, or how someone talks. Empty if no name was ever stated.
         """)
     var speakerNames: [DraftClaim]
+}
+
+@Generable
+struct DraftTopic {
+    @Guide(description: "A short headline for the topic, three to seven words, stating the point rather than naming the subject.")
+    var title: String
+
+    @Guide(description: "One sentence: what was said about it and where it landed.")
+    var summary: String
+
+    @Guide(description: "The key points made, in order. Two to five.")
+    var points: [DraftPoint]
+}
+
+@Generable
+struct DraftPoint {
+    @Guide(description: "The point, in one sentence.")
+    var text: String
+
+    @Guide(description: "Up to three short supporting details actually said: figures, names, reasons. Empty if none.")
+    var details: [String]
+
+    @Guide(description: "Line numbers from the excerpt where this point was made. At least one.")
+    var sourceLines: [Int]
 }
 
 @Generable
@@ -65,7 +89,41 @@ struct DraftClaim {
     var sourceLines: [Int]
 }
 
-/// The roll-up pass. Runs over the chunk notes, not over the raw transcript.
+/// The final pass: the meeting's overview, and which excerpt topics belong together
+/// as one section. Sees only topic titles and summaries, never transcript.
+@Generable
+struct DraftOutline {
+    @Guide(description: """
+        An overview of the whole meeting in one to three sentences, using only the \
+        topics given. No preamble, no 'in this meeting'.
+        """)
+    var overview: String
+
+    @Guide(description: """
+        The meeting's main topics in the order they were discussed. Put excerpt topics \
+        that are about the same subject into one section. Every excerpt topic belongs \
+        to exactly one section.
+        """)
+    var sections: [DraftSection]
+}
+
+@Generable
+struct DraftSection {
+    @Guide(description: "A headline of three to seven words stating the point, for example 'Dual MYOB systems reduce efficiency'.")
+    var title: String
+
+    @Guide(description: "One sentence on what was said and where it landed.")
+    var summary: String
+
+    @Guide(description: "One emoji that fits the topic.")
+    var emoji: String
+
+    @Guide(description: "The numbers of the excerpt topics this section covers. At least one.")
+    var topicNumbers: [Int]
+}
+
+/// The roll-up pass. Runs over the chunk notes, not over the raw transcript. Used
+/// for the overview when the outline pass fails.
 @Generable
 struct DraftRollup {
     @Guide(description: """
@@ -83,7 +141,15 @@ struct DraftRollup {
 extension DraftChunkNotes {
     var notes: ChunkNotes {
         ChunkNotes(
-            points: points,
+            topics: topics.map { topic in
+                NoteTopic(
+                    title: topic.title,
+                    summary: topic.summary,
+                    points: topic.points.map { NotePoint(text: $0.text, details: $0.details, sourceLines: $0.sourceLines) }
+                )
+            },
+            // The overview fallback reads these.
+            points: topics.map { "\($0.title): \($0.summary)" },
             decisions: decisions.map { NoteDecision(statement: $0.statement, sourceLines: $0.sourceLines) },
             actionItems: actionItems.map {
                 NoteActionItem(task: $0.task, owner: $0.owner, dueDate: $0.dueDate, sourceLines: $0.sourceLines)

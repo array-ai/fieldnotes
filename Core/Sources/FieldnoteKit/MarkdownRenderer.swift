@@ -14,8 +14,9 @@ public struct MarkdownRenderer: Sendable {
         public static let openQuestions = Sections(rawValue: 1 << 3)
         public static let mentionedSystems = Sections(rawValue: 1 << 4)
         public static let transcript = Sections(rawValue: 1 << 5)
+        public static let notes = Sections(rawValue: 1 << 6)
 
-        public static let summary: Sections = [.overview, .decisions, .actions, .openQuestions, .mentionedSystems]
+        public static let summary: Sections = [.overview, .notes, .actions, .decisions, .openQuestions, .mentionedSystems]
         public static let everything: Sections = [.summary, .transcript]
     }
 
@@ -38,16 +39,28 @@ public struct MarkdownRenderer: Sendable {
             if sections.contains(.overview), !summary.overview.isEmpty {
                 out.append(contentsOf: ["## Overview", "", summary.overview, ""])
             }
+            if sections.contains(.notes), let topics = summary.topics, !topics.isEmpty {
+                out.append(contentsOf: ["## Notes", ""])
+                for topic in topics {
+                    out.append(contentsOf: ["### \(topic.title)", ""])
+                    if !topic.summary.isEmpty { out.append(contentsOf: ["_\(topic.summary)_", ""]) }
+                    for point in topic.points {
+                        out.append("- \(point.text)\(citation(point.sourceSegmentID, in: meeting))")
+                        out.append(contentsOf: point.details.map { "  - \($0)" })
+                    }
+                    out.append("")
+                }
+            }
+            if sections.contains(.actions), !summary.actionItems.isEmpty {
+                out.append(contentsOf: ["## Action items", ""])
+                out.append(contentsOf: actionLines(summary.actionItems, in: meeting))
+                out.append("")
+            }
             if sections.contains(.decisions), !summary.decisions.isEmpty {
                 out.append(contentsOf: ["## Decisions", ""])
                 for decision in summary.decisions {
                     out.append("- \(decision.statement)\(citation(decision.sourceSegmentID, in: meeting))")
                 }
-                out.append("")
-            }
-            if sections.contains(.actions), !summary.actionItems.isEmpty {
-                out.append(contentsOf: ["## Action items", ""])
-                out.append(contentsOf: summary.actionItems.map { taskLine($0, in: meeting) })
                 out.append("")
             }
             if sections.contains(.openQuestions), !summary.openQuestions.isEmpty {
@@ -91,7 +104,7 @@ public struct MarkdownRenderer: Sendable {
             return "# \(meeting.title)\n\nNo action items.\n"
         }
         var out = ["# \(meeting.title) - action items", "", header(meeting), ""]
-        out.append(contentsOf: summary.actionItems.map { taskLine($0, in: meeting) })
+        out.append(contentsOf: actionLines(summary.actionItems, in: meeting))
         return out.joined(separator: "\n") + "\n"
     }
 
@@ -133,9 +146,25 @@ public struct MarkdownRenderer: Sendable {
         return "_\(parts.joined(separator: " · "))_"
     }
 
-    private func taskLine(_ item: ActionItem, in meeting: MeetingSnapshot) -> String {
+    /// Grouped under an owner heading when anyone owns anything; a flat list when
+    /// nobody does.
+    private func actionLines(_ items: [ActionItem], in meeting: MeetingSnapshot) -> [String] {
+        let groups = ActionItem.groupedByOwner(items)
+        guard groups.count > 1 || groups.first?.owner != "Unassigned" else {
+            return items.map { taskLine($0, in: meeting, showOwner: false) }
+        }
+        var lines: [String] = []
+        for group in groups {
+            lines.append(contentsOf: ["### \(group.owner)", ""])
+            lines.append(contentsOf: group.items.map { taskLine($0, in: meeting, showOwner: false) })
+            lines.append("")
+        }
+        return Array(lines.dropLast())
+    }
+
+    private func taskLine(_ item: ActionItem, in meeting: MeetingSnapshot, showOwner: Bool = true) -> String {
         var line = "- [ ] \(item.task)"
-        if let owner = item.owner, !owner.isEmpty { line += " — \(owner)" }
+        if showOwner, let owner = item.owner, !owner.isEmpty { line += " — \(owner)" }
         if let due = item.dueDate, !due.isEmpty {
             line += " (due \(due)"
             if let resolved = item.resolvedDueDate {

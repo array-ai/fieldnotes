@@ -37,8 +37,9 @@ public enum PromptTemplates {
         line is numbered and prefixed with the speaker label, as "N | Speaker: text". \
         Cite these line numbers.
 
-        Pull out what was discussed, decisions made, tasks people agreed to do, and \
-        questions left open.
+        Group what was discussed into topics, each with its key points and the \
+        details that support them. Also pull out decisions made, tasks people agreed \
+        to do, and questions left open.
 
         Transcript:
         \(chunk.promptText())
@@ -58,6 +59,21 @@ public enum PromptTemplates {
 
         Transcript:
         \(chunk.promptText())
+        """
+    }
+
+    /// The final pass: overview plus grouping of the excerpt topics into sections.
+    /// Sees topic titles and summaries only, numbered so the model can refer to them.
+    public static func outlinePrompt(topics: [(title: String, summary: String)], meetingTitle: String) -> String {
+        """
+        Below are the topics found in consecutive excerpts of one meeting titled \
+        "\(meetingTitle)". The same subject can appear in several excerpts.
+
+        Write an overview of the whole meeting, then group the numbered topics into \
+        the meeting's main sections. Use only what is written below.
+
+        Topics:
+        \(topics.enumerated().map { "\($0.offset + 1). \($0.element.title) — \($0.element.summary)" }.joined(separator: "\n"))
         """
     }
 

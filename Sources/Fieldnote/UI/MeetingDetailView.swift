@@ -248,29 +248,55 @@ struct SummarySections: View {
             if !summary.overview.isEmpty {
                 Section("Overview") { Text(summary.overview) }
             }
+            ForEach(summary.topics ?? []) { topic in
+                Section {
+                    if !topic.summary.isEmpty {
+                        Text(topic.summary)
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                    }
+                    ForEach(topic.points) { point in
+                        Button { onCitation(point.sourceSegmentID) } label: {
+                            VStack(alignment: .leading, spacing: 4) {
+                                CitedRow(text: point.text, time: time(point.sourceSegmentID))
+                                ForEach(point.details, id: \.self) { detail in
+                                    Label(detail, systemImage: "circle.fill")
+                                        .labelStyle(DetailBulletStyle())
+                                }
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                } header: {
+                    Text([topic.emoji, topic.title].compactMap { $0 }.joined(separator: " "))
+                }
+            }
+            if !summary.actionItems.isEmpty {
+                Section("Action items") {
+                    ForEach(ActionItem.groupedByOwner(summary.actionItems), id: \.owner) { group in
+                        Text(group.owner)
+                            .font(.subheadline.weight(.semibold))
+                        ForEach(group.items) { item in
+                            Button { onCitation(item.sourceSegmentID) } label: {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    CitedRow(text: item.task, time: time(item.sourceSegmentID))
+                                    if let due = item.dueDate {
+                                        Label(due, systemImage: "calendar")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+            }
             if !summary.decisions.isEmpty {
                 Section("Decisions") {
                     ForEach(summary.decisions) { decision in
                         Button { onCitation(decision.sourceSegmentID) } label: {
                             CitedRow(text: decision.statement, time: time(decision.sourceSegmentID))
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-            }
-            if !summary.actionItems.isEmpty {
-                Section("Action items") {
-                    ForEach(summary.actionItems) { item in
-                        Button { onCitation(item.sourceSegmentID) } label: {
-                            VStack(alignment: .leading, spacing: 4) {
-                                CitedRow(text: item.task, time: time(item.sourceSegmentID))
-                                HStack(spacing: 8) {
-                                    if let owner = item.owner { Label(owner, systemImage: "person") }
-                                    if let due = item.dueDate { Label(due, systemImage: "calendar") }
-                                }
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            }
                         }
                         .buttonStyle(.plain)
                     }
@@ -318,6 +344,21 @@ struct SummarySections: View {
 
     private func time(_ segmentID: UUID) -> String? {
         meeting.segments.first { $0.id == segmentID }.map { Timecode.short($0.start) }
+    }
+}
+
+/// A small indented bullet for a point's supporting details.
+private struct DetailBulletStyle: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            configuration.icon
+                .font(.system(size: 4))
+                .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + 4 }
+            configuration.title
+        }
+        .font(.footnote)
+        .foregroundStyle(.secondary)
+        .padding(.leading, 12)
     }
 }
 

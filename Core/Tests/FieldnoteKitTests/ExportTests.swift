@@ -50,10 +50,11 @@ struct ExportTests {
         #expect(markdown.contains("[0:04]"))
     }
 
-    @Test("Tasks export is a checklist with owner and due date")
+    @Test("Tasks export is a checklist grouped by owner, with due date")
     func tasksAreAChecklist() {
         let markdown = MarkdownRenderer().renderTasks(meeting())
-        #expect(markdown.contains("- [ ] Order a replacement switch — Dave (due tomorrow)"))
+        #expect(markdown.contains("### Dave"))
+        #expect(markdown.contains("- [ ] Order a replacement switch (due tomorrow"))
     }
 
     @Test("Transcript export uses speaker display names, not raw labels")

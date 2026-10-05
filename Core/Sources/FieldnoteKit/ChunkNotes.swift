@@ -17,6 +17,8 @@ import Foundation
 /// because it looks like grounding. So the prompt numbers the lines, the model cites
 /// numbers, and the grounder maps them back.
 public struct ChunkNotes: Sendable, Hashable {
+    /// What was discussed, grouped into topics with cited key points.
+    public var topics: [NoteTopic]
     public var points: [String]
     public var decisions: [NoteDecision]
     public var actionItems: [NoteActionItem]
@@ -30,6 +32,7 @@ public struct ChunkNotes: Sendable, Hashable {
     public var speakerNames: [NoteClaim]
 
     public init(
+        topics: [NoteTopic] = [],
         points: [String] = [],
         decisions: [NoteDecision] = [],
         actionItems: [NoteActionItem] = [],
@@ -37,6 +40,7 @@ public struct ChunkNotes: Sendable, Hashable {
         mentionedSystems: [String] = [],
         speakerNames: [NoteClaim] = []
     ) {
+        self.topics = topics
         self.points = points
         self.decisions = decisions
         self.actionItems = actionItems
@@ -50,6 +54,7 @@ public struct ChunkNotes: Sendable, Hashable {
     /// against the original chunk; duplicates are dropped later by the grounder.
     public func merged(with other: ChunkNotes) -> ChunkNotes {
         ChunkNotes(
+            topics: topics + other.topics,
             points: points + other.points,
             decisions: decisions + other.decisions,
             actionItems: actionItems + other.actionItems,
@@ -57,6 +62,33 @@ public struct ChunkNotes: Sendable, Hashable {
             mentionedSystems: mentionedSystems + other.mentionedSystems,
             speakerNames: speakerNames + other.speakerNames
         )
+    }
+}
+
+/// One topic as the model saw it in one excerpt.
+public struct NoteTopic: Sendable, Hashable {
+    public var title: String
+    public var summary: String
+    public var points: [NotePoint]
+
+    public init(title: String, summary: String = "", points: [NotePoint] = []) {
+        self.title = title
+        self.summary = summary
+        self.points = points
+    }
+}
+
+/// A key point under a topic, with short supporting details. The point carries the
+/// citation; the details are elaboration of the same cited lines.
+public struct NotePoint: Sendable, Hashable {
+    public var text: String
+    public var details: [String]
+    public var sourceLines: [Int]
+
+    public init(text: String, details: [String] = [], sourceLines: [Int]) {
+        self.text = text
+        self.details = details
+        self.sourceLines = sourceLines
     }
 }
 

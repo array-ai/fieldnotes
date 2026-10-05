@@ -19,6 +19,9 @@ public struct SummaryGrounder: Sendable {
     }
 
     public struct Outcome: Sendable {
+        /// Topics per excerpt, in transcript order, each point cited. Several of these
+        /// can be the same subject seen in different excerpts; `TopicMerger` joins them.
+        public var topics: [SummaryTopic] = []
         public var decisions: [Decision] = []
         public var actionItems: [ActionItem] = []
         public var openQuestions: [OpenQuestion] = []
@@ -42,6 +45,28 @@ public struct SummaryGrounder: Sendable {
         var seenSystems = Set<String>()
 
         for (draft, chunk) in zip(notes, chunks) {
+            for topic in draft.topics {
+                var points: [TopicPoint] = []
+                for point in topic.points {
+                    let text = point.text.trimmed()
+                    guard !text.isEmpty else { continue }
+                    guard let citations = resolve(point.sourceLines, in: chunk) else {
+                        outcome.discardedClaims += 1
+                        continue
+                    }
+                    points.append(
+                        TopicPoint(
+                            text: text,
+                            details: point.details.map { $0.trimmed() }.filter { !$0.isEmpty },
+                            sourceSegmentID: citations.primary
+                        )
+                    )
+                }
+                let title = topic.title.trimmed()
+                guard !points.isEmpty, !title.isEmpty else { continue }
+                outcome.topics.append(SummaryTopic(title: title, summary: topic.summary.trimmed(), points: points))
+            }
+
             for decision in draft.decisions {
                 guard let citations = resolve(decision.sourceLines, in: chunk) else {
                     outcome.discardedClaims += 1

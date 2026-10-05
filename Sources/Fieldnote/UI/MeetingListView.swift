@@ -130,6 +130,26 @@ struct MeetingRow: View {
             }
             .font(.caption)
             .foregroundStyle(.secondary)
+
+            // The meeting at a glance: the first few sections of its notes.
+            if let topics = meeting.summary?.topics, !topics.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(topics.prefix(3)) { topic in
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
+                            Text(topic.emoji ?? "•")
+                            Text("\(Text(topic.title).bold())\(topic.summary.isEmpty ? "" : ": \(topic.summary)")")
+                                .lineLimit(3)
+                        }
+                    }
+                }
+                .font(.subheadline)
+                .padding(.top, 6)
+            } else if let overview = meeting.summary?.overview, !overview.isEmpty {
+                Text(overview)
+                    .font(.subheadline)
+                    .lineLimit(3)
+                    .padding(.top, 4)
+            }
         }
         .padding(.vertical, 2)
     }

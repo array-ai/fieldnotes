@@ -4,6 +4,9 @@ import Foundation
 /// or it does not survive grounding.
 public struct MeetingSummary: Codable, Hashable, Sendable {
     public var overview: String
+    /// The notes, by topic, each point cited and timestamped. Nil for summaries
+    /// made before topics existed (optional, so those still decode).
+    public var topics: [SummaryTopic]?
     public var decisions: [Decision]
     public var actionItems: [ActionItem]
     public var openQuestions: [OpenQuestion]
@@ -21,6 +24,7 @@ public struct MeetingSummary: Codable, Hashable, Sendable {
 
     public init(
         overview: String = "",
+        topics: [SummaryTopic]? = nil,
         decisions: [Decision] = [],
         actionItems: [ActionItem] = [],
         openQuestions: [OpenQuestion] = [],
@@ -29,12 +33,45 @@ public struct MeetingSummary: Codable, Hashable, Sendable {
         speakerNames: [String: String] = [:]
     ) {
         self.overview = overview
+        self.topics = topics
         self.decisions = decisions
         self.actionItems = actionItems
         self.openQuestions = openQuestions
         self.mentionedSystems = mentionedSystems
         self.degradedChunks = degradedChunks
         self.speakerNames = speakerNames
+    }
+}
+
+public struct SummaryTopic: Codable, Hashable, Sendable, Identifiable {
+    public var id: UUID
+    public var title: String
+    /// One sentence on what the section covered and where it landed.
+    public var summary: String
+    public var points: [TopicPoint]
+    /// A single emoji for the meeting list's highlights. Decoration only.
+    public var emoji: String?
+
+    public init(id: UUID = UUID(), title: String, summary: String, points: [TopicPoint], emoji: String? = nil) {
+        self.id = id
+        self.title = title
+        self.summary = summary
+        self.points = points
+        self.emoji = emoji
+    }
+}
+
+public struct TopicPoint: Codable, Hashable, Sendable, Identifiable {
+    public var id: UUID
+    public var text: String
+    public var details: [String]
+    public var sourceSegmentID: UUID
+
+    public init(id: UUID = UUID(), text: String, details: [String] = [], sourceSegmentID: UUID) {
+        self.id = id
+        self.text = text
+        self.details = details
+        self.sourceSegmentID = sourceSegmentID
     }
 }
 
