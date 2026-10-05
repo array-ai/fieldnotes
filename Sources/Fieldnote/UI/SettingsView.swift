@@ -475,11 +475,15 @@ struct ModelsView: View {
             }
             .padding()
         }
-        .navigationTitle(switch kind {
+        .navigationTitle(title)
+    }
+
+    private var title: String {
+        switch kind {
         case .transcription: "Transcription models"
         case .speakers: "Speaker models"
         case .summary: "Notes models"
-        })
+        }
     }
 
     private var footer: String {
