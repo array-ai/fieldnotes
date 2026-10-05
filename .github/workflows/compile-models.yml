@@ -20,9 +20,9 @@ on:
         type: string
         default: publicarray/fieldnote-models
       architectures:
-        description: "Chip families to compile for, space separated (the app's debug log names its own). Empty: all, which is very slow"
+        description: "Chip families to compile for, space separated (the app's debug log names its own). 'h17*' style patterns pick from the valid names. Empty: all, which is very slow"
         type: string
-        default: h18p
+        default: "h17*"
 
 env:
   # Pinned sources, the same revisions the app's catalogue pins.
@@ -64,22 +64,37 @@ jobs:
       # All architectures in one process ran the runner out of memory (Qwen,
       # killed after 6 min), so: one architecture per process, smallest model
       # first, and a model that fails doesn't stop the others.
+      # coreai-build doesn't list its architectures, and an unknown one fails at
+      # once. So: try likely names, each stopped after a few seconds (a valid one
+      # starts compiling), keep the valid ones, then pick the requested ones.
       - name: List architectures
         env:
           ARCHS: ${{ inputs.architectures }}
         run: |
           set -uo pipefail
-          if [ -n "$ARCHS" ]; then
-            echo "$ARCHS" | tr ' ' '\n' | grep . > archs.txt
-            echo "architectures (given): $ARCHS"
-            exit 0
-          fi
           model=$(find src -name "*.aimodel" -maxdepth 3 | head -1)
-          # An unknown architecture makes coreai-build name the valid ones.
-          xcrun coreai-build compile "$model" --platform iOS --architecture none --output "$RUNNER_TEMP/probe" > probe.txt 2>&1 || true
-          cat probe.txt
-          grep -oE '\bh[0-9]+[a-z]*\b' probe.txt | sort -u > archs.txt || true
-          echo "architectures: $(tr '\n' ' ' < archs.txt)"
+          : > valid.txt
+          for gen in 13 14 15 16 17 18 19 20; do
+            for suffix in "" p g s m c d x a b e; do
+              arch="h$gen$suffix"
+              out=$(perl -e 'alarm shift; exec @ARGV' 6 xcrun coreai-build compile "$model" --platform iOS \
+                --architecture "$arch" --output "$RUNNER_TEMP/probe-$arch" 2>&1)
+              if ! grep -q "Unknown architecture" <<< "$out"; then echo "$arch" >> valid.txt; fi
+            done
+          done
+          rm -rf "$RUNNER_TEMP"/probe-*
+          echo "valid architectures: $(tr '\n' ' ' < valid.txt)" | tee -a "$GITHUB_STEP_SUMMARY"
+          : > archs.txt
+          set -f  # patterns like h17* are matched below, not against file names
+          for want in $ARCHS; do
+            for arch in $(cat valid.txt); do
+              case "$arch" in $want) echo "$arch" >> archs.txt ;; esac
+            done
+          done
+          sort -u -o archs.txt archs.txt
+          echo "compiling for: $(tr '\n' ' ' < archs.txt)" | tee -a "$GITHUB_STEP_SUMMARY"
+          [ -n "$ARCHS" ] && [ ! -s archs.txt ] && { echo "none of '$ARCHS' is a valid architecture"; exit 1; }
+          exit 0
 
       - name: Compile
         run: |
