@@ -59,15 +59,18 @@ done
 
 echo
 echo "== Constraint 1: no networking code at all"
-for needle in "URLSession" "URLRequest" "NSURLConnection" "import Network" "NWConnection" \
+for needle in "URLRequest" "NSURLConnection" "import Network" "NWConnection" \
               "CFReadStream" "WKWebView" "URLProtocol"; do
   check_absent "$needle" "no $needle"
 done
+# The one exception: user-initiated, pinned, hashed model downloads.
+check_absent "URLSession" "URLSession only in ModelDownloads" "Sources/Fieldnote/Models/ModelDownloads.swift"
 
 echo
 echo "== Constraint 1: no model downloads (FluidAudio's network-backed loaders)"
 for needle in "loadFromHuggingFace" "ModelHub" "DownloadUtils" "prepareModels(" "downloadIfNeeded" \
-              "DiarizerModels.download" "DiarizerModels.load(from" "OfflineDiarizerModels.load("; do
+              "DiarizerModels.download" "DiarizerModels.load(from" "OfflineDiarizerModels.load(" \
+              "AsrModels.load(" "AsrModels.downloadAndLoad" "downloadAndLoad("; do
   check_absent "$needle" "no $needle"
 done
 

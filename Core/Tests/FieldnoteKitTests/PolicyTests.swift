@@ -119,7 +119,6 @@ struct PolicyTests {
     @Test("No networking code anywhere in the app")
     func noNetworking() {
         let forbidden = [
-            "URLSession",
             "URLRequest",
             "NSURLConnection",
             "import Network",
@@ -148,12 +147,26 @@ struct PolicyTests {
             "downloadIfNeeded",
             "DiarizerModels.download",
             "DiarizerModels.load(from",
-            "OfflineDiarizerModels.load("
+            "OfflineDiarizerModels.load(",
+            "AsrModels.load(",
+            "AsrModels.downloadAndLoad",
+            "downloadAndLoad("
         ]
         for marker in forbidden {
             let offenders = PolicySourceScanner.filesContaining(marker)
             #expect(offenders.isEmpty, "Network-backed loader \(marker) found in: \(offenders.joined(separator: ", "))")
         }
+    }
+
+    /// Optional model downloads are the other sanctioned network use: only on a
+    /// tap, pinned, hashed, and only from `ModelDownloads`.
+    @Test("URLSession only in ModelDownloads")
+    func downloadsConfined() {
+        let offenders = PolicySourceScanner.filesContaining(
+            "URLSession",
+            excluding: ["Sources/Fieldnote/Models/ModelDownloads.swift"]
+        )
+        #expect(offenders.isEmpty, "URLSession outside ModelDownloads: \(offenders.joined(separator: ", "))")
     }
 
     /// The one sanctioned outbound request: naming a place with Apple Maps, opt-in

@@ -44,7 +44,7 @@ public final class AppModel {
         await refresh()
         // The first Neural Engine load compiles the speaker model (minutes, once per
         // install). Start it now so it's done before the first meeting ends.
-        let method = settings.diarizationMethod
+        let method = settings.diarizationMethod.isInstalled ? settings.diarizationMethod : .nemotron3
         Task(priority: .utility) { await DiarizationService.shared.warmUpInBackground(method) }
         await nameUnnamedPlaces()
         #if os(iOS)
@@ -86,7 +86,7 @@ public final class AppModel {
         if !recorder.identifiesSpeakersLive {
             // Load the speaker models now, so their first-load compile overlaps the
             // recording instead of delaying the results after stop.
-            let method = settings.diarizationMethod
+            let method = settings.diarizationMethod.isInstalled ? settings.diarizationMethod : .nemotron3
             Task(priority: .utility) { await DiarizationService.shared.prewarm(method) }
         }
         if let coordinate {
@@ -278,6 +278,11 @@ public final class AppModel {
             didSet { UserDefaults.standard.set(debugMode, forKey: "debugMode") }
         }
 
+        /// Which speech model writes the transcript after stop. See `TranscriptionEngine`.
+        public var transcriptionEngine: TranscriptionEngine {
+            didSet { UserDefaults.standard.set(transcriptionEngine.rawValue, forKey: TranscriptionEngine.defaultsKey) }
+        }
+
         /// Applies to the next recording processed. See `DiarizationMethod`.
         public var diarizationMethod: DiarizationMethod {
             didSet { UserDefaults.standard.set(diarizationMethod.rawValue, forKey: DiarizationMethod.defaultsKey) }
@@ -285,6 +290,9 @@ public final class AppModel {
 
         public init() {
             self.debugMode = UserDefaults.standard.bool(forKey: "debugMode")
+            self.transcriptionEngine = TranscriptionEngine(
+                storedValue: UserDefaults.standard.string(forKey: TranscriptionEngine.defaultsKey)
+            )
             self.notifyWhenProcessed = UserDefaults.standard.object(forKey: ProcessingNotifier.enabledKey) as? Bool ?? true
             self.liveSpeakers = UserDefaults.standard.object(forKey: "liveSpeakers") as? Bool ?? true
             self.appleMapsPlaceNames = UserDefaults.standard.bool(forKey: "appleMapsPlaceNames")

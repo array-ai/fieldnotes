@@ -1,8 +1,8 @@
 # Fieldnote
 
 A meeting recorder for iPhone that transcribes, works out who spoke when, and
-summarises, all on the device. No server, no account, and no network access unless
-you turn on Apple Maps place names.
+summarises, all on the device. No server, no account, and no network access except
+two things you choose: optional model downloads, and Apple Maps place names.
 
 > **Experimental.** Fieldnote runs on a real iPhone, but it still has small bugs.
 > Expect rough edges.
@@ -13,15 +13,16 @@ you turn on Apple Maps place names.
 
 - **Records** with a Live Activity on the lock screen. Audio is written to disk in
   chunks as it goes, so a crash or a kill loses seconds, not the meeting.
-- **Transcribes** live with Apple's `SpeechAnalyzer`, then re-transcribes from the
-  saved audio if the live pass missed anything.
-- **Identifies speakers** with one of three on-device models, chosen in Settings:
+- **Transcribes** live with Apple's `SpeechAnalyzer`. Optionally, NVIDIA's Parakeet
+  TDT v3 (a 483 MB download, 25 European languages) rewrites the transcript after you
+  stop, for better accuracy on meetings.
+- **Identifies speakers** on device, chosen in Settings:
 
-  | Method | What it is |
-  |---|---|
-  | **Nemotron 3** (default) | NVIDIA's end-to-end diarizer. Handles overlapping speech, up to 8 speakers |
-  | **pyannote community-1** | Segmentation, speaker embeddings, then clustering over the whole recording |
-  | **pyannote 3.1 (legacy)** | The original pipeline, kept for comparison |
+  | Method | What it is | |
+  |---|---|---|
+  | **Nemotron 3** (default) | NVIDIA's end-to-end diarizer. Handles overlapping speech, up to 8 speakers | built in |
+  | **pyannote community-1** | Segmentation, speaker embeddings, then clustering over the whole recording | 22 MB download |
+  | **pyannote 3.1 (legacy)** | The original pipeline, kept for comparison | 14 MB download |
 
   With Nemotron 3, speakers can be identified while you record (on by default), so
   they're ready the moment you stop. Speakers are assigned word by word (each word goes
@@ -61,11 +62,14 @@ Meetings can be renamed at any time from the meeting screen.
 
 This is the point of the app, and it is enforced by tests rather than by intention:
 
-- **No networking code.** The app contains no `URLSession` or similar, and requests no
-  network entitlement.
-- **No cloud models.** Every language-model session is pinned to the on-device model.
-- **No model downloads.** The speech-model files ship inside the app. The libraries'
-  download-on-first-use loaders are banned in the source.
+- **No network use you didn't ask for.** Two things can go online, both only when you
+  choose them, and each confined to one file by a policy check:
+  - **Optional models** (Settings → Models) download from Hugging Face when you tap
+    Download: pinned to a fixed version, every file checked against its SHA-256.
+  - **Apple Maps place names** (below).
+- **No cloud models.** Every model runs on the phone. Every language-model session is
+  pinned to Apple's on-device model, and the speech libraries' download-on-first-use
+  loaders are banned in the source.
 - **No Siri or Spotlight indexing.** There are no App Intents, so meeting content never
   reaches the system's semantic index.
 - **Location is opt-in.** The place is named offline (nearest suburb or town, from a
@@ -76,14 +80,14 @@ This is the point of the app, and it is enforced by tests rather than by intenti
 Meeting content leaves the phone only when you share it yourself.
 
 The one third-party library is [FluidAudio](https://github.com/FluidInference/FluidAudio),
-which runs the speaker-identification models with CoreML. No analytics or networking
+which runs the speaker and Parakeet models with CoreML. No analytics or networking
 SDKs are included.
 
 ## Status
 
 | | |
 |---|---|
-| Core logic (`Core/`) | Builds and tests on Linux, no Apple SDK. 118 tests, run in CI on every push |
+| Core logic (`Core/`) | Builds and tests on Linux, no Apple SDK. 125 tests, run in CI on every push |
 | App and widget | Build for `arm64-apple-ios27.0` in CI with Xcode 27, both through xtool and `xcodebuild` |
 | On a device | Runs on iPhone, with known small bugs. The device checks under [Testing](#testing) haven't all been done |
 | Linux device builds | Blocked: the bundled LLD can't read the iOS 27 SDK's stubs (see [Build](#build)) |
@@ -99,7 +103,7 @@ SDKs are included.
 
 ### Get the models
 
-The speaker-identification models aren't in git (about 132 MB). Fetch them from pinned
+The bundled speaker model (Nemotron 3) isn't in git (about 98 MB). Fetch it from pinned
 Hugging Face revisions and copy them into `Resources/DiarizationModels`:
 
 ```sh
@@ -164,6 +168,7 @@ swift test --package-path Core     # Linux or Mac, no device
 | No App Intents or semantic indexing | `PolicyTests.noAppIntents` |
 | No networking code, no network entitlements | `PolicyTests.noNetworking`, `noNetworkEntitlements` |
 | Apple Maps place lookups only in `PlaceNamer` | `PolicyTests.placeLookupsConfined` |
+| Model downloads only in `ModelDownloads` | `PolicyTests.downloadsConfined` |
 | No download-on-first-use model loaders | `PolicyTests.noModelDownloads` |
 | Background inference entitlement present | `PolicyTests.inferenceEntitlement` |
 
@@ -250,6 +255,6 @@ Left out on purpose; reasons are in [docs/decisions.md](docs/decisions.md):
 [0BSD](LICENSE): use it for anything, no attribution required, no warranty. The code
 was written almost entirely by AI, so a public-domain-style licence is the honest fit.
 
-Dependencies keep their own licences: FluidAudio is Apache-2.0, the bundled models are
-CC-BY-4.0 (pyannote) and OpenMDW-1.1 (Nemotron 3), and the offline place names come
+Dependencies keep their own licences: FluidAudio is Apache-2.0, Nemotron 3 is
+OpenMDW-1.1, the optional pyannote and Parakeet models are CC-BY-4.0, and the offline place names come
 from [GeoNames](https://www.geonames.org) (CC-BY 4.0).

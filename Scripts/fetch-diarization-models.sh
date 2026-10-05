@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Downloads the diarization CoreML models (all three DiarizationMethods) from
-# pinned HuggingFace revisions, to hand to vendor-diarization-models.sh. CI and
+# Downloads the bundled speaker model (Nemotron 3) from a pinned HuggingFace
+# revision, to hand to vendor-diarization-models.sh. CI and
 # local builds use it alike; the pins below are what gets reviewed.
 #
 # Usage: Scripts/fetch-diarization-models.sh <dest-dir>
@@ -11,15 +11,10 @@ DEST="${1:?usage: fetch-diarization-models.sh <dest-dir>}"
 # Pinned, not "main": a model bump should be a deliberate, reviewed change here,
 # the same way a dependency version bump is (see Resources/README.md).
 #
-# Three methods, all selectable in Settings (DiarizationMethod):
-#
-#   - pyannote 3.1 (legacy) and pyannote community-1 both come from
-#     FluidInference/speaker-diarization-coreml (pyannote finetunes, CC-BY-4.0),
-#     confirmed against the `diarizer` case in FluidAudio's ModelNames.swift.
-#   - Nemotron 3 comes from FluidInference/nemotron-3-diarization-coreml, a CoreML
-#     conversion of nvidia/Nemotron-3-Diarization (OpenMDW-1.1).
-PYANNOTE_REPO="FluidInference/speaker-diarization-coreml"
-PYANNOTE_REVISION="1ed7a662fdc7109e36d822db793ee6eebdaf8594"
+# Only Nemotron 3 is bundled: FluidInference/nemotron-3-diarization-coreml, a
+# CoreML conversion of nvidia/Nemotron-3-Diarization (OpenMDW-1.1). The pyannote
+# methods and Parakeet are optional in-app downloads, pinned and hashed in
+# Core/Sources/FieldnoteKit/ModelCatalogData.swift (Scripts/build-model-manifest.py).
 NEMOTRON_REPO="FluidInference/nemotron-3-diarization-coreml"
 NEMOTRON_REVISION="25a90f97f254428d4b30374b76af9c74fdee8327"
 
@@ -33,24 +28,6 @@ mlmodelc() {
   echo "$name/weights/weight.bin"
 }
 
-PYANNOTE_FILES=(
-  # pyannote 3.1 (legacy): DiarizationModelProvider.segmentationFile / .embeddingFile
-  $(mlmodelc pyannote_segmentation.mlmodelc)
-  "pyannote_segmentation.mlmodelc/metadata.json"
-  $(mlmodelc wespeaker_v2.mlmodelc)
-  "wespeaker_v2.mlmodelc/metadata.json"
-  # pyannote community-1: FluidAudio's ModelNames.OfflineDiarizer
-  $(mlmodelc Segmentation.mlmodelc)
-  "Segmentation.mlmodelc/metadata.json"
-  $(mlmodelc FBank.mlmodelc)
-  "FBank.mlmodelc/metadata.json"
-  $(mlmodelc Embedding.mlmodelc)
-  "Embedding.mlmodelc/metadata.json"
-  $(mlmodelc PldaRho.mlmodelc)
-  "PldaRho.mlmodelc/metadata.json"
-  "plda-parameters.json"
-)
-
 fetch() {
   local repo="$1" revision="$2" remote="$3" local_path="$4"
   mkdir -p "$DEST/$(dirname "$local_path")"
@@ -59,9 +36,6 @@ fetch() {
 }
 
 mkdir -p "$DEST"
-for file in "${PYANNOTE_FILES[@]}"; do
-  fetch "$PYANNOTE_REPO" "$PYANNOTE_REVISION" "$file" "$file"
-done
 
 # Nemotron 3, preset c128-split-w8a8 (DiarizationModelProvider.nemotronPreset).
 # Flattened into Nemotron3/: Nemotron3Models.load wants the .mlmodelc and both .bin

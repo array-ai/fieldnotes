@@ -87,7 +87,9 @@ public actor ProcessingPipeline {
         let hasLiveSpeakers = await store.loadLiveSpans() != nil
         let work = ProcessingEstimator.Work(
             transcribes: !checkpoint.isComplete(.transcribing)
-                && (checkpoint.redoTranscript == true || !coversRecording(input.liveSegments, duration: input.duration)),
+                && (checkpoint.redoTranscript == true
+                    || ParakeetTranscriber.isSelected(for: input.locale.identifier)
+                    || !coversRecording(input.liveSegments, duration: input.duration)),
             diarizes: !checkpoint.isComplete(.diarizing) && !hasLiveSpeakers,
             summarises: !checkpoint.isComplete(.summarising)
         )
@@ -163,6 +165,30 @@ public actor ProcessingPipeline {
         }
         progress(.transcribing, 0)
         let redo = checkpoint.redoTranscript == true
+
+        // Parakeet, if the user chose it and has it: always redoes the transcript
+        // after stop. Any failure falls back to Apple's transcript below.
+        if ParakeetTranscriber.isSelected(for: input.locale.identifier) {
+            do {
+                let segments = try await ParakeetTranscriber.transcribe(
+                    meetingID: input.meetingID,
+                    localeIdentifier: input.locale.identifier
+                ) { fraction in
+                    progress(.transcribing, fraction)
+                }
+                if !segments.isEmpty {
+                    try await store.saveSegments(segments)
+                    try await store.markComplete(.transcribing, in: &checkpoint)
+                    progress(.transcribing, 1.0)
+                    return segments
+                }
+                debug.log("pipeline", "\(DebugLog.short(input.meetingID)): Parakeet returned nothing; using Apple's transcript")
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                debug.log("pipeline", "\(DebugLog.short(input.meetingID)): Parakeet failed (\(error)); using Apple's transcript")
+            }
+        }
 
         // The live transcript is the normal case: it was produced while the meeting
         // was happening and there is nothing to redo. The file path exists for the
@@ -254,9 +280,15 @@ public actor ProcessingPipeline {
         }
         // Read at run time rather than captured at init: the pipeline runs off the main
         // actor inside a background task, long after Settings last changed.
-        let method = DiarizationMethod(
+        var method = DiarizationMethod(
             storedValue: UserDefaults.standard.string(forKey: DiarizationMethod.defaultsKey)
         )
+        if !method.isInstalled {
+            // A pyannote method chosen but not downloaded (or deleted): Nemotron is
+            // always bundled, so use it rather than fail the meeting.
+            debug.log("pipeline", "\(DebugLog.short(input.meetingID)): \(method.rawValue) isn't downloaded; using nemotron3")
+            method = .nemotron3
+        }
         let output = try await diarizer.diarize(samples: samples, method: method) { fraction in
             progress(.diarizing, fraction)
         }
@@ -328,5 +360,20 @@ enum ProcessingEstimates {
     static func save(_ estimator: ProcessingEstimator) {
         guard let data = try? JSONEncoder().encode(estimator) else { return }
         UserDefaults.standard.set(data, forKey: key)
+    }
+}
+
+extension DiarizationMethod {
+    /// Nemotron ships in the app; the pyannote methods are optional downloads.
+    public var modelPack: ModelPack.ID? {
+        switch self {
+        case .nemotron3: nil
+        case .pyannoteCommunity1: .pyannoteCommunity1
+        case .pyannoteLegacy: .pyannoteLegacy
+        }
+    }
+
+    public var isInstalled: Bool {
+        modelPack.map { ModelDownloads.installedDirectory(for: $0) != nil } ?? true
     }
 }

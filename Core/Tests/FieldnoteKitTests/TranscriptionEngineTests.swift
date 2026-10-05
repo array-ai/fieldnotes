@@ -1,0 +1,61 @@
+import FieldnoteKit
+import Foundation
+import Testing
+
+@Suite("Transcription engine")
+struct TranscriptionEngineTests {
+
+    private func words(_ text: String, gapAfter: [Int: Double] = [:]) -> [TranscriptWord] {
+        var time = 0.0
+        return text.split(separator: " ").enumerated().map { i, token in
+            let word = TranscriptWord(text: token + " ", start: time, end: time + 0.3)
+            time += 0.4 + (gapAfter[i] ?? 0)
+            return word
+        }
+    }
+
+    @Test("Lines end at sentences, once they have a few words")
+    func sentences() {
+        let lines = WordLines.lines(from: words("We need a new switch. Okay. Who orders it? I will do it today."))
+        #expect(lines.map(\.text) == ["We need a new switch.", "Okay. Who orders it?", "I will do it today."])
+    }
+
+    @Test("A pause starts a new line")
+    func pauses() {
+        let lines = WordLines.lines(from: words("so that is settled then right", gapAfter: [2: 1.5]))
+        #expect(lines.map(\.text) == ["so that is", "settled then right"])
+    }
+
+    @Test("Long runs are capped")
+    func cap() {
+        let lines = WordLines.lines(from: words(Array(repeating: "word", count: 90).joined(separator: " ")), maxWords: 40)
+        #expect(lines.map { $0.words?.count ?? 0 } == [40, 40, 10])
+    }
+
+    @Test("Lines keep their words and timings")
+    func timings() {
+        let lines = WordLines.lines(from: words("hello there everyone."))
+        #expect(lines.first?.words?.count == 3)
+        #expect(lines.first?.start == 0)
+        #expect(abs((lines.first?.end ?? 0) - 1.1) < 1e-9)
+    }
+
+    @Test("Parakeet covers European languages, not others")
+    func languages() {
+        #expect(TranscriptionEngine.parakeetSupports("en_AU"))
+        #expect(TranscriptionEngine.parakeetSupports("de-DE"))
+        #expect(!TranscriptionEngine.parakeetSupports("ja_JP"))
+        #expect(!TranscriptionEngine.parakeetSupports("zh-Hans"))
+    }
+
+    @Test("The model catalog is pinned and hashed")
+    func catalog() {
+        for pack in ModelPack.catalog {
+            #expect(pack.revision.count == 40, "\(pack.id) must pin a full commit, not a branch")
+            #expect(!pack.files.isEmpty)
+            #expect(pack.files.allSatisfy { $0.sha256.count == 64 && $0.size > 0 })
+            #expect(pack.url(for: pack.files[0]).absoluteString.contains("/resolve/\(pack.revision)/"))
+        }
+        #expect(Set(ModelPack.catalog.map(\.id)) == Set(ModelPack.ID.allCases))
+    }
+}

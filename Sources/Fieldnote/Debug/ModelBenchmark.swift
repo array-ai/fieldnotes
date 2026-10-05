@@ -48,6 +48,7 @@ public final class ModelBenchmark {
 
         await benchmarkSpeakers(meeting)
         await benchmarkTranscription(meeting, locale: locale)
+        await benchmarkParakeet(meeting, locale: locale)
         await benchmarkSummary(meeting)
 
         add("Device", "Thermal state after", Self.thermal(ProcessInfo.processInfo.thermalState))
@@ -90,6 +91,10 @@ public final class ModelBenchmark {
 
         let service = DiarizationService.shared
         for method in DiarizationMethod.allCases {
+            guard method.isInstalled else {
+                add("Speakers", method.displayName, "not downloaded (Settings → Models)")
+                continue
+            }
             status = "Speakers: \(method.displayName)…"
             await service.unload(method)
             let cold = ContinuousClock.now
@@ -153,6 +158,29 @@ public final class ModelBenchmark {
             )
         } catch {
             add("Transcription", "Apple speech model", "failed: \(error.localizedDescription)")
+        }
+    }
+
+    private func benchmarkParakeet(_ meeting: MeetingSnapshot, locale: Locale) async {
+        guard ModelDownloads.installedDirectory(for: .parakeetV3) != nil else {
+            add("Transcription", "Parakeet v3", "not downloaded (Settings → Models)")
+            return
+        }
+        status = "Transcription: Parakeet…"
+        let started = ContinuousClock.now
+        do {
+            let lines = try await ParakeetTranscriber.transcribe(
+                meetingID: meeting.id,
+                localeIdentifier: locale.identifier
+            ) { _ in }
+            add(
+                "Transcription",
+                "Parakeet v3",
+                String(format: "%.1f s of audio in %.2f s (%.0f× real time, including load) · %d line(s)",
+                       meeting.duration, seconds(since: started), meeting.duration / max(seconds(since: started), 0.001), lines.count)
+            )
+        } catch {
+            add("Transcription", "Parakeet v3", "failed: \(error.localizedDescription)")
         }
     }
 

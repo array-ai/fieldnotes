@@ -23,8 +23,9 @@
 	<array>
 		<integer>1</integer>
 	</array>
-	<!-- Fieldnote's only network use is the opt-in Apple Maps place lookup, which
-	     goes through Apple's own frameworks (exempt encryption). The app has no
+	<!-- Fieldnote's only network use is user-chosen: optional model downloads over
+	     HTTPS (URLSession) and the opt-in Apple Maps place lookup, both through
+	     Apple's own frameworks (exempt encryption). The app has no
 	     encryption of its own beyond Apple's CryptoKit for backups. This skips the
 	     export-compliance question App Store Connect otherwise asks on every upload. -->
 	<key>ITSAppUsesNonExemptEncryption</key>

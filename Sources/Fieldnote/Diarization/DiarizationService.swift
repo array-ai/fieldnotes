@@ -537,7 +537,8 @@ public enum DiarizationModelProvider {
     static let embeddingFile = "wespeaker_v2.mlmodelc"
 
     public static func legacyModels() throws -> DiarizerModels {
-        let directory = try modelDirectory()
+        // An optional download now, not bundled.
+        guard let directory = ModelDownloads.installedDirectory(for: .pyannoteLegacy) else { throw Failure.notDownloaded }
         // `load(localSegmentationModel:localEmbeddingModel:)` touches no network: its
         // own documentation says "No models are downloaded."
         return try DiarizerModels.load(
@@ -549,7 +550,8 @@ public enum DiarizationModelProvider {
     // MARK: pyannote community-1
 
     public static func community1Models() throws -> OfflineDiarizerModels {
-        let directory = try modelDirectory()
+        // An optional download now, not bundled.
+        guard let directory = ModelDownloads.installedDirectory(for: .pyannoteCommunity1) else { throw Failure.notDownloaded }
         let start = Date()
 
         func model(_ name: String, _ units: MLComputeUnits) throws -> MLModel {
@@ -633,14 +635,19 @@ public enum DiarizationModelProvider {
 
     public enum Failure: Error, LocalizedError {
         case modelsMissing
+        case notDownloaded
 
         public var errorDescription: String? {
-            """
-            The speaker-identification models are not in the app bundle. Fieldnote \
-            does not download them, by design. Vendor them into \
-            Resources/DiarizationModels before building — see \
-            Scripts/vendor-diarization-models.sh.
-            """
+            switch self {
+            case .notDownloaded:
+                "This speaker model isn't downloaded. Download it in Settings → Models."
+            case .modelsMissing:
+                """
+                The bundled Nemotron speaker model is missing from the app. Vendor it \
+                into Resources/DiarizationModels before building — see \
+                Scripts/fetch-diarization-models.sh.
+                """
+            }
         }
     }
 }

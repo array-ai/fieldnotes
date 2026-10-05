@@ -7,6 +7,21 @@ struct SettingsView: View {
 
     @State private var locales: [Locale] = []
     @State private var reminderLists: [(id: String, title: String)] = []
+    private var downloads: ModelDownloads { .shared }
+
+    private func transcriptionFooter(_ settings: AppModel.Settings) -> String {
+        var text = "One language per recording. Changing this affects the next meeting, not existing ones."
+        if settings.transcriptionEngine == .parakeet {
+            if !downloads.isInstalled(.parakeetV3) {
+                text += " Parakeet isn't downloaded yet, so Apple's model is used until it is."
+            } else if !TranscriptionEngine.parakeetSupports(settings.localeIdentifier) {
+                text += " Parakeet doesn't support this language, so Apple's model is used."
+            } else {
+                text += " The live transcript still comes from Apple's model; Parakeet rewrites it after you stop."
+            }
+        }
+        return text
+    }
 
     var body: some View {
         @Bindable var settings = model.settings
@@ -21,16 +36,25 @@ struct SettingsView: View {
                                 .tag(locale.identifier)
                         }
                     }
+                    Picker("Model", selection: $settings.transcriptionEngine) {
+                        ForEach(TranscriptionEngine.allCases, id: \.self) { engine in
+                            Text(engine == .parakeet && !downloads.isInstalled(.parakeetV3)
+                                 ? "\(engine.displayName) — download in Models"
+                                 : engine.displayName)
+                                .tag(engine)
+                        }
+                    }
                 } header: {
                     Text("Transcription")
                 } footer: {
-                    Text("One language per recording. Changing this affects the next meeting, not existing ones.")
+                    Text(transcriptionFooter(settings))
                 }
 
                 Section {
                     Picker("Method", selection: $settings.diarizationMethod) {
                         ForEach(DiarizationMethod.allCases, id: \.self) { method in
-                            Text(method.displayName).tag(method)
+                            Text(method.isInstalled ? method.displayName : "\(method.displayName) — download in Models")
+                                .tag(method)
                         }
                     }
                     if settings.diarizationMethod == .nemotron3 {
@@ -42,8 +66,26 @@ struct SettingsView: View {
                     Text(
                         """
                         \(settings.diarizationMethod.summary) Runs on this device. \
+                        \(settings.diarizationMethod.isInstalled ? "" : "Not downloaded yet, so Nemotron 3 is used until it is. ")\
                         \(settings.identifiesSpeakersLive ? "Speakers are labelled about ten seconds behind the conversation, and are ready when you stop. " : "")\
                         Changing this affects the next meeting, not existing ones.
+                        """
+                    )
+                }
+
+                Section {
+                    ForEach(ModelPack.catalog) { pack in
+                        ModelPackRow(pack: pack)
+                    }
+                } header: {
+                    Text("Models")
+                } footer: {
+                    Text(
+                        """
+                        Optional, and only downloaded when you tap Download: from \
+                        Hugging Face, at a fixed version, with every file checked \
+                        against its published checksum. Nothing else is sent. Nemotron 3 \
+                        and Apple's speech model are built in.
                         """
                     )
                 }
@@ -112,12 +154,7 @@ struct SettingsView: View {
                 }
 
                 Section {
-                    Label(
-                        settings.appleMapsPlaceNames
-                            ? "No accounts, no server; Apple Maps for place names only"
-                            : "No accounts, no server, no network",
-                        systemImage: "network.slash"
-                    )
+                    Label("No accounts, no server, no network unless you choose it", systemImage: "network.slash")
                     Label("Audio, transcripts and summaries stay on this device", systemImage: "iphone")
                     Label("Nothing is added to Spotlight or Siri", systemImage: "magnifyingglass")
                 } header: {
@@ -125,8 +162,8 @@ struct SettingsView: View {
                 } footer: {
                     Text(
                         """
-                        Fieldnote makes no outbound requests, apart from Apple Maps \
-                        place lookups if you turn them on. Meeting content leaves only \
+                        Fieldnote goes online only for model downloads you tap and Apple \
+                        Maps place names if you turn them on. Meeting content leaves only \
                         when you drive the share sheet yourself, and then it is the \
                         destination app's business, not Fieldnote's.
                         """
@@ -391,5 +428,41 @@ struct SummaryPromptEditor: View {
         SummaryPromptStore.save(prompt)
         saved = prompt
         DebugLog.shared.log("summary", prompt.isBuiltIn ? "summary prompt restored to built-in" : "summary prompt edited")
+    }
+}
+
+struct ModelPackRow: View {
+    let pack: ModelPack
+    private var downloads: ModelDownloads { .shared }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(pack.name)
+                    Text("\(pack.totalBytes.byteCountDescription) · \(pack.license)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                switch downloads.state(pack.id) {
+                case .notInstalled, .failed:
+                    Button("Download") { downloads.download(pack.id) }
+                        .buttonStyle(.bordered)
+                case .downloading:
+                    Button("Cancel", role: .cancel) { downloads.cancel(pack.id) }
+                        .buttonStyle(.bordered)
+                case .installed:
+                    Button("Delete", role: .destructive) { downloads.delete(pack.id) }
+                        .buttonStyle(.bordered)
+                }
+            }
+            if case .downloading(let fraction) = downloads.state(pack.id) {
+                ProgressView(value: fraction)
+            }
+            if case .failed(let message) = downloads.state(pack.id) {
+                Text(message).font(.caption).foregroundStyle(.red)
+            }
+        }
     }
 }
