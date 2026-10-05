@@ -5,9 +5,8 @@ name: Compile summary models ahead of time
 # instead of compiling it itself (Qwen3 1.7B ran out of memory doing that on an
 # iPhone 16, build 37).
 #
-# The first runs explore: they print coreai-build's help and what it produces,
-# with sizes and SHA-256s, and upload nothing. Set `upload` once the output is
-# right; it then goes to the Hugging Face repo with `hf upload` (Xet storage is
+# Every run lists what it produced, with sizes and SHA-256s. With `upload` set,
+# the output goes to the Hugging Face repo with `hf upload` (Xet storage is
 # handled by hf_xet), using the HF_TOKEN secret.
 on:
   workflow_dispatch:
@@ -43,15 +42,14 @@ jobs:
           "$RUNNER_TEMP/hf/bin/pip" install --quiet -U "huggingface_hub[hf_xet]"
           echo "$RUNNER_TEMP/hf/bin" >> "$GITHUB_PATH"
 
-      - name: Show the compiler
+      # coreai-build ships with the Metal Toolchain, an optional Xcode component.
+      - name: Install the Metal Toolchain
         run: |
+          set -euo pipefail
           xcodebuild -version
-          xcrun --find coreai-build || { echo "coreai-build not found in this Xcode"; exit 1; }
-          xcrun coreai-build --help || true
-          for sub in compile build list-architectures architectures; do
-            echo "--- coreai-build $sub --help"
-            xcrun coreai-build "$sub" --help 2>&1 | head -60 || true
-          done
+          xcodebuild -downloadComponent MetalToolchain
+          xcrun --find coreai-build
+          xcrun coreai-build compile --help
 
       - name: Download the portable models
         run: |
@@ -60,22 +58,16 @@ jobs:
           hf download "$MINICPM_REPO" --revision "$MINICPM_REV" --include "ios-static/*" --local-dir src/minicpm5
           find src -name "*.aimodel" -maxdepth 3
 
-      # coreai-build's flags aren't documented outside Xcode yet, so this tries the
-      # likely forms and reports which worked. The help above says which is right.
+      # As documented: one .aimodelc per device architecture, named
+      # <model>.<arch>.aimodelc, where <arch> is AIModel.deviceArchitectureName.
       - name: Compile
-        continue-on-error: true
         run: |
-          set -uo pipefail
+          set -euo pipefail
           mkdir -p out
           for model in $(find src -name "*.aimodel" -maxdepth 3); do
             name=$(basename "$model" .aimodel)
-            dest="out/$name"
-            mkdir -p "$dest"
             echo "=== $name"
-            xcrun coreai-build "$model" -o "$dest" \
-              || xcrun coreai-build compile "$model" -o "$dest" \
-              || xcrun coreai-build compile "$model" --output "$dest" \
-              || echo "no form worked for $name"
+            xcrun coreai-build compile "$model" --platform iOS --min-deployment-version 27.0 --output "out/$name"
           done
 
       - name: Report
