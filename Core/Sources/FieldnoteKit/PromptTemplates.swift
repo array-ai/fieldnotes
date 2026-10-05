@@ -9,18 +9,13 @@ public enum PromptTemplates {
 
     /// The rules that keep output honest.
     public static let groundingRules = """
-        Rules that always apply:
-        - Report only what was said. Do not infer, do not fill gaps, do not add advice.
-        - Every decision, action and open question must cite the line numbers it came \
-        from. A point you cannot cite must be left out.
-        - Copy names of people, products and places exactly as they appear, even when \
-        they look misspelt. They were transcribed from speech and the spelling is the \
-        user's to fix.
-        - Do not describe people. No traits, no tone, no judgements about anyone.
-        - Speaker labels (like "Speaker A" or "Unknown") are line formatting, not something \
-        anyone said. Never report one as a name or a point of its own.
-        - If the excerpt contains nothing of substance, return empty lists rather than \
-        padding with detail the transcript does not contain.
+        Rules:
+        - Only what was said. No inference or advice.
+        - Cite line numbers for every item; leave out what you can't cite.
+        - Copy names exactly as written.
+        - Don't describe people.
+        - Labels like "Speaker A" are not names.
+        - Nothing of substance: return empty lists.
         """
 
     /// Session instructions for every summarisation call, with the built-in prompt.
@@ -34,9 +29,8 @@ public enum PromptTemplates {
         request: String = SummaryPrompt.builtIn.request
     ) -> String {
         """
-        Excerpt \(chunkIndex + 1) of \(chunkCount) from a meeting transcript. Each \
-        line is numbered and prefixed with the speaker label, as "N | Speaker: text". \
-        Cite these line numbers.
+        Meeting transcript, part \(chunkIndex + 1) of \(chunkCount). Lines are \
+        "N | Speaker: text".
 
         \(request)
 
@@ -160,12 +154,8 @@ public struct SummaryPrompt: Codable, Sendable, Equatable {
     }
 
     public static let builtIn = SummaryPrompt(
-        preamble: "You write minutes and notes from a recorded meeting.",
-        request: """
-            Group what was discussed into topics, each with its key points and the \
-            details that support them. Also pull out decisions made, tasks people \
-            agreed to do, and questions left open.
-            """
+        preamble: "You write meeting notes.",
+        request: "List topics with key points, plus decisions, tasks and open questions."
     )
 
     public var isBuiltIn: Bool { self == .builtIn }

@@ -10,82 +10,76 @@ import FoundationModels
 
 @Generable
 struct DraftChunkNotes {
-    @Guide(description: "What was discussed in this excerpt, grouped into one to three topics, in the order they came up.")
+    @Guide(description: "One to three topics discussed, in order.")
     var topics: [DraftTopic]
 
-    @Guide(description: "Decisions the participants actually settled in this excerpt. Omit anything still open.")
+    @Guide(description: "Decisions made.")
     var decisions: [DraftDecision]
 
-    @Guide(description: "Tasks someone committed to. Omit vague intentions.")
+    @Guide(description: "Tasks someone agreed to do.")
     var actionItems: [DraftActionItem]
 
-    @Guide(description: "Questions raised in this excerpt that nobody answered.")
+    @Guide(description: "Unanswered questions.")
     var openQuestions: [DraftClaim]
 
-    @Guide(description: """
-        A speaker's real name, only when a participant actually said it -- someone \
-        introducing themselves ("My name is X", "This is X"), or another speaker \
-        addressing them by name ("Thanks, X"). Cite the line where the name was said \
-        or where they were addressed, not where they merely spoke. Do not guess a name \
-        from context, tone, or how someone talks. Empty if no name was ever stated.
-        """)
+    @Guide(description: "Names said for someone: \"I'm X\", \"Thanks, X\". Cite where said. Empty if none.")
     var speakerNames: [DraftClaim]
 }
 
 @Generable
 struct DraftTopic {
-    @Guide(description: "A short headline for the topic, three to seven words, stating the point rather than naming the subject.")
+    @Guide(description: "Three to seven word headline stating the point.")
     var title: String
 
-    @Guide(description: "One sentence: what was said about it and where it landed.")
+    @Guide(description: "One sentence.")
     var summary: String
 
-    @Guide(description: "The key points made, in order. Two to four, each one short sentence.")
+    @Guide(description: "Two to four short points.")
     var points: [DraftPoint]
 }
 
 @Generable
 struct DraftPoint {
-    @Guide(description: "The point, in one sentence.")
+    @Guide(description: "One sentence.")
     var text: String
 
-    @Guide(description: "Up to two supporting details actually said, a few words each: figures, names, reasons. Empty if none.")
+    @Guide(description: "Up to two brief facts said.")
     var details: [String]
 
-    @Guide(description: "Line numbers from the excerpt where this point was made. At least one.")
+    @Guide(description: "Line numbers.")
     var sourceLines: [Int]
 }
 
 @Generable
 struct DraftDecision {
-    @Guide(description: "The decision, stated in one sentence.")
+    @Guide(description: "One sentence.")
     var statement: String
 
-    @Guide(description: "Line numbers from the excerpt that show this decision being made. At least one.")
+    @Guide(description: "Line numbers.")
     var sourceLines: [Int]
 }
 
 @Generable
 struct DraftActionItem {
-    @Guide(description: "The task, stated as an imperative. One sentence.")
+    @Guide(description: "Imperative sentence.")
     var task: String
 
-    @Guide(description: "Who committed to it, exactly as named or labelled in the transcript. Empty if nobody was named.")
+    @Guide(description: "Who, as named. Empty if none.")
     var owner: String
 
-    @Guide(description: "The due date exactly as spoken, for example 'next Tuesday' or 'end of month'. Empty if none was given.")
+    @Guide(description: "When, as said. Empty if none.")
     var dueDate: String
 
-    @Guide(description: "Line numbers from the excerpt that show this commitment. At least one.")
+    @Guide(description: "Line numbers.")
     var sourceLines: [Int]
 }
 
 @Generable
 struct DraftClaim {
-    @Guide(description: "The point, in one sentence.")
+    @Guide(description: "One sentence.")
     var text: String
 
-    @Guide(description: "Line numbers from the excerpt that support it. At least one.")
+    @Guide(description: "Line numbers.")
     var sourceLines: [Int]
 }
 
@@ -93,32 +87,25 @@ struct DraftClaim {
 /// as one section. Sees only topic titles and summaries, never transcript.
 @Generable
 struct DraftOutline {
-    @Guide(description: """
-        An overview of the whole meeting in one to three sentences, using only the \
-        topics given. No preamble, no 'in this meeting'.
-        """)
+    @Guide(description: "One to three sentences on the whole meeting. No preamble.")
     var overview: String
 
-    @Guide(description: """
-        The meeting's main topics in the order they were discussed. Put excerpt topics \
-        that are about the same subject into one section. Every excerpt topic belongs \
-        to exactly one section.
-        """)
+    @Guide(description: "Main topics in order; join topics on the same subject. Each topic number in exactly one section.")
     var sections: [DraftSection]
 }
 
 @Generable
 struct DraftSection {
-    @Guide(description: "A headline of three to seven words stating the point, for example 'Dual MYOB systems reduce efficiency'.")
+    @Guide(description: "Three to seven word headline stating the point.")
     var title: String
 
-    @Guide(description: "One sentence on what was said and where it landed.")
+    @Guide(description: "One sentence.")
     var summary: String
 
-    @Guide(description: "One emoji that fits the topic.")
+    @Guide(description: "One fitting emoji.")
     var emoji: String
 
-    @Guide(description: "The numbers of the excerpt topics this section covers. At least one.")
+    @Guide(description: "Topic numbers covered.")
     var topicNumbers: [Int]
 }
 
@@ -126,13 +113,7 @@ struct DraftSection {
 /// for the overview when the outline pass fails.
 @Generable
 struct DraftRollup {
-    @Guide(description: """
-        An overview of the whole meeting, using only the notes given -- never anything \
-        from your own instructions, since those describe the setup, not what happened. Match the length to how much \
-        the notes actually contain: a one- or two-sentence answer is correct and \
-        preferred over padding when the notes are thin. No preamble, no 'in this \
-        meeting'.
-        """)
+    @Guide(description: "One to three sentences on the whole meeting. No preamble.")
     var overview: String
 }
 
