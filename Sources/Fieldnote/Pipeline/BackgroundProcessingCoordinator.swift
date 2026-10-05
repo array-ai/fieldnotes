@@ -41,6 +41,8 @@ public final class BackgroundProcessingCoordinator: @unchecked Sendable {
     private let stateLock = NSLock()
     private var runningTask: Task<Void, Never>?
     private var redriveRequested = false
+    /// Whether the running drain is in the app (true) or a background task (false).
+    private var drainIsInApp = false
     /// The meeting the running drain is processing right now, so it can be stopped.
     private var currentMeetingID: UUID?
 
@@ -176,6 +178,7 @@ public final class BackgroundProcessingCoordinator: @unchecked Sendable {
             // Summaries wait for an in-app run. If the app is open now, start it.
             await self?.continueInAppIfActive()
         }
+        drainIsInApp = false
         runningTask = work
         stateLock.unlock()
 
@@ -218,7 +221,9 @@ public final class BackgroundProcessingCoordinator: @unchecked Sendable {
         let work = Task { [weak self] in
             await self?.drainUntilIdle(reporting: reporter, inBackgroundTask: true)
             completion.complete()
+            await self?.continueInAppIfActive()
         }
+        drainIsInApp = false
         runningTask = work
         stateLock.unlock()
         task.expirationHandler = { [weak self] in
@@ -235,11 +240,15 @@ public final class BackgroundProcessingCoordinator: @unchecked Sendable {
 
         stateLock.lock()
         guard runningTask == nil else {
-            redriveRequested = true
+            // A background drain hands over to the app when it ends; asking it to
+            // loop again would only repeat the hand-over (three starts in a second at
+            // launch, build 27). An in-app drain does loop again to pick up new work.
+            if drainIsInApp { redriveRequested = true }
             stateLock.unlock()
-            log.notice("In-process drain requested while one is already running; the running drain will pick up its work")
+            log.notice("In-process drain requested while one is already running; it will run when that one finishes")
             return
         }
+        drainIsInApp = true
         runningTask = Task { [weak self] in
             // Writing notes needs the app in front: keep the phone from locking while
             // it runs, if the user wants that (on by default).
