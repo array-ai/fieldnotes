@@ -121,7 +121,21 @@ struct MeetingDetailView: View {
     private func content(_ meeting: MeetingSnapshot) -> some View {
         VStack(spacing: 0) {
             if meeting.state != .complete {
-                ProcessingStatusBanner(meeting: meeting)
+                ProcessingStatusBanner(
+                    meeting: meeting,
+                    onStop: {
+                        Task {
+                            await model.stopProcessing(meeting.id)
+                            await load()
+                        }
+                    },
+                    onRetry: {
+                        Task {
+                            await model.retryProcessing(meeting.id, title: meeting.title)
+                            pollGeneration += 1
+                        }
+                    }
+                )
             }
             Picker("View", selection: $tab) {
                 Text("Summary").tag(Tab.summary)
@@ -210,12 +224,18 @@ struct MeetingDetailView: View {
 
 struct ProcessingStatusBanner: View {
     let meeting: MeetingSnapshot
+    var onStop: () -> Void = {}
+    var onRetry: () -> Void = {}
 
     var body: some View {
         HStack(spacing: 8) {
             if meeting.state == .failed {
                 Image(systemName: "exclamationmark.triangle").foregroundStyle(.orange)
                 Text(meeting.failureMessage ?? "Processing failed. It will resume from the last completed stage.")
+                Spacer()
+                Button("Try again", action: onRetry)
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
             } else if meeting.state == .queued, let waiting = meeting.failureMessage {
                 Image(systemName: "hourglass").foregroundStyle(.secondary)
                 Text(waiting)
@@ -229,6 +249,15 @@ struct ProcessingStatusBanner: View {
                 }
             }
             Spacer()
+            if !meeting.state.isTerminal, meeting.state != .recording {
+                Button(action: onStop) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.body)
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.borderless)
+                .accessibilityLabel("Stop processing")
+            }
         }
         .font(.footnote)
         .padding(12)

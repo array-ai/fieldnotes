@@ -205,6 +205,28 @@ public final class AppModel {
         await refresh()
     }
 
+    // MARK: - Stop / retry
+
+    public func stopProcessing(_ meetingID: UUID) async {
+        let state = meetings.first { $0.id == meetingID }?.state.rawValue ?? "unknown"
+        DebugLog.shared.log("user", "\(DebugLog.short(meetingID)): stopped processing (was \(state))")
+        await store.markStopped(meetingID: meetingID)
+        #if os(iOS)
+        coordinator.stop(meetingID: meetingID)
+        #endif
+        await refresh()
+    }
+
+    public func retryProcessing(_ meetingID: UUID, title: String) async {
+        DebugLog.shared.log("user", "\(DebugLog.short(meetingID)): tapped Try again")
+        await store.requeue(meetingID: meetingID)
+        await ProcessingNotifier.shared.requestPermissionIfNeeded()
+        #if os(iOS)
+        await coordinator.submitRedo(title: "Processing \(title)")
+        #endif
+        await refresh()
+    }
+
     // MARK: - Editing
 
     public func renameMeeting(_ meetingID: UUID, to title: String) async {

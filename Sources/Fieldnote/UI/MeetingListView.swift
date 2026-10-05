@@ -25,6 +25,17 @@ struct MeetingListView: View {
                         SharePayloadMenu(meeting: meeting) { payload, format in
                             share.select(meeting: meeting, payload: payload, format: format)
                         }
+                        if !meeting.state.isTerminal, meeting.state != .recording {
+                            Divider()
+                            Button("Stop processing", systemImage: "xmark.circle", role: .destructive) {
+                                Task { await model.stopProcessing(meeting.id) }
+                            }
+                        } else if meeting.state == .failed {
+                            Divider()
+                            Button("Try again", systemImage: "arrow.clockwise") {
+                                Task { await model.retryProcessing(meeting.id, title: meeting.title) }
+                            }
+                        }
                     }
                 }
                 .onDelete(perform: delete)

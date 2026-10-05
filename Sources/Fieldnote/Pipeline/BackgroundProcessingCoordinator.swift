@@ -37,6 +37,8 @@ public final class BackgroundProcessingCoordinator: @unchecked Sendable {
     private let stateLock = NSLock()
     private var runningTask: Task<Void, Never>?
     private var redriveRequested = false
+    /// The meeting the running drain is processing right now, so it can be stopped.
+    private var currentMeetingID: UUID?
 
     public init(
         provider: any ProcessingJobProvider,
@@ -61,6 +63,28 @@ public final class BackgroundProcessingCoordinator: @unchecked Sendable {
 
     /// Picks up anything left unfinished by a previous launch — a kill mid-pipeline,
     /// a device restart. Checkpoints mean this resumes rather than restarts.
+    /// The user stopped a meeting's processing (the ✕ on its status). Its finished
+    /// stages stay checkpointed; the store marks it stopped so nothing restarts it
+    /// until the user asks. If it's the one running, the run is cancelled, and any
+    /// other waiting meetings carry on once it has wound down.
+    public func stop(meetingID: UUID) {
+        stateLock.lock()
+        let running = currentMeetingID == meetingID ? runningTask : nil
+        stateLock.unlock()
+        guard let running else { return }
+        running.cancel()
+        Task { [weak self] in
+            await running.value
+            self?.resumeUnfinishedWork()
+        }
+    }
+
+    private func setCurrent(_ id: UUID?) {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        currentMeetingID = id
+    }
+
     public func resumeUnfinishedWork() {
         Task { [weak self] in
             guard let self else { return }
@@ -195,6 +219,10 @@ public final class BackgroundProcessingCoordinator: @unchecked Sendable {
     private func drain(reporting reporter: ProgressReporter) async {
         for job in await provider.pendingJobs() {
             if Task.isCancelled { return }
+            // The list was fetched up front; skip a meeting the user stopped since.
+            guard await provider.pendingJobs().contains(where: { $0.meetingID == job.meetingID }) else { continue }
+            setCurrent(job.meetingID)
+            defer { setCurrent(nil) }
             reporter.reset()
             let pipeline = pipelineFactory(job.locale)
             do {

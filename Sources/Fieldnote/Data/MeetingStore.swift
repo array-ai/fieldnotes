@@ -61,15 +61,42 @@ public actor MeetingStore {
     }
 
     public func markStage(_ stage: ProcessingStage, meetingID: UUID, estimatedCompletion: Date?) async {
-        guard let meeting = try? meeting(with: meetingID) else { return }
+        guard let meeting = try? meeting(with: meetingID), !isStoppedByUser(meeting) else { return }
         meeting.processingState = ProcessingState(stage: stage)
         meeting.estimatedCompletion = estimatedCompletion
         meeting.failureMessage = nil
         try? modelContext.save()
     }
 
+    /// The user stopped processing. Not `queued`, so nothing picks it up again until
+    /// they tap Try again; the checkpoint keeps what already finished.
+    public func markStopped(meetingID: UUID) {
+        guard let meeting = try? meeting(with: meetingID), !meeting.processingState.isTerminal else { return }
+        meeting.processingState = .failed
+        meeting.failureMessage = Self.stoppedMessage
+        meeting.estimatedCompletion = nil
+        try? modelContext.save()
+    }
+
+    public static let stoppedMessage = "Stopped by you. Tap Try again to carry on from where it stopped."
+
+    /// A run being cancelled can still report a stage on its way out; that mustn't
+    /// undo the user's stop.
+    private func isStoppedByUser(_ meeting: Meeting) -> Bool {
+        meeting.processingState == .failed && meeting.failureMessage == Self.stoppedMessage
+    }
+
+    /// Puts a stopped or failed meeting back in the queue; it resumes from its last
+    /// finished stage.
+    public func requeue(meetingID: UUID) {
+        guard let meeting = try? meeting(with: meetingID), meeting.processingState == .failed else { return }
+        meeting.processingState = .queued
+        meeting.failureMessage = nil
+        try? modelContext.save()
+    }
+
     public func markWaiting(meetingID: UUID, message: String) async {
-        guard let meeting = try? meeting(with: meetingID) else { return }
+        guard let meeting = try? meeting(with: meetingID), !isStoppedByUser(meeting) else { return }
         meeting.processingState = .queued
         meeting.failureMessage = message
         meeting.estimatedCompletion = nil
