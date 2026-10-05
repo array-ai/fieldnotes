@@ -167,13 +167,24 @@ public final class ModelBenchmark {
             add("Summary", "Excerpt", "no transcript to summarise")
             return
         }
-        // One excerpt of about a third of the context, the size real chunks are.
-        let chunker = TranscriptChunker(budget: 1_200, overlap: 0)
-        guard let chunk = chunker.chunks(from: lines).first else { return }
+        // One excerpt sized the way real processing sizes it: whatever fits next to
+        // the instructions, the output schema and room for the answer.
         let summaryPrompt = SummaryPromptStore.load()
-        let prompt = PromptTemplates.chunkPrompt(
-            chunk: chunk, chunkIndex: 0, chunkCount: 1, request: summaryPrompt.effectiveRequest
+        let fixed = (await OnDeviceModel.tokenCount(instructions: summaryPrompt.instructions, tier: .coreAdvanced) ?? 400)
+            + (await OnDeviceModel.tokenCount(schema: DraftChunkNotes.generationSchema, tier: .coreAdvanced) ?? 800)
+        let budget = PromptBudget(
+            contextSize: OnDeviceModel.contextSize(tier: .coreAdvanced),
+            fixedCost: fixed,
+            outputReserve: 1_400,
+            isMeasured: true
         )
+        guard var chunk = TranscriptChunker(budget: budget.chunkBudget, overlap: 0).chunks(from: lines).first else { return }
+        var prompt = PromptTemplates.chunkPrompt(chunk: chunk, chunkIndex: 0, chunkCount: 1, request: summaryPrompt.effectiveRequest)
+        while let tokens = await OnDeviceModel.tokenCount(prompt: prompt, tier: .coreAdvanced),
+              !budget.fits(promptTokens: tokens), let (half, _) = chunk.halves() {
+            chunk = half
+            prompt = PromptTemplates.chunkPrompt(chunk: chunk, chunkIndex: 0, chunkCount: 1, request: summaryPrompt.effectiveRequest)
+        }
         let promptTokens = await OnDeviceModel.tokenCount(prompt: prompt, tier: .coreAdvanced)
 
         do {
