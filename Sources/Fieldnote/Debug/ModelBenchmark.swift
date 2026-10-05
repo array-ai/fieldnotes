@@ -153,7 +153,7 @@ public final class ModelBenchmark {
             add(
                 "Transcription",
                 "Apple speech model",
-                String(format: "%.1f s of audio in %.2f s (%.0f× real time) · %d line(s)",
+                String(format: "first %.1f s of audio in %.2f s (%.0f× real time) · %d line(s)",
                        first.duration, elapsed, first.duration / max(elapsed, 0.001), segments.count)
             )
         } catch {
@@ -184,7 +184,7 @@ public final class ModelBenchmark {
                 add(
                     "Transcription",
                     name,
-                    String(format: "%.1f s of audio in %.2f s (%.0f× real time, including load) · %d line(s)",
+                    String(format: "whole meeting, %.1f s of audio in %.2f s (%.0f× real time, including load) · %d line(s)",
                            meeting.duration, elapsed, meeting.duration / max(elapsed, 0.001), lines.count)
                 )
             } catch {
