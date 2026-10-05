@@ -242,6 +242,11 @@ public final class AppModel {
         await refresh()
     }
 
+    public func renameSpeaker(label: String, in meetingID: UUID, to name: String) async {
+        try? await store.renameSpeaker(label: label, in: meetingID, to: name)
+        await refresh()
+    }
+
     /// Debug mode: re-run one stage (and everything after it) for a finished meeting.
     public func redo(_ stage: MeetingStore.RedoStage, meetingID: UUID, title: String) async {
         await ProcessingNotifier.shared.requestPermissionIfNeeded()

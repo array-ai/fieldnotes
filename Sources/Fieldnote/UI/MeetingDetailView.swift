@@ -14,6 +14,9 @@ struct MeetingDetailView: View {
     @State private var share = SharePresentation()
     @State private var renaming = false
     @State private var newTitle = ""
+    /// The speaker label being renamed, e.g. "S1".
+    @State private var renamingSpeaker: String?
+    @State private var newSpeakerName = ""
     /// Bumped to restart polling after a redo is queued.
     @State private var pollGeneration = 0
     @State private var player = MeetingPlayer()
@@ -95,7 +98,26 @@ struct MeetingDetailView: View {
             }
             .disabled(newTitle.trimmed().isEmpty)
         }
-        .sharePresentation(share)
+        .alert(
+            "Rename speaker",
+            isPresented: Binding(get: { renamingSpeaker != nil }, set: { if !$0 { renamingSpeaker = nil } })
+        ) {
+            TextField("Name", text: $newSpeakerName)
+            Button("Cancel", role: .cancel) { renamingSpeaker = nil }
+            Button("Rename") {
+                guard let label = renamingSpeaker else { return }
+                renamingSpeaker = nil
+                Task {
+                    await model.renameSpeaker(label: label, in: meetingID, to: newSpeakerName)
+                    await load()
+                }
+            }
+        } message: {
+            if let label = renamingSpeaker {
+                Text("Every line by \(SpeakerLabel.display(label)) in this meeting. Leave empty to go back to \(SpeakerLabel.display(label)).")
+            }
+        }
+                .sharePresentation(share)
         .sheet(isPresented: $composing) {
             if let meeting { ComposedShareView(meeting: meeting) }
         }
@@ -188,7 +210,11 @@ struct MeetingDetailView: View {
                                 player.play(from: segment.start)
                             },
                             onEdit: { editingSegment = $0 },
-                            onRelabel: { relabelling = $0 }
+                            onRelabel: { relabelling = $0 },
+                            onRenameSpeaker: { label in
+                                newSpeakerName = meeting.speakerNames[label] ?? ""
+                                renamingSpeaker = label
+                            }
                         )
                     }
                 }
@@ -449,6 +475,7 @@ struct TranscriptSections: View {
     var onPlay: (TranscriptSegment) -> Void = { _ in }
     var onEdit: (TranscriptSegment) -> Void
     var onRelabel: (TranscriptSegment) -> Void
+    var onRenameSpeaker: (String) -> Void = { _ in }
 
     var body: some View {
         let lines = terms.isEmpty
@@ -466,6 +493,11 @@ struct TranscriptSections: View {
                         Text(speakerName(segment))
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(colour(segment))
+                            .onTapGesture {
+                                if let label = segment.speakerID { onRenameSpeaker(label) }
+                            }
+                            .accessibilityAddTraits(segment.speakerID == nil ? [] : .isButton)
+                            .accessibilityHint(segment.speakerID == nil ? "" : "Rename this speaker")
                         Text(Timecode.short(segment.start))
                             .font(.caption.monospacedDigit())
                             .foregroundStyle(.secondary)
@@ -482,7 +514,10 @@ struct TranscriptSections: View {
                 .id(segment.id)
                 .contextMenu {
                     Button("Play from here", systemImage: "play") { onPlay(segment) }
-                    Button("Change speaker", systemImage: "person.crop.circle") { onRelabel(segment) }
+                    if let label = segment.speakerID {
+                        Button("Rename \(speakerName(segment))…", systemImage: "character.cursor.ibeam") { onRenameSpeaker(label) }
+                    }
+                    Button("Change speaker for this line", systemImage: "person.crop.circle") { onRelabel(segment) }
                     Button("Edit text", systemImage: "pencil") { onEdit(segment) }
                 }
             }

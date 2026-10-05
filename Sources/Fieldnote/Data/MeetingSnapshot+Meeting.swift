@@ -10,6 +10,10 @@ extension MeetingSnapshot {
     /// `MeetingSnapshot` lives in another module, so an extension here cannot
     /// initialise its stored properties directly.
     init(meeting: Meeting) {
+        let names = Dictionary(
+            meeting.speakers.map { ($0.label, $0.name) },
+            uniquingKeysWith: { first, _ in first }
+        )
         self.init(
             id: meeting.id,
             title: meeting.title,
@@ -20,11 +24,9 @@ extension MeetingSnapshot {
             failureMessage: meeting.failureMessage,
             folderName: meeting.folder?.name,
             segments: meeting.orderedSegments.map(\.value),
-            speakerNames: Dictionary(
-                meeting.speakers.map { ($0.label, $0.name) },
-                uniquingKeysWith: { first, _ in first }
-            ),
-            summary: meeting.summary?.summary,
+            speakerNames: names,
+            // Shown and shared with the speakers' names; stored with letters.
+            summary: meeting.summary?.summary.applyingSpeakerNames(names),
             latitude: meeting.latitude,
             longitude: meeting.longitude,
             // Empty means "looked, found nothing" — shown as no name.

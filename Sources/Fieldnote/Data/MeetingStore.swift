@@ -268,6 +268,25 @@ public actor MeetingStore {
         try modelContext.save()
     }
 
+    /// Names a speaker label ("S1") in one meeting, everywhere it appears: transcript,
+    /// notes and search. An empty name goes back to "Speaker A". Kept when the
+    /// meeting is processed again (`replaceTranscript` carries names over by label).
+    public func renameSpeaker(label: String, in meetingID: UUID, to displayName: String?) throws {
+        guard let meeting = try meeting(with: meetingID) else { return }
+        let name = displayName?.trimmed().nilIfEmpty
+        if let speaker = meeting.speakers.first(where: { $0.label == label }) {
+            speaker.displayName = name
+        } else {
+            // A label the user assigned by hand has no speaker record yet.
+            let speaker = Speaker(label: label, displayName: name, embedding: nil)
+            speaker.meeting = meeting
+            modelContext.insert(speaker)
+        }
+        rebuildSearchText(for: meeting)
+        try modelContext.save()
+        DebugLog.shared.log("user", "\(DebugLog.short(meetingID)): renamed a speaker")
+    }
+
     /// Renames a speaker within this meeting only.
     public func renameSpeaker(_ speakerID: UUID, to displayName: String?) throws {
         let descriptor = FetchDescriptor<Speaker>(predicate: #Predicate { $0.id == speakerID })

@@ -33,3 +33,57 @@ public enum SpeakerLabel {
         return result
     }
 }
+
+extension SpeakerLabel {
+    /// Puts given names into text the model wrote with letter labels: "Speaker A
+    /// will send the deck" becomes "Priya will send the deck". Whole words only, so
+    /// "Speaker A" never matches inside "Speaker AB". Labels without a given name
+    /// (`names[label]` missing or still the letter form) are left as they are.
+    public static func applyNames(_ names: [String: String], to text: String) -> String {
+        var result = text
+        // Longest letter forms first, so "Speaker AA" is replaced before "Speaker A".
+        for (label, name) in names.sorted(by: { display($0.key).count > display($1.key).count }) {
+            let letterForm = display(label)
+            guard name != letterForm, letterForm != label,
+                  let pattern = try? NSRegularExpression(pattern: "\\b" + NSRegularExpression.escapedPattern(for: letterForm) + "\\b")
+            else { continue }
+            let range = NSRange(result.startIndex..., in: result)
+            result = pattern.stringByReplacingMatches(
+                in: result, range: range, withTemplate: NSRegularExpression.escapedTemplate(for: name)
+            )
+        }
+        return result
+    }
+}
+
+extension MeetingSummary {
+    /// The notes with the speakers' given names in place of "Speaker A" and so on,
+    /// for showing and sharing. The stored notes keep the letter forms, so a later
+    /// rename still applies.
+    public func applyingSpeakerNames(_ names: [String: String]) -> MeetingSummary {
+        let apply = { (text: String) in SpeakerLabel.applyNames(names, to: text) }
+        var copy = self
+        copy.overview = apply(overview)
+        copy.topics = topics?.map { topic in
+            var topic = topic
+            topic.title = apply(topic.title)
+            topic.summary = apply(topic.summary)
+            topic.points = topic.points.map { point in
+                var point = point
+                point.text = apply(point.text)
+                point.details = point.details.map(apply)
+                return point
+            }
+            return topic
+        }
+        copy.decisions = decisions.map { var item = $0; item.statement = apply(item.statement); return item }
+        copy.actionItems = actionItems.map { item in
+            var item = item
+            item.task = apply(item.task)
+            item.owner = item.owner.map(apply)
+            return item
+        }
+        copy.openQuestions = openQuestions.map { var item = $0; item.text = apply(item.text); return item }
+        return copy
+    }
+}
