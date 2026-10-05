@@ -28,7 +28,7 @@ public struct ModelPack: Sendable, Identifiable, Equatable {
         /// (`AIModel.deviceArchitectureName`, e.g. "h17g"), if one is offered.
         public func compiled(for architecture: String?) -> ID? {
             guard let architecture, let first = architecture.first else { return nil }
-            return ID(rawValue: rawValue + first.uppercased() + architecture.dropFirst())
+            return ID(rawValue: rawValue + first.uppercased() + String(architecture.dropFirst()))
         }
     }
 
