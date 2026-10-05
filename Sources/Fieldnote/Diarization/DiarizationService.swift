@@ -9,13 +9,12 @@ import OSLog
 /// modules are `SpeechTranscriber`, `DictationTranscriber` and `SpeechDetector`
 /// (voice activity only) — so this is FluidAudio's CoreML pipelines.
 ///
-/// Three interchangeable methods, chosen in Settings (`DiarizationMethod`):
+/// Two interchangeable methods, chosen in Settings (`DiarizationMethod`):
 ///
 /// - **Nemotron 3** — NVIDIA's end-to-end streaming Sortformer. Predicts up to eight
 ///   speakers per frame, overlap included, with no clustering step.
 /// - **pyannote community-1** — segmentation + WeSpeaker embeddings + PLDA/VBx
 ///   clustering over the whole recording.
-/// - **pyannote 3.1 (legacy)** — segmentation + WeSpeaker with greedy clustering.
 ///
 /// # Models are bundled, never downloaded
 ///
@@ -45,7 +44,6 @@ public actor DiarizationService {
 
     // One cached engine per method: loading compiles CoreML graphs, which is slow
     // enough to matter when a backlog of meetings is processed in one task.
-    private var legacyManager: DiarizerManager?
     private var community1Models: OfflineDiarizerModels?
 
     // Nemotron 3 has two loaded forms. The Neural Engine one is the fast one to run,
@@ -114,8 +112,6 @@ public actor DiarizationService {
                 output = try await diarizeNemotron(audio, progress: progress)
             case .pyannoteCommunity1:
                 output = try await diarizeCommunity1(try audio.all(), progress: progress)
-            case .pyannoteLegacy:
-                output = try diarizeLegacy(try audio.all(), progress: progress)
             }
         } catch {
             debug.log("speakers", "\(method.rawValue): failed after \(DebugLog.elapsed(since: runStarted)): \(error)")
@@ -182,8 +178,6 @@ public actor DiarizationService {
             cpuModels = nil
         case .pyannoteCommunity1:
             community1Models = nil
-        case .pyannoteLegacy:
-            legacyManager = nil
         }
     }
 
@@ -191,7 +185,6 @@ public actor DiarizationService {
         switch method {
         case .nemotron3: aneModels != nil
         case .pyannoteCommunity1: community1Models != nil
-        case .pyannoteLegacy: legacyManager != nil
         }
     }
 
@@ -199,7 +192,6 @@ public actor DiarizationService {
         switch method {
         case .nemotron3: _ = try await neuralEngineModels()
         case .pyannoteCommunity1: _ = try preparedCommunity1Models()
-        case .pyannoteLegacy: _ = try preparedLegacyManager()
         }
     }
 
@@ -501,51 +493,11 @@ public actor DiarizationService {
         return loaded
     }
 
-    // MARK: - pyannote 3.1 (legacy)
-
-    private func diarizeLegacy(
-        _ samples: [Float],
-        progress: @Sendable (Double) -> Void
-    ) throws -> Output {
-        let manager = try preparedLegacyManager()
-        progress(0.2)
-
-        let result = try manager.performCompleteDiarization(samples, sampleRate: 16_000)
-        progress(0.9)
-
-        var spans: [DiarizedSpan] = []
-        var embeddings: [String: [Float]] = [:]
-        for segment in result.segments {
-            let label = Self.label(for: segment.speakerId)
-            spans.append(
-                DiarizedSpan(
-                    start: TimeInterval(segment.startTimeSeconds),
-                    end: TimeInterval(segment.endTimeSeconds),
-                    speakerID: label,
-                    confidence: Double(segment.qualityScore)
-                )
-            )
-            if embeddings[label] == nil {
-                embeddings[label] = segment.embedding
-            }
-        }
-        return Output(spans: spans, embeddings: embeddings)
-    }
-
-    private func preparedLegacyManager() throws -> DiarizerManager {
-        if let legacyManager { return legacyManager }
-        let models = try DiarizationModelProvider.legacyModels()
-        let created = DiarizerManager()
-        created.initialize(models: models)
-        legacyManager = created
-        return created
-    }
 }
 
 /// Loads the vendored CoreML models from the app bundle.
 ///
-/// Deliberately never uses FluidAudio's convenience loaders. `DiarizerModels.load(from:)`,
-/// `OfflineDiarizerModels.load(from:)` and `Nemotron3Models.loadFromHuggingFace` all
+/// Deliberately never uses FluidAudio's convenience loaders. `OfflineDiarizerModels.load(from:)` and `Nemotron3Models.loadFromHuggingFace` all
 /// fall back to a network fetch when a file is missing — which would break constraint 1
 /// silently and only on a fresh install. Everything here reads local files only.
 public enum DiarizationModelProvider {
@@ -553,23 +505,6 @@ public enum DiarizationModelProvider {
     /// Where `xtool.yml` puts `Resources/DiarizationModels`: the bundle root.
     public static var bundledModelDirectory: URL? {
         Bundle.main.resourceURL?.appending(path: "DiarizationModels", directoryHint: .isDirectory)
-    }
-
-    // MARK: Legacy pyannote 3.1
-
-    /// From FluidAudio's `ModelNames.Diarizer`. Compiled CoreML bundles (`.mlmodelc`).
-    static let segmentationFile = "pyannote_segmentation.mlmodelc"
-    static let embeddingFile = "wespeaker_v2.mlmodelc"
-
-    public static func legacyModels() throws -> DiarizerModels {
-        // An optional download now, not bundled.
-        guard let directory = ModelDownloads.installedDirectory(for: .pyannoteLegacy) else { throw Failure.notDownloaded }
-        // `load(localSegmentationModel:localEmbeddingModel:)` touches no network: its
-        // own documentation says "No models are downloaded."
-        return try DiarizerModels.load(
-            localSegmentationModel: try existing(segmentationFile, in: directory),
-            localEmbeddingModel: try existing(embeddingFile, in: directory)
-        )
     }
 
     // MARK: pyannote community-1

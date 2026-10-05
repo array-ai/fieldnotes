@@ -55,7 +55,7 @@ public struct ProcessingEstimator: Codable, Sendable, Equatable {
     ///   Nemotron 3.5 Streaming runs while recording; from a file it's unmeasured.
     /// - Nemotron on the Neural Engine: 68 min in 33 s (0.5 s/min). Its one-off
     ///   compile (25–40 s on first use) is not counted: it happens once per install.
-    /// - pyannote community-1: 5 min in 1.4 s; pyannote 3.1: 5 min in 3.4 s.
+    /// - pyannote community-1: 5 min in 1.4 s.
     /// - Apple's language model: 18.6 min summarised in 290 s (15.6 s/min) at
     ///   ~35 tokens/s; on a hot or locked phone it ran at ~10 tokens/s (~30 s/min).
     ///   MiniCPM5 1B isn't measured yet.
@@ -67,7 +67,6 @@ public struct ProcessingEstimator: Codable, Sendable, Equatable {
         case (.transcribing, "nemotronStreaming"): Rate(fixed: 10, perMinute: 1.5)
         case (.transcribing, _): Rate(fixed: 3, perMinute: 4.5)
         case (.diarizing, "pyannoteCommunity1"): Rate(fixed: 3, perMinute: 0.6)
-        case (.diarizing, "pyannoteLegacy"): Rate(fixed: 3, perMinute: 1)
         case (.diarizing, _): Rate(fixed: 3, perMinute: 0.6)
         case (.summarising, "minicpm5"): Rate(fixed: 15, perMinute: 12)
         case (.summarising, _): Rate(fixed: 10, perMinute: 18)

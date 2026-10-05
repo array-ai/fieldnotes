@@ -441,7 +441,6 @@ extension DiarizationMethod {
         switch self {
         case .nemotron3: nil
         case .pyannoteCommunity1: .pyannoteCommunity1
-        case .pyannoteLegacy: .pyannoteLegacy
         }
     }
 

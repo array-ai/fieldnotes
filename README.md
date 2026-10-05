@@ -27,7 +27,6 @@ two things you choose: optional model downloads, and Apple Maps place names.
   |---|---|---|
   | **Nemotron 3** (default) | NVIDIA's end-to-end diarizer. Handles overlapping speech, up to 8 speakers | built in |
   | **pyannote community-1** | Segmentation, speaker embeddings, then clustering over the whole recording | 22 MB download |
-  | **pyannote 3.1 (legacy)** | The original pipeline, kept for comparison | 14 MB download |
 
   With Nemotron 3, speakers can be identified while you record (on by default), so
   they're ready the moment you stop. Speakers are assigned word by word (each word goes
@@ -205,7 +204,6 @@ your own from Settings → Debug → Benchmark.
 | Speakers | Nemotron 3, Neural Engine | 5 min / 68 min | 0.73 s / 33 s | 410× / 124× |
 | Speakers | Nemotron 3, CPU fallback | 5 min | 2.15 s | 140× |
 | Speakers | pyannote community-1 | 5 min | 1.39 s | 215× |
-| Speakers | pyannote 3.1 (legacy) | 5 min | 3.42 s | 88× |
 | Transcript | Parakeet TDT-CTC 110M | 18.6 min / 68 min | 5.0 s / 48.8 s | 224× / 84× |
 | Transcript | Apple speech, from the audio files | 18.6 min | 80 s | 14× |
 | Summary | Apple's on-device model | 18.6 min | 290 s | 27–40 tokens/s |

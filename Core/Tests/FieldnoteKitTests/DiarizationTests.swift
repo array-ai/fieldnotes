@@ -92,14 +92,15 @@ struct DiarizationMethodTests {
     func fallback() {
         #expect(DiarizationMethod(storedValue: nil) == .default)
         #expect(DiarizationMethod(storedValue: "somethingRemoved") == .default)
-        #expect(DiarizationMethod(storedValue: "pyannoteLegacy") == .pyannoteLegacy)
+        // pyannote 3.1 was removed: anyone who had picked it gets the default.
+        #expect(DiarizationMethod(storedValue: "pyannoteLegacy") == .default)
     }
 
     @Test("Stored raw values are stable")
     func rawValues() {
         // These are persisted in UserDefaults. Renaming a case silently resets every
         // user's choice to the default.
-        #expect(DiarizationMethod.allCases.map(\.rawValue) == ["nemotron3", "pyannoteCommunity1", "pyannoteLegacy"])
+        #expect(DiarizationMethod.allCases.map(\.rawValue) == ["nemotron3", "pyannoteCommunity1"])
     }
 }
 

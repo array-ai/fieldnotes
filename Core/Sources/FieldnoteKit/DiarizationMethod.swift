@@ -12,11 +12,9 @@ public enum DiarizationMethod: String, Codable, CaseIterable, Sendable {
     /// predicts up to eight speakers directly, overlap included. No clustering step.
     case nemotron3
     /// pyannote community-1: segmentation, WeSpeaker embeddings, then PLDA + VBx
-    /// clustering over the whole recording. The successor to pyannote 3.1.
+    /// clustering over the whole recording. (pyannote 3.1, which Fieldnote shipped
+    /// with first, was removed; a stored "pyannoteLegacy" falls back to the default.)
     case pyannoteCommunity1
-    /// pyannote 3.1-style: segmentation-3.0 plus WeSpeaker embeddings with greedy
-    /// online clustering. What Fieldnote shipped with first.
-    case pyannoteLegacy
 
     /// The UserDefaults key the app stores the choice under.
     public static let defaultsKey = "diarizationMethod"
@@ -33,7 +31,6 @@ public enum DiarizationMethod: String, Codable, CaseIterable, Sendable {
         switch self {
         case .nemotron3: "Nemotron 3 (NVIDIA)"
         case .pyannoteCommunity1: "pyannote community-1"
-        case .pyannoteLegacy: "pyannote 3.1 (legacy)"
         }
     }
 
@@ -43,8 +40,6 @@ public enum DiarizationMethod: String, Codable, CaseIterable, Sendable {
             "End-to-end, handles overlapping speech. Up to 8 speakers."
         case .pyannoteCommunity1:
             "Clusters the whole recording at once. No fixed speaker limit."
-        case .pyannoteLegacy:
-            "The pipeline Fieldnote first shipped with, kept for comparison."
         }
     }
 }

@@ -74,10 +74,9 @@ public enum TranscriptionEngine: String, Codable, CaseIterable, Sendable {
 ///   benchmarks (LibriSpeech test-clean: v2 ≈1.7%, v3 ≈2.3%, TDT-CTC 110M ≈2.5–3%).
 ///   Apple publishes no error rate for its on-device model; its accuracy is an
 ///   estimate. Speed for Apple's model is from the benchmark on an iPhone 16 Pro (71×).
-/// - Speakers: Nemotron 3 ≈9.5% DER on AMI (FluidInference's conversion); the
-///   pyannote pipelines are older and less accurate, and in the iPhone 16 Pro
-///   benchmark the legacy one also found the wrong number of speakers. Speeds are
-///   from that benchmark (Nemotron 410×, community-1 215×, legacy 88× real time).
+/// - Speakers: Nemotron 3 ≈9.5% DER on AMI (FluidInference's conversion); pyannote
+///   community-1 is older and less accurate. Speeds are from the iPhone 16 Pro
+///   benchmark (Nemotron 410×, community-1 215× real time).
 public struct ModelCard: Sendable, Equatable {
     public var title: String
     public var summary: String
@@ -141,11 +140,6 @@ extension DiarizationMethod {
                 title: "pyannote community-1",
                 summary: "Clusters the whole recording at once. No fixed speaker limit.",
                 accuracy: 0.72, speed: 0.85, languages: "Any number of speakers", runs: "After stop")
-        case .pyannoteLegacy:
-            ModelCard(
-                title: "pyannote 3.1 (legacy)",
-                summary: "The pipeline Fieldnote first shipped with, kept for comparison.",
-                accuracy: 0.55, speed: 0.6, languages: "Any number of speakers", runs: "After stop")
         }
     }
 }

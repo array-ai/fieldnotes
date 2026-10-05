@@ -22,7 +22,6 @@ public struct ModelPack: Sendable, Identifiable, Equatable {
         case minicpm5H17p
         case minicpm5H18p
         case pyannoteCommunity1
-        case pyannoteLegacy
 
         /// The build of this model compiled for a Core AI chip family
         /// (`AIModel.deviceArchitectureName`, e.g. "h17g"), if one is offered.

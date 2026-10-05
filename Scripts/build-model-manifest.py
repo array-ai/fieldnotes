@@ -100,14 +100,6 @@ PACKS = [
         "paths": ["Segmentation.mlmodelc", "FBank.mlmodelc", "Embedding.mlmodelc",
                   "PldaRho.mlmodelc", "plda-parameters.json"],
     },
-    {
-        "id": "pyannoteLegacy",
-        "name": "pyannote 3.1 (legacy)",
-        "repo": "FluidInference/speaker-diarization-coreml",
-        "revision": "1ed7a662fdc7109e36d822db793ee6eebdaf8594",
-        "license": "CC-BY-4.0",
-        "paths": ["pyannote_segmentation.mlmodelc", "wespeaker_v2.mlmodelc"],
-    },
 ]
 
 

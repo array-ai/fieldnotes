@@ -320,24 +320,5 @@ extension ModelPack {
                 ModelFile(path: "plda-parameters.json", size: 89416, sha256: "38ee28d4269c076cef254ee760bbd811f0738a92e0f01f9699ad372828c5de8f"),
             ]
         ),
-        ModelPack(
-            id: .pyannoteLegacy,
-            name: "pyannote 3.1 (legacy)",
-            repo: "FluidInference/speaker-diarization-coreml",
-            revision: "1ed7a662fdc7109e36d822db793ee6eebdaf8594",
-            license: "CC-BY-4.0",
-            files: [
-                ModelFile(path: "pyannote_segmentation.mlmodelc/analytics/coremldata.bin", size: 243, sha256: "b379db0541b35344a34bb7540783ae704c11599bbed5aa8bbbda11c20ad215ee"),
-                ModelFile(path: "pyannote_segmentation.mlmodelc/coremldata.bin", size: 316, sha256: "4a450ea1b053b9eb7eef0cab6971018076600840c7e246d064e7c5387f456c98"),
-                ModelFile(path: "pyannote_segmentation.mlmodelc/metadata.json", size: 1763, sha256: "44e1fa36d6abafacf688beccad99f7569394248d8bb41545829997c67668c08c"),
-                ModelFile(path: "pyannote_segmentation.mlmodelc/model.mil", size: 29490, sha256: "97f2dec6f83e80bf4247b98e13c2dde19f92c05820ef08068bbf554488d70bdd"),
-                ModelFile(path: "pyannote_segmentation.mlmodelc/weights/weight.bin", size: 5734720, sha256: "0266f4ad4d843ecf31ef9220ad6b80616b3ec64a4404b64f3ea0371554e236ec"),
-                ModelFile(path: "wespeaker_v2.mlmodelc/analytics/coremldata.bin", size: 243, sha256: "d2b1fcde6121aea3ff0e14c1dc50d09dacb0314a2e89156353c31804230a422f"),
-                ModelFile(path: "wespeaker_v2.mlmodelc/coremldata.bin", size: 359, sha256: "6feb2472a71fa9d8a84020c85206138a4f6261c565c9884bf518d59dd5838da7"),
-                ModelFile(path: "wespeaker_v2.mlmodelc/metadata.json", size: 2738, sha256: "ddc4858b4051254098015cd0b97080149839d697faf7b036f933190e70b26758"),
-                ModelFile(path: "wespeaker_v2.mlmodelc/model.mil", size: 706900, sha256: "2850f775d6ba659f01f616fed77ce6a45a25de3eb7e4bf3a4b07b658be4e13dd"),
-                ModelFile(path: "wespeaker_v2.mlmodelc/weights/weight.bin", size: 7243904, sha256: "34004f6798d35cad7071e2fdc67e63faaa782f53697e1cb49bcb452cf81ae151"),
-            ]
-        ),
     ]
 }
