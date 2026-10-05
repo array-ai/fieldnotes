@@ -19,6 +19,10 @@ on:
         description: "Hugging Face model repo to upload to"
         type: string
         default: publicarray/fieldnote-models
+      card_only:
+        description: "Only update the repo's README and LICENSE (no compile)"
+        type: boolean
+        default: false
       architectures:
         description: "Chip families to compile for, space separated (the app's debug log names its own). 'h17*' style patterns pick from the valid names. Empty: all, which is very slow"
         type: string
@@ -46,6 +50,7 @@ jobs:
 
       # coreai-build ships with the Metal Toolchain, an optional Xcode component.
       - name: Install the Metal Toolchain
+        if: ${{ !inputs.card_only }}
         run: |
           set -euo pipefail
           xcodebuild -version
@@ -54,6 +59,7 @@ jobs:
           xcrun coreai-build compile --help
 
       - name: Download the portable models
+        if: ${{ !inputs.card_only }}
         run: |
           set -euo pipefail
           hf download "$MINICPM_REPO" --revision "$MINICPM_REV" --include "ios-static/*" --local-dir src/minicpm5
@@ -68,6 +74,7 @@ jobs:
       # once. So: try likely names, each stopped after a few seconds (a valid one
       # starts compiling), keep the valid ones, then pick the requested ones.
       - name: List architectures
+        if: ${{ !inputs.card_only }}
         env:
           ARCHS: ${{ inputs.architectures }}
         run: |
@@ -97,6 +104,7 @@ jobs:
           exit 0
 
       - name: Compile
+        if: ${{ !inputs.card_only }}
         run: |
           set -uo pipefail
           mkdir -p out
@@ -123,6 +131,7 @@ jobs:
       # ios-<arch>/metadata.json (pointing at the compiled model), tokenizer/, and
       # <model>.<arch>.aimodelc. The app downloads only its own architecture's.
       - name: Bundle
+        if: ${{ !inputs.card_only }}
         run: |
           set -euo pipefail
           mkdir -p bundles
@@ -145,6 +154,7 @@ jobs:
           done
 
       - name: Report
+        if: ${{ !inputs.card_only }}
         run: |
           echo "## Compiled bundles" >> "$GITHUB_STEP_SUMMARY"
           for dir in bundles/*; do
@@ -152,16 +162,27 @@ jobs:
           done
 
       - name: Upload to Hugging Face
-        if: inputs.upload
+        if: inputs.upload || inputs.card_only
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           HF_REPO: ${{ inputs.hf_repo }}
+          CARD_ONLY: ${{ inputs.card_only }}
         run: |
           set -euo pipefail
+          # The model card and the model's licence go up with every upload.
+          mkdir -p card
+          cp Scripts/fieldnote-models-README.md card/README.md
+          hf download "$MINICPM_REPO" LICENSE --revision "$MINICPM_REV" --local-dir card-src
+          cp card-src/LICENSE card/LICENSE
+          if [ "$CARD_ONLY" = "true" ]; then
+            hf upload "$HF_REPO" card . --commit-message "Model card and licence"
+            exit 0
+          fi
           # Only output that worked: nothing goes up after a failed compile.
           if ! find bundles -name "*.aimodelc" -maxdepth 2 | grep -q .; then
             echo "nothing compiled; not uploading"
             exit 1
           fi
+          cp card/README.md card/LICENSE bundles/
           # Replaces the earlier loose compiled folders with the bundles.
           hf upload "$HF_REPO" bundles . --delete "minicpm5_1b_*/**" --commit-message "Ahead-of-time compiled summary models (run $GITHUB_RUN_NUMBER)"
