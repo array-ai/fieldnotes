@@ -178,7 +178,12 @@ public actor SummarizationService {
 
         do {
             let session = try OnDeviceModel.session(tier: tier, instructions: self.prompt.instructions)
+            let started = ContinuousClock.now
             let response = try await session.respond(to: prompt, generating: DraftChunkNotes.self)
+            debug.log(
+                "summary",
+                "chunk \(piece.index + 1): \(response.usage.input.totalTokenCount) tokens in, \(response.usage.output.totalTokenCount) out, \(DebugLog.elapsed(since: started))"
+            )
             return response.content.notes
         } catch {
             let failure = Failure(error)

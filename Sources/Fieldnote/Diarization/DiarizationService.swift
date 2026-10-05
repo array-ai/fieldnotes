@@ -208,8 +208,36 @@ public actor DiarizationService {
         _ samples: [Float],
         progress: @Sendable (Double) -> Void
     ) async throws -> Output {
+        try await runNemotron(samples, models: try await nemotronModelsForRun(), progress: progress)
+    }
+
+    /// Benchmark only: runs Nemotron on the CPU model, whatever else is loaded.
+    /// Returns the speaker count and the seconds the run took.
+    public func benchmarkNemotronOnCPU(_ samples: [Float]) async throws -> (speakers: Int, seconds: Double) {
+        if cpuModels == nil {
+            cpuModels = try await Nemotron3Models.load(
+                config: DiarizationModelProvider.nemotronConfig,
+                directory: try DiarizationModelProvider.nemotronDirectory(),
+                computeUnits: .cpuOnly
+            )
+        }
+        guard let cpuModels else { throw DiarizationModelProvider.Failure.modelsMissing }
+        let started = ContinuousClock.now
+        let output = try await runNemotron(samples, models: cpuModels, progress: { _ in })
+        let elapsed = started.duration(to: .now)
+        return (
+            Set(output.spans.map(\.speakerID)).count,
+            Double(elapsed.components.seconds) + Double(elapsed.components.attoseconds) / 1e18
+        )
+    }
+
+    private func runNemotron(
+        _ samples: [Float],
+        models: Nemotron3Models,
+        progress: @Sendable (Double) -> Void
+    ) async throws -> Output {
         let config = DiarizationModelProvider.nemotronConfig
-        let diarizer = Nemotron3Diarizer(config: config, models: try await nemotronModelsForRun())
+        let diarizer = Nemotron3Diarizer(config: config, models: models)
         progress(0.15)
         diarizer.reset()
 

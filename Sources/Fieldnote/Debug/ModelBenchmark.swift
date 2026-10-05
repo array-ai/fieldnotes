@@ -102,9 +102,6 @@ public final class ModelBenchmark {
             let warm = ContinuousClock.now
             await service.prewarm(method)
             let warmTime = seconds(since: warm)
-            if method == .nemotron3, let cpu = try? await service.timeCPULoad() {
-                add("Speakers", "Nemotron 3 CPU load", String(format: "%.2f s (the fallback while the Neural Engine model compiles)", cpu))
-            }
 
             let run = ContinuousClock.now
             do {
@@ -114,9 +111,20 @@ public final class ModelBenchmark {
                 add(
                     "Speakers",
                     method.displayName,
-                    String(format: "load %.2f s cold / %.2f s warm (Neural Engine for Nemotron) · run %.2f s (%.0f× real time) · %d speaker(s)",
+                    String(format: "%@load %.2f s cold / %.2f s warm · run %.2f s (%.0f× real time) · %d speaker(s)",
+                           method == .nemotron3 ? "Neural Engine: " : "",
                            coldTime, warmTime, runTime, audioSeconds / max(runTime, 0.001), speakers)
                 )
+                if method == .nemotron3 {
+                    let cpuLoad = try await service.timeCPULoad()
+                    let cpu = try await service.benchmarkNemotronOnCPU(samples)
+                    add(
+                        "Speakers",
+                        "Nemotron 3 on CPU",
+                        String(format: "load %.2f s · run %.2f s (%.0f× real time) · %d speaker(s). Used while the Neural Engine model compiles.",
+                               cpuLoad, cpu.seconds, audioSeconds / max(cpu.seconds, 0.001), cpu.speakers)
+                    )
+                }
             } catch {
                 add("Speakers", method.displayName, "failed: \(error.localizedDescription)")
             }
@@ -174,19 +182,19 @@ public final class ModelBenchmark {
             let response = try await session.respond(to: prompt, generating: DraftChunkNotes.self)
             let elapsed = seconds(since: started)
             let notes = response.content
-            let outputTokens = await OnDeviceModel.tokenCount(
-                prompt: String(describing: notes.topics.map(\.title)) + notes.topics.flatMap(\.points).map(\.text).joined(separator: " "),
-                tier: .coreAdvanced
-            )
+            let input = response.usage.input.totalTokenCount
+            let output = response.usage.output.totalTokenCount
             add(
                 "Summary",
                 "One excerpt",
-                String(format: "%d line(s), %@ prompt tokens · %.2f s · %d topic(s)%@",
+                String(format: "%d line(s) · %d tokens in (prompt %@), %d out · %.2f s · %.0f output tokens/s · %d topic(s)",
                        chunk.segments.count,
+                       input,
                        promptTokens.map(String.init) ?? "?",
+                       output,
                        elapsed,
-                       notes.topics.count,
-                       outputTokens.map { String(format: " · ~%.0f output tokens/s", Double($0) / max(elapsed, 0.001)) } ?? "")
+                       Double(output) / max(elapsed, 0.001),
+                       notes.topics.count)
             )
         } catch {
             add("Summary", "One excerpt", "failed: \(String(describing: error))")
