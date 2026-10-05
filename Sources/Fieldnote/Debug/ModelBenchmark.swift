@@ -101,6 +101,9 @@ public final class ModelBenchmark {
             let warm = ContinuousClock.now
             await service.prewarm(method)
             let warmTime = seconds(since: warm)
+            if method == .nemotron3, let cpu = try? await service.timeCPULoad() {
+                add("Speakers", "Nemotron 3 CPU load", String(format: "%.2f s (the fallback while the Neural Engine model compiles)", cpu))
+            }
 
             let run = ContinuousClock.now
             do {
@@ -110,7 +113,7 @@ public final class ModelBenchmark {
                 add(
                     "Speakers",
                     method.displayName,
-                    String(format: "load %.2f s cold / %.2f s warm · run %.2f s (%.0f× real time) · %d speaker(s)",
+                    String(format: "load %.2f s cold / %.2f s warm (Neural Engine for Nemotron) · run %.2f s (%.0f× real time) · %d speaker(s)",
                            coldTime, warmTime, runTime, audioSeconds / max(runTime, 0.001), speakers)
                 )
             } catch {

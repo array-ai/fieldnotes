@@ -47,15 +47,29 @@ public actor DiarizationService {
     // enough to matter when a backlog of meetings is processed in one task.
     private var legacyManager: DiarizerManager?
     private var community1Models: OfflineDiarizerModels?
-    private var nemotron: Nemotron3Diarizer?
-    private var nemotronModels: Nemotron3Models?
 
-    /// Live identification during a recording: its own stream state, sharing the
-    /// loaded model with the batch path. The two never run at once — this actor
-    /// serialises every call — so sharing the model's buffers is safe.
+    // Nemotron 3 has two loaded forms. The Neural Engine one is the fast one to run,
+    // but CoreML compiles it for the ANE on first load — about two minutes on an
+    // iPhone, measured — before caching the result. The CPU one loads in seconds.
+    // So the ANE load starts early (app launch) and runs once, shared by everyone
+    // waiting on it; anything that needs the model before it's ready uses the CPU
+    // one instead of waiting.
+    private var aneModels: Nemotron3Models?
+    private var aneLoad: Task<LoadedModels, Error>?
+    private var cpuModels: Nemotron3Models?
+
+    /// Live identification during a recording: its own stream state, sharing a
+    /// loaded model with the batch path. Calls never overlap — this actor serialises
+    /// them — so sharing the model's buffers is safe.
     private var live: Nemotron3Diarizer?
+    /// Requested but the model isn't ready yet: audio waits here, then catches up.
+    private var liveRequested = false
+    private var liveQueue: [Float] = []
     private var liveProbabilities: [Float] = []
     private var liveFrames = 0
+    /// Ten minutes of 16 kHz audio. Past this, waiting on the model isn't worth the
+    /// memory; speakers are found after stop instead.
+    private let maxLiveQueue = 16_000 * 600
 
     public init() {}
 
@@ -73,10 +87,13 @@ public actor DiarizationService {
         let seconds = String(format: "%.1f", Double(samples.count) / 16_000)
         debug.log("speakers", "\(method.rawValue): \(seconds)s of audio")
 
-        let loadStarted = ContinuousClock.now
-        let wasLoaded = isLoaded(method)
-        try await load(method)
-        debug.log("speakers", "\(method.rawValue): models \(wasLoaded ? "already loaded" : "loaded in \(DebugLog.elapsed(since: loadStarted))")")
+        if method != .nemotron3 {
+            // Nemotron logs its own load, which may be the CPU fallback.
+            let loadStarted = ContinuousClock.now
+            let wasLoaded = isLoaded(method)
+            try await load(method)
+            debug.log("speakers", "\(method.rawValue): models \(wasLoaded ? "already loaded" : "loaded in \(DebugLog.elapsed(since: loadStarted))")")
+        }
 
         let runStarted = ContinuousClock.now
         let output: Output
@@ -109,11 +126,37 @@ public actor DiarizationService {
         guard !isLoaded(method) else { return }
         let started = ContinuousClock.now
         do {
-            try await load(method)
+            if method == .nemotron3 {
+                _ = try await neuralEngineModels()
+            } else {
+                try await load(method)
+            }
             debug.log("speakers", "\(method.rawValue): prewarmed in \(DebugLog.elapsed(since: started))")
         } catch {
             debug.log("speakers", "\(method.rawValue): prewarm failed: \(error)")
         }
+    }
+
+    /// Starts the slow Neural Engine compile without waiting for it. Called at app
+    /// launch, so it is normally done long before a meeting ends.
+    public func warmUpInBackground(_ method: DiarizationMethod) {
+        if method == .nemotron3 {
+            startNeuralEngineLoad()
+        } else {
+            Task(priority: .utility) { await self.prewarm(method) }
+        }
+    }
+
+    /// Seconds to load Nemotron for the CPU, for the benchmark. Drops the result.
+    public func timeCPULoad() async throws -> Double {
+        let started = ContinuousClock.now
+        _ = try await Nemotron3Models.load(
+            config: DiarizationModelProvider.nemotronConfig,
+            directory: try DiarizationModelProvider.nemotronDirectory(),
+            computeUnits: .cpuOnly
+        )
+        let elapsed = started.duration(to: .now)
+        return Double(elapsed.components.seconds) + Double(elapsed.components.attoseconds) / 1e18
     }
 
     /// Drops a method's loaded models, so the benchmark can time a cold load.
@@ -121,9 +164,10 @@ public actor DiarizationService {
     public func unload(_ method: DiarizationMethod) {
         switch method {
         case .nemotron3:
-            guard live == nil else { return }
-            nemotron = nil
-            nemotronModels = nil
+            guard live == nil, !liveRequested else { return }
+            aneModels = nil
+            aneLoad = nil
+            cpuModels = nil
         case .pyannoteCommunity1:
             community1Models = nil
         case .pyannoteLegacy:
@@ -133,7 +177,7 @@ public actor DiarizationService {
 
     public func isLoaded(_ method: DiarizationMethod) -> Bool {
         switch method {
-        case .nemotron3: nemotron != nil
+        case .nemotron3: aneModels != nil
         case .pyannoteCommunity1: community1Models != nil
         case .pyannoteLegacy: legacyManager != nil
         }
@@ -141,7 +185,7 @@ public actor DiarizationService {
 
     private func load(_ method: DiarizationMethod) async throws {
         switch method {
-        case .nemotron3: _ = try await preparedNemotron()
+        case .nemotron3: _ = try await neuralEngineModels()
         case .pyannoteCommunity1: _ = try preparedCommunity1Models()
         case .pyannoteLegacy: _ = try preparedLegacyManager()
         }
@@ -164,11 +208,11 @@ public actor DiarizationService {
         _ samples: [Float],
         progress: @Sendable (Double) -> Void
     ) async throws -> Output {
-        let diarizer = try await preparedNemotron()
+        let config = DiarizationModelProvider.nemotronConfig
+        let diarizer = Nemotron3Diarizer(config: config, models: try await nemotronModelsForRun())
         progress(0.15)
         diarizer.reset()
 
-        let config = diarizer.config
         let slice = 60 * config.sampleRate
         var probabilities: [Float] = []
         var frameCount = 0
@@ -198,20 +242,62 @@ public actor DiarizationService {
         return Output(spans: spans, embeddings: [:])
     }
 
-    private func preparedNemotron() async throws -> Nemotron3Diarizer {
-        if let nemotron { return nemotron }
-        let config = DiarizationModelProvider.nemotronConfig
-        // Neural Engine, not GPU: this runs inside a background continued-processing
-        // task, and the split W8A8 build is 100% ANE-resident by design.
+    /// The Neural Engine models, waiting for the one shared load if it's running.
+    private func neuralEngineModels() async throws -> Nemotron3Models {
+        if let aneModels { return aneModels }
+        startNeuralEngineLoad()
+        guard let aneLoad else { throw DiarizationModelProvider.Failure.modelsMissing }
+        return try await aneLoad.value.models
+    }
+
+    private func startNeuralEngineLoad() {
+        guard aneModels == nil, aneLoad == nil else { return }
+        debug.log("speakers", "nemotron3: Neural Engine load started (first load compiles the model; slow once)")
+        aneLoad = Task {
+            let started = ContinuousClock.now
+            do {
+                // Neural Engine, not GPU: processing runs inside a background task,
+                // and the split W8A8 build is 100% ANE-resident by design.
+                let models = try await Nemotron3Models.load(
+                    config: DiarizationModelProvider.nemotronConfig,
+                    directory: try DiarizationModelProvider.nemotronDirectory(),
+                    computeUnits: .cpuAndNeuralEngine
+                )
+                self.aneModels = models
+                self.debug.log("speakers", "nemotron3: Neural Engine model ready in \(DebugLog.elapsed(since: started))")
+                return LoadedModels(models: models)
+            } catch {
+                self.aneLoad = nil
+                self.debug.log("speakers", "nemotron3: Neural Engine load failed: \(error)")
+                throw error
+            }
+        }
+    }
+
+    /// Whatever can run now: the Neural Engine models if they're ready, otherwise the
+    /// CPU models (loading those if needed) while the Neural Engine compile carries on
+    /// for next time.
+    private func nemotronModelsForRun() async throws -> Nemotron3Models {
+        if let aneModels {
+            debug.log("speakers", "nemotron3: using the Neural Engine model")
+            return aneModels
+        }
+        startNeuralEngineLoad()
+        if let cpuModels {
+            debug.log("speakers", "nemotron3: Neural Engine model not ready yet; using the CPU model")
+            return cpuModels
+        }
+        let started = ContinuousClock.now
         let models = try await Nemotron3Models.load(
-            config: config,
+            config: DiarizationModelProvider.nemotronConfig,
             directory: try DiarizationModelProvider.nemotronDirectory(),
-            computeUnits: .cpuAndNeuralEngine
+            computeUnits: .cpuOnly
         )
-        let created = Nemotron3Diarizer(config: config, models: models)
-        nemotronModels = models
-        nemotron = created
-        return created
+        // The ANE load may have finished while this one ran.
+        if let aneModels { return aneModels }
+        cpuModels = models
+        debug.log("speakers", "nemotron3: Neural Engine model not ready yet; CPU model loaded in \(DebugLog.elapsed(since: started))")
+        return models
     }
 
     // MARK: - Live (Nemotron 3, while recording)
@@ -219,21 +305,52 @@ public actor DiarizationService {
     /// Starts identifying speakers from audio as it is recorded. Nemotron 3 is a
     /// streaming model; with the bundled preset it labels each stretch of speech about
     /// ten seconds after it is spoken.
-    public func beginLive() async throws {
-        let started = ContinuousClock.now
-        _ = try await preparedNemotron()
-        guard let models = nemotronModels else { return }
-        let diarizer = Nemotron3Diarizer(config: DiarizationModelProvider.nemotronConfig, models: models)
-        diarizer.reset()
-        live = diarizer
+    ///
+    /// Returns at once. Recording never waits on the model: audio queues until a
+    /// model is ready (CPU within seconds, or the Neural Engine one if already
+    /// loaded), then catches up.
+    public func beginLive() {
+        live = nil
+        liveRequested = true
+        liveQueue = []
         liveProbabilities = []
         liveFrames = 0
-        debug.log("speakers", "live identification started (model ready in \(DebugLog.elapsed(since: started)))")
+        let requested = ContinuousClock.now
+        Task {
+            do {
+                let models = try await self.nemotronModelsForRun()
+                guard self.liveRequested, self.live == nil else { return }
+                let diarizer = Nemotron3Diarizer(config: DiarizationModelProvider.nemotronConfig, models: models)
+                diarizer.reset()
+                self.live = diarizer
+                let backlog = self.liveQueue
+                self.liveQueue = []
+                self.debug.log("speakers", "live identification running after \(DebugLog.elapsed(since: requested)), catching up on \(String(format: "%.1f", Double(backlog.count) / 16_000))s of audio")
+                _ = try? self.feedLive(backlog)
+            } catch {
+                self.debug.log("speakers", "live identification couldn't load a model: \(error)")
+                self.cancelLive()
+            }
+        }
     }
 
     /// Feeds 16 kHz mono samples. Returns the updated spans when this audio completed
     /// at least one more chunk of the model's window, nil otherwise.
     public func appendLive(_ samples: [Float]) throws -> [DiarizedSpan]? {
+        guard !samples.isEmpty else { return nil }
+        guard live != nil else {
+            guard liveRequested else { return nil }
+            liveQueue.append(contentsOf: samples)
+            if liveQueue.count > maxLiveQueue {
+                debug.log("speakers", "live identification gave up waiting for a model; speakers will be found after stop")
+                cancelLive()
+            }
+            return nil
+        }
+        return try feedLive(samples)
+    }
+
+    private func feedLive(_ samples: [Float]) throws -> [DiarizedSpan]? {
         guard let live, !samples.isEmpty else { return nil }
         live.appendAudio(samples)
         let results = try live.processBufferedAudio()
@@ -248,7 +365,14 @@ public actor DiarizationService {
     /// Flushes the tail and returns the whole recording's speakers. Nil if live
     /// identification wasn't running.
     public func finishLive() throws -> Output? {
-        guard let live else { return nil }
+        guard let live else {
+            if liveRequested {
+                debug.log("speakers", "live identification wasn't running by stop; speakers will be found after stop")
+            }
+            cancelLive()
+            return nil
+        }
+        liveRequested = false
         for chunk in try live.finishStream() {
             liveProbabilities.append(contentsOf: chunk.probabilities)
             liveFrames += chunk.frameCount
@@ -264,6 +388,8 @@ public actor DiarizationService {
     /// Stops without a result, after a failure.
     public func cancelLive() {
         live = nil
+        liveRequested = false
+        liveQueue = []
         liveProbabilities = []
         liveFrames = 0
     }
@@ -485,4 +611,11 @@ public enum DiarizationModelProvider {
             """
         }
     }
+}
+
+/// Carries a loaded model out of the load task. `Nemotron3Models` holds CoreML
+/// objects and isn't Sendable; it is only ever used on `DiarizationService`.
+final class LoadedModels: @unchecked Sendable {
+    let models: Nemotron3Models
+    init(models: Nemotron3Models) { self.models = models }
 }

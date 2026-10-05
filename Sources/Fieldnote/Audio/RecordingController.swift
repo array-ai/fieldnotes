@@ -103,13 +103,10 @@ public final class RecordingController {
         observe(transcription)
 
         if identifySpeakersLive {
-            do {
-                try await DiarizationService.shared.beginLive()
-                identifiesSpeakersLive = true
-            } catch {
-                // Not fatal: speakers are identified after stop instead.
-                DebugLog.shared.log("speakers", "live identification unavailable, will run after stop: \(error)")
-            }
+            // Returns at once: audio queues until a model is ready, so pressing
+            // record never waits on a model load.
+            await DiarizationService.shared.beginLive()
+            identifiesSpeakersLive = true
         }
 
         startPump()

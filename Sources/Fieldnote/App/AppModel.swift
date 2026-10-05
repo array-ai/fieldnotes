@@ -41,6 +41,10 @@ public final class AppModel {
     public func onLaunch() async {
         refreshCapability()
         await refresh()
+        // The first Neural Engine load compiles the speaker model (minutes, once per
+        // install). Start it now so it's done before the first meeting ends.
+        let method = settings.diarizationMethod
+        Task(priority: .utility) { await DiarizationService.shared.warmUpInBackground(method) }
         await nameUnnamedPlaces()
         #if os(iOS)
         // Anything left unfinished by a kill or a restart resumes from its last
