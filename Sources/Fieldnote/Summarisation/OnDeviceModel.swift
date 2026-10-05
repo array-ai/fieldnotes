@@ -1,3 +1,4 @@
+import CoreAI
 import CoreAILanguageModels
 import FieldnoteKit
 import Foundation
@@ -100,6 +101,10 @@ public enum OnDeviceModel {
 
     /// Loaded by `prepareSummaryModel()`, released by `releaseSummaryModel()`.
     private static let localModel = Mutex<CoreAILanguageModel?>(nil)
+
+    /// This phone's chip family as Core AI names it ("h18p" on an iPhone 17 Pro): the
+    /// suffix of the ahead-of-time compiled model that runs here.
+    public static var deviceArchitecture: String { AIModel.deviceArchitectureName }
 
     /// MiniCPM5 is chosen in Settings and fully downloaded.
     public static var usesLocalModel: Bool {

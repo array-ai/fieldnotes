@@ -23,7 +23,7 @@ final class CrashWatch: NSObject, MXMetricManagerSubscriber, @unchecked Sendable
         }
         defaults.set(false, forKey: Self.inFrontKey)
         // Shows whether the increased memory limit took effect (about 3.1 GB without).
-        DebugLog.shared.log("app", "\(Self.memoryLeft) memory available at launch")
+        DebugLog.shared.log("app", "\(Self.memoryLeft) memory available at launch, Core AI chip family \(OnDeviceModel.deviceArchitecture)")
 
         let center = NotificationCenter.default
         center.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: nil) { _ in
