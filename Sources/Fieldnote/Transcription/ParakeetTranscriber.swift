@@ -107,17 +107,21 @@ public enum ParakeetTranscriber {
 
         let slice = 16_000 * 30
         var frames = 0
-        while let data = try input.read(upToCount: slice * MemoryLayout<Float>.size), !data.isEmpty {
+        // Each slice is freed before the next: without the pool every read stayed in
+        // memory until the end, the whole meeting after all.
+        while try autoreleasepool(invoking: {
+            guard let data = try input.read(upToCount: slice * MemoryLayout<Float>.size), !data.isEmpty else { return false }
             let count = data.count / MemoryLayout<Float>.size
             guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(count)),
-                  let channel = buffer.floatChannelData?[0] else { break }
+                  let channel = buffer.floatChannelData?[0] else { return false }
             data.withUnsafeBytes { raw in
                 channel.update(from: raw.bindMemory(to: Float.self).baseAddress!, count: count)
             }
             buffer.frameLength = AVAudioFrameCount(count)
             try output.write(from: buffer)
             frames += count
-        }
+            return true
+        }) {}
         return (url, Double(frames) / 16_000)
     }
 }

@@ -92,6 +92,16 @@ public final class BackgroundProcessingCoordinator: @unchecked Sendable {
         }
     }
 
+    /// Stops the meeting's run, if it's the one running, and returns once it has
+    /// wound down, so nothing writes into its folder after it's deleted.
+    public func stopAndWait(meetingID: UUID) async {
+        let running = stateLock.withLock { currentMeetingID == meetingID ? runningTask : nil }
+        guard let running else { return }
+        running.cancel()
+        await running.value
+        resumeUnfinishedWork()
+    }
+
     private func setCurrent(_ id: UUID?) {
         stateLock.lock()
         defer { stateLock.unlock() }
@@ -264,9 +274,9 @@ public final class BackgroundProcessingCoordinator: @unchecked Sendable {
             // Writing notes needs the app in front: keep the phone from locking while
             // it runs, if the user wants that (on by default).
             let keepAwake = UserDefaults.standard.object(forKey: "keepAwakeWhileProcessing") as? Bool ?? true
-            if keepAwake { await MainActor.run { UIApplication.shared.isIdleTimerDisabled = true } }
+            if keepAwake { await MainActor.run { ScreenAwake.set(.processing, true) } }
             await self?.drainUntilIdle(reporting: reporter, inBackgroundTask: false)
-            if keepAwake { await MainActor.run { UIApplication.shared.isIdleTimerDisabled = false } }
+            if keepAwake { await MainActor.run { ScreenAwake.set(.processing, false) } }
         }
         stateLock.unlock()
     }
@@ -312,7 +322,7 @@ public final class BackgroundProcessingCoordinator: @unchecked Sendable {
         for job in await provider.pendingJobs() {
             if Task.isCancelled { return }
             // The list was fetched up front; skip a meeting the user stopped since.
-            guard await provider.pendingJobs().contains(where: { $0.meetingID == job.meetingID }) else { continue }
+            guard await provider.isPending(job.meetingID) else { continue }
             setCurrent(job.meetingID)
             defer { setCurrent(nil) }
             reporter.reset()

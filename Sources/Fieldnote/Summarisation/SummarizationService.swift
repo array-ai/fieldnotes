@@ -427,9 +427,11 @@ public actor SummarizationService {
             case .guardrailViolation(let info):
                 reason = .guardrail
                 detail = info.debugDescription
-            case .refusal(let info):
+            case .refusal:
                 reason = .refusal
-                detail = info.debugDescription
+                // The refusal's own explanation can quote the meeting; the log and
+                // the saved notes must not.
+                detail = "the model declined to write notes for this part"
             case .rateLimited(let info):
                 reason = .rateLimited
                 detail = info.debugDescription

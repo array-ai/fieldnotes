@@ -81,6 +81,14 @@ public final class DebugLog: @unchecked Sendable {
         return String(format: "%.2fs", seconds)
     }
 
+    /// An error as its kind and code only, for errors whose description can carry a
+    /// file name or other user text (an imported file's name is often a meeting
+    /// title).
+    public static func kind(of error: Error) -> String {
+        let ns = error as NSError
+        return "\(ns.domain) \(ns.code)"
+    }
+
     /// The first 8 characters of a meeting ID: enough to tell meetings apart in the
     /// log without the log identifying anything.
     public static func short(_ id: UUID) -> String {

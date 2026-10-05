@@ -31,8 +31,11 @@ public final class MeetingPlayer {
 
     public func load(meetingID: UUID) async {
         guard player == nil else { return }
-        let chunks = ChunkedAudioWriter.existingChunks(in: FieldnoteStorage.audioChunkDirectory(for: meetingID))
-            .sorted { $0.index < $1.index }
+        // Off the main thread: this opens every chunk file.
+        let chunks = await Task.detached(priority: .userInitiated) {
+            ChunkedAudioWriter.existingChunks(in: FieldnoteStorage.audioChunkDirectory(for: meetingID))
+                .sorted { $0.index < $1.index }
+        }.value
         guard !chunks.isEmpty else {
             failure = "No audio is stored for this meeting."
             return

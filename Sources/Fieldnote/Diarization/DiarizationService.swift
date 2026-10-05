@@ -67,6 +67,8 @@ public actor DiarizationService {
     private var liveQueue: [Float] = []
     private var liveProbabilities: [Float] = []
     private var liveFrames = 0
+    /// `liveFrames` when the spans were last handed out.
+    private var liveFramesShown = 0
     /// Ten minutes of 16 kHz audio. Past this, waiting on the model isn't worth the
     /// memory; speakers are found after stop instead.
     private let maxLiveQueue = 16_000 * 600
@@ -78,13 +80,22 @@ public actor DiarizationService {
         method: DiarizationMethod,
         progress: @escaping @Sendable (Double) -> Void = { _ in }
     ) async throws -> Output {
-        guard samples.count > 16_000 else {
+        try await diarize(audio: AudioSamples(samples), method: method, progress: progress)
+    }
+
+    /// Nemotron reads the audio a slice at a time; the pyannote methods need it all.
+    public func diarize(
+        audio: AudioSamples,
+        method: DiarizationMethod,
+        progress: @escaping @Sendable (Double) -> Void = { _ in }
+    ) async throws -> Output {
+        guard audio.count > 16_000 else {
             // Under a second of audio. Nothing to cluster.
             return Output(spans: [], embeddings: [:])
         }
 
         progress(0.05)
-        let seconds = String(format: "%.1f", Double(samples.count) / 16_000)
+        let seconds = String(format: "%.1f", Double(audio.count) / 16_000)
         debug.log("speakers", "\(method.rawValue): \(seconds)s of audio")
 
         if method != .nemotron3 {
@@ -100,11 +111,11 @@ public actor DiarizationService {
         do {
             switch method {
             case .nemotron3:
-                output = try await diarizeNemotron(samples, progress: progress)
+                output = try await diarizeNemotron(audio, progress: progress)
             case .pyannoteCommunity1:
-                output = try await diarizeCommunity1(samples, progress: progress)
+                output = try await diarizeCommunity1(try audio.all(), progress: progress)
             case .pyannoteLegacy:
-                output = try diarizeLegacy(samples, progress: progress)
+                output = try diarizeLegacy(try audio.all(), progress: progress)
             }
         } catch {
             debug.log("speakers", "\(method.rawValue): failed after \(DebugLog.elapsed(since: runStarted)): \(error)")
@@ -206,13 +217,13 @@ public actor DiarizationService {
     /// for a three-hour meeting. The streaming frontend drops audio and features as
     /// soon as they are consumed, and its output is frame-exact with `processComplete`.
     private func diarizeNemotron(
-        _ samples: [Float],
+        _ audio: AudioSamples,
         progress: @Sendable (Double) -> Void
     ) async throws -> Output {
         let waited = ContinuousClock.now
         let models = try await nemotronModelsForRun()
         debug.log("speakers", "nemotron3: model ready for this run after \(DebugLog.elapsed(since: waited))")
-        return try await runNemotron(samples, models: models, progress: progress)
+        return try await runNemotron(audio, models: models, progress: progress)
     }
 
     /// Benchmark only: runs Nemotron on the CPU model, whatever else is loaded.
@@ -227,7 +238,7 @@ public actor DiarizationService {
         }
         guard let cpuModels else { throw DiarizationModelProvider.Failure.modelsMissing }
         let started = ContinuousClock.now
-        let output = try await runNemotron(samples, models: cpuModels, progress: { _ in })
+        let output = try await runNemotron(AudioSamples(samples), models: cpuModels, progress: { _ in })
         let elapsed = started.duration(to: .now)
         return (
             Set(output.spans.map(\.speakerID)).count,
@@ -236,7 +247,7 @@ public actor DiarizationService {
     }
 
     private func runNemotron(
-        _ samples: [Float],
+        _ audio: AudioSamples,
         models: Nemotron3Models,
         progress: @Sendable (Double) -> Void
     ) async throws -> Output {
@@ -249,15 +260,15 @@ public actor DiarizationService {
         var probabilities: [Float] = []
         var frameCount = 0
         var offset = 0
-        while offset < samples.count {
-            let end = min(offset + slice, samples.count)
-            diarizer.appendAudio(Array(samples[offset..<end]))
+        while offset < audio.count {
+            let end = min(offset + slice, audio.count)
+            diarizer.appendAudio(try audio.slice(offset..<end))
             for chunk in try diarizer.processBufferedAudio() {
                 probabilities.append(contentsOf: chunk.probabilities)
                 frameCount += chunk.frameCount
             }
             offset = end
-            progress(0.15 + 0.8 * Double(offset) / Double(samples.count))
+            progress(0.15 + 0.8 * Double(offset) / Double(audio.count))
             try Task.checkCancellation()
         }
         for chunk in try diarizer.finishStream() {
@@ -306,6 +317,13 @@ public actor DiarizationService {
         }
     }
 
+    /// Returns once a speaker-model load in progress has finished (or failed), so
+    /// another big compile doesn't run alongside it. Returns at once if none is.
+    public func waitForWarmUp() async {
+        guard aneModels == nil, let aneLoad else { return }
+        _ = try? await aneLoad.value
+    }
+
     /// Whatever can run now: the Neural Engine models if they're ready, otherwise the
     /// CPU models (loading those if needed) while the Neural Engine compile carries on
     /// for next time.
@@ -347,6 +365,7 @@ public actor DiarizationService {
         liveQueue = []
         liveProbabilities = []
         liveFrames = 0
+        liveFramesShown = 0
         let requested = ContinuousClock.now
         Task {
             do {
@@ -391,6 +410,11 @@ public actor DiarizationService {
             liveProbabilities.append(contentsOf: chunk.probabilities)
             liveFrames += chunk.frameCount
         }
+        // The spans are rebuilt from the whole recording each time, which grows with
+        // the meeting; for the screen, every five seconds of audio is plenty.
+        let frameSeconds = Double(DiarizationModelProvider.nemotronConfig.outputFrameSeconds)
+        guard Double(liveFrames - liveFramesShown) * frameSeconds >= 5 else { return nil }
+        liveFramesShown = liveFrames
         return liveSpans()
     }
 
@@ -424,6 +448,7 @@ public actor DiarizationService {
         liveQueue = []
         liveProbabilities = []
         liveFrames = 0
+        liveFramesShown = 0
     }
 
     private func liveSpans() -> [DiarizedSpan] {

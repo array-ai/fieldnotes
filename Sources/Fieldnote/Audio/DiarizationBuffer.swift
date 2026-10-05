@@ -17,9 +17,8 @@ public actor DiarizationBuffer {
     private(set) public var frameCount: Int = 0
 
     public init(meetingID: UUID) throws {
-        let directory = FieldnoteStorage.meetingDirectory(for: meetingID)
-        try FieldnoteStorage.ensureDirectory(directory)
-        self.url = directory.appendingPathComponent("diarization.f32")
+        try FieldnoteStorage.ensureDirectory(FieldnoteStorage.meetingDirectory(for: meetingID))
+        self.url = Self.fileURL(for: meetingID)
         if !FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) {
             FileManager.default.createFile(atPath: url.path(percentEncoded: false), contents: nil)
             try? FieldnoteStorage.protect(url)
@@ -34,6 +33,10 @@ public actor DiarizationBuffer {
     }
 
     public var fileURL: URL { url }
+
+    public static func fileURL(for meetingID: UUID) -> URL {
+        FieldnoteStorage.meetingDirectory(for: meetingID).appendingPathComponent("diarization.f32")
+    }
 
     /// - Returns: the 16 kHz samples just written, for live speaker identification.
     @discardableResult
@@ -74,6 +77,48 @@ public actor DiarizationBuffer {
         try? close()
         try? FileManager.default.removeItem(at: url)
         frameCount = 0
+    }
+}
+
+/// 16 kHz mono samples, read a slice at a time: from memory, or from a meeting's
+/// speaker buffer on disk, so a three-hour meeting (~700 MB as floats) never has to
+/// sit in memory whole.
+public struct AudioSamples: Sendable {
+    public let count: Int
+    private let reader: @Sendable (Range<Int>) throws -> [Float]
+
+    public init(_ samples: [Float]) {
+        count = samples.count
+        reader = { Array(samples[$0]) }
+    }
+
+    /// The meeting's speaker buffer (`diarization.f32`). Opened per slice, so nothing
+    /// is held open between reads.
+    public init(meetingID: UUID) throws {
+        let url = DiarizationBuffer.fileURL(for: meetingID)
+        // No file reads as no audio, as the buffer itself did.
+        let bytes = (try? FileManager.default.attributesOfItem(atPath: url.path(percentEncoded: false))[.size] as? Int) ?? 0
+        count = bytes / MemoryLayout<Float>.size
+        reader = { range in
+            guard !range.isEmpty else { return [] }
+            let handle = try FileHandle(forReadingFrom: url)
+            defer { try? handle.close() }
+            try handle.seek(toOffset: UInt64(range.lowerBound * MemoryLayout<Float>.size))
+            // The pool frees each read's buffer now rather than at the end of the run.
+            return try autoreleasepool {
+                let data = try handle.read(upToCount: range.count * MemoryLayout<Float>.size) ?? Data()
+                return data.withUnsafeBytes { Array($0.bindMemory(to: Float.self)) }
+            }
+        }
+    }
+
+    public func slice(_ range: Range<Int>) throws -> [Float] {
+        try reader(range.clamped(to: 0..<count))
+    }
+
+    /// Everything, for the models that need the whole recording at once.
+    public func all() throws -> [Float] {
+        try slice(0..<count)
     }
 }
 

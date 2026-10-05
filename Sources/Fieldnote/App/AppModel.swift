@@ -184,7 +184,7 @@ public final class AppModel {
             await coordinator.submitAfterRecording(title: title)
             #endif
         } catch {
-            DebugLog.shared.log("import", "import failed: \(error)")
+            DebugLog.shared.log("import", "import failed: \(DebugLog.kind(of: error))")
             importError = error.localizedDescription
             if let meetingID { try? await store.delete(meetingID: meetingID) }
         }
@@ -243,6 +243,19 @@ public final class AppModel {
         #if os(iOS)
         await coordinator.submitRedo(title: "Processing \(title)")
         #endif
+        await refresh()
+    }
+
+    /// Deletes meetings, stopping any processing first. The meeting being recorded
+    /// is skipped: its files are still being written.
+    public func deleteMeetings(_ ids: [UUID]) async {
+        for id in ids {
+            if recorder.isActive, recorder.meetingID == id { continue }
+            #if os(iOS)
+            await coordinator.stopAndWait(meetingID: id)
+            #endif
+            try? await store.delete(meetingID: id)
+        }
         await refresh()
     }
 

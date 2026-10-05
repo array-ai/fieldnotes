@@ -126,7 +126,7 @@ public final class ModelDownloads {
     /// The screen stays on while any model prepares, whatever else finishes.
     private func updateScreenLock() {
         #if os(iOS)
-        UIApplication.shared.isIdleTimerDisabled = states.values.contains(.preparing)
+        ScreenAwake.set(.preparingModel, states.values.contains(.preparing))
         #endif
     }
 
@@ -213,6 +213,13 @@ public final class ModelDownloads {
         if pack.id == .qwen3 {
             // Core AI compiles the portable model for this phone on first load.
             report(.preparing)
+            // Two big compiles at once (after an update, the speaker model rebuilds
+            // at launch) is how the app ran out of memory. One at a time.
+            let waitStarted = ContinuousClock.now
+            await DiarizationService.shared.waitForWarmUp()
+            if waitStarted.duration(to: .now) > .seconds(1) {
+                DebugLog.shared.log("models", "qwen3: waited \(DebugLog.elapsed(since: waitStarted)) for the speaker model to finish loading")
+            }
             let compileStarted = ContinuousClock.now
             #if os(iOS)
             DebugLog.shared.log("models", "qwen3: compiling, \(CrashWatch.memoryLeft) memory left")

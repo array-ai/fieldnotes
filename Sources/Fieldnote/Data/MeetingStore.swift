@@ -205,6 +205,11 @@ public actor MeetingStore {
         }
     }
 
+    public func isPending(_ meetingID: UUID) async -> Bool {
+        guard let meeting = try? meeting(with: meetingID) else { return false }
+        return !meeting.processingState.isTerminal && meeting.processingState != .recording
+    }
+
     // MARK: - Editing
 
     public func setPlaceName(_ name: String?, for meetingID: UUID) throws {

@@ -326,10 +326,9 @@ public actor ProcessingPipeline {
             return Diarization(segments: labelled, embeddings: [:])
         }
 
-        let buffer = try DiarizationBuffer(meetingID: input.meetingID)
-        let samples: [Float]
+        let audio: AudioSamples
         do {
-            samples = try await buffer.samples()
+            audio = try AudioSamples(meetingID: input.meetingID)
         } catch {
             debug.log("pipeline", "\(DebugLog.short(input.meetingID)): could not read the speaker audio buffer: \(error)")
             throw error
@@ -345,7 +344,7 @@ public actor ProcessingPipeline {
             debug.log("pipeline", "\(DebugLog.short(input.meetingID)): \(method.rawValue) isn't downloaded; using nemotron3")
             method = .nemotron3
         }
-        let output = try await diarizer.diarize(samples: samples, method: method) { fraction in
+        let output = try await diarizer.diarize(audio: audio, method: method) { fraction in
             progress(.diarizing, fraction)
         }
 

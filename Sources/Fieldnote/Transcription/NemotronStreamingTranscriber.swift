@@ -148,7 +148,7 @@ actor NemotronStreamingTranscriber {
         DebugLog.shared.log("transcript", "\(id): nemotronStreaming loaded in \(DebugLog.elapsed(since: loadStarted))")
         progress(0.1)
 
-        let samples = try await DiarizationBuffer(meetingID: meetingID).samples()
+        let samples = try AudioSamples(meetingID: meetingID)
         guard samples.count > 8_000 else { throw ParakeetTranscriber.Failure.noAudio }
         let runStarted = ContinuousClock.now
         // Ten seconds at a time, for progress and cancellation.
@@ -157,7 +157,7 @@ actor NemotronStreamingTranscriber {
         while offset < samples.count {
             try Task.checkCancellation()
             let end = min(offset + step, samples.count)
-            _ = try await manager.process(samples: Array(samples[offset..<end]))
+            _ = try await manager.process(samples: try samples.slice(offset..<end))
             offset = end
             progress(0.1 + 0.9 * Double(offset) / Double(samples.count))
         }

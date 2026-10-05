@@ -128,10 +128,7 @@ struct MeetingListView: View {
 
     private func delete(at offsets: IndexSet) {
         let ids = offsets.map { model.meetings[$0].id }
-        Task {
-            for id in ids { try? await model.store.delete(meetingID: id) }
-            await model.refresh()
-        }
+        Task { await model.deleteMeetings(ids) }
     }
 }
 
