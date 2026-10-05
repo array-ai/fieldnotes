@@ -24,7 +24,9 @@ you turn on Apple Maps place names.
   | **pyannote 3.1 (legacy)** | The original pipeline, kept for comparison |
 
   With Nemotron 3, speakers can be identified while you record (on by default), so
-  they're ready the moment you stop. Unnamed speakers show as Speaker A, Speaker B and
+  they're ready the moment you stop. Speakers are assigned word by word (each word goes
+  to whoever was talking at its midpoint), so a line where two people talk is split
+  between them. Unnamed speakers show as Speaker A, Speaker B and
   so on. Picks up names from
   self-introductions ("Hi, I'm Priya") and lets you rename speakers by hand.
 - **Summarises** into notes with Apple's on-device Foundation Models: an overview,
@@ -78,7 +80,7 @@ SDKs are included.
 
 | | |
 |---|---|
-| Core logic (`Core/`) | Builds and tests on Linux, no Apple SDK. 107 tests, run in CI on every push |
+| Core logic (`Core/`) | Builds and tests on Linux, no Apple SDK. 115 tests, run in CI on every push |
 | App and widget | Build for `arm64-apple-ios27.0` in CI with Xcode 27, both through xtool and `xcodebuild` |
 | On a device | Runs on iPhone, with known small bugs. The device checks under [Testing](#testing) haven't all been done |
 | Linux device builds | Blocked: the bundled LLD can't read the iOS 27 SDK's stubs (see [Build](#build)) |

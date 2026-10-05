@@ -12,6 +12,10 @@ public struct TranscriptSegment: Codable, Hashable, Sendable, Identifiable {
     public var confidence: Double
     public var isFinalized: Bool
     public var editedByUser: Bool
+    /// The words with their audio timings, when the speech model gave them. Used to
+    /// split a line between speakers word by word. Optional: transcripts stored
+    /// before words were kept still decode, and fall back to whole-line alignment.
+    public var words: [TranscriptWord]?
 
     public init(
         id: UUID = UUID(),
@@ -21,7 +25,8 @@ public struct TranscriptSegment: Codable, Hashable, Sendable, Identifiable {
         speakerID: String? = nil,
         confidence: Double = 1.0,
         isFinalized: Bool = true,
-        editedByUser: Bool = false
+        editedByUser: Bool = false,
+        words: [TranscriptWord]? = nil
     ) {
         self.id = id
         self.start = start
@@ -31,9 +36,26 @@ public struct TranscriptSegment: Codable, Hashable, Sendable, Identifiable {
         self.confidence = confidence
         self.isFinalized = isFinalized
         self.editedByUser = editedByUser
+        self.words = words
     }
 
     public var duration: TimeInterval { max(0, end - start) }
+}
+
+/// One word as the speech model heard it. `text` carries any punctuation and
+/// trailing space that followed it, so joining words reproduces the line.
+public struct TranscriptWord: Codable, Hashable, Sendable {
+    public var text: String
+    public var start: TimeInterval
+    public var end: TimeInterval
+
+    public init(text: String, start: TimeInterval, end: TimeInterval) {
+        self.text = text
+        self.start = start
+        self.end = end
+    }
+
+    public var midpoint: TimeInterval { (start + end) / 2 }
 }
 
 /// One diarized span: this speaker held the floor from `start` to `end`.

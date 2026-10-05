@@ -227,7 +227,7 @@ public actor ProcessingPipeline {
             debug.log("pipeline", "\(DebugLog.short(input.meetingID)): speakers already done, using checkpoint")
             progress(.diarizing, 1.0)
             return Diarization(
-                segments: SpeakerAlignment.apply(spans: spans, to: saved),
+                segments: WordSpeakerSplit.apply(spans: spans, to: saved),
                 embeddings: await store.loadEmbeddings() ?? [:]
             )
         }
@@ -236,7 +236,7 @@ public actor ProcessingPipeline {
 
         if let live = await store.loadLiveSpans() {
             debug.log("pipeline", "\(DebugLog.short(input.meetingID)): using the \(live.count) speaker spans identified while recording")
-            let labelled = SpeakerAlignment.apply(spans: live, to: segments)
+            let labelled = WordSpeakerSplit.apply(spans: live, to: segments)
             try await store.saveSpans(live, embeddings: [:])
             try await store.saveSegments(labelled)
             try await store.markComplete(.diarizing, in: &checkpoint)
@@ -261,7 +261,7 @@ public actor ProcessingPipeline {
             progress(.diarizing, fraction)
         }
 
-        let labelled = SpeakerAlignment.apply(spans: output.spans, to: segments)
+        let labelled = WordSpeakerSplit.apply(spans: output.spans, to: segments)
         try await store.saveSpans(output.spans, embeddings: output.embeddings)
         try await store.saveSegments(labelled)
         try await store.markComplete(.diarizing, in: &checkpoint)

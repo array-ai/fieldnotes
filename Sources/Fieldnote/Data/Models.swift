@@ -101,6 +101,9 @@ public final class Segment {
     public var isFinalized: Bool = true
     /// Set by a manual edit or relabel. Re-running diarization leaves these alone.
     public var editedByUser: Bool = false
+    /// `[TranscriptWord]` as JSON, for the per-word speaker split. Optional so
+    /// stores from before it existed migrate without work.
+    public var wordsData: Data?
     public var meeting: Meeting?
 
     public init(value: TranscriptSegment) {
@@ -112,6 +115,7 @@ public final class Segment {
         self.confidence = value.confidence
         self.isFinalized = value.isFinalized
         self.editedByUser = value.editedByUser
+        self.wordsData = value.words.flatMap { try? JSONEncoder().encode($0) }
     }
 
     public var value: TranscriptSegment {
@@ -123,7 +127,8 @@ public final class Segment {
             speakerID: speakerID,
             confidence: confidence,
             isFinalized: isFinalized,
-            editedByUser: editedByUser
+            editedByUser: editedByUser,
+            words: wordsData.flatMap { try? JSONDecoder().decode([TranscriptWord].self, from: $0) }
         )
     }
 }

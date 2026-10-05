@@ -151,7 +151,7 @@ struct RecorderView: View {
     private var recentLines: [TranscriptSegment] {
         let lines = Array(model.recorder.segments.suffix(12))
         guard !model.recorder.liveSpans.isEmpty else { return lines }
-        return SpeakerAlignment.apply(spans: model.recorder.liveSpans, to: lines)
+        return WordSpeakerSplit.apply(spans: model.recorder.liveSpans, to: lines)
     }
 
     private func start() async {

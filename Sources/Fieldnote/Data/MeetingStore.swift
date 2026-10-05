@@ -226,6 +226,8 @@ public actor MeetingStore {
         guard let segment = try segment(with: segmentID) else { return }
         segment.text = text
         segment.editedByUser = true
+        // The timings were for the old words.
+        segment.wordsData = nil
         if let meeting = segment.meeting { rebuildSearchText(for: meeting) }
         try modelContext.save()
     }

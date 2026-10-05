@@ -146,11 +146,13 @@ public actor TranscriptionSession {
 
                 if result.isFinal {
                     let range = Self.timeRange(of: result.text)
+                    let words = Self.words(in: result.text, offset: timeOffset)
                     let segment = TranscriptSegment(
                         start: (range?.start ?? 0) + timeOffset,
                         end: (range?.end ?? 0) + timeOffset,
                         text: text,
-                        isFinalized: true
+                        isFinalized: true,
+                        words: words.isEmpty ? nil : words
                     )
                     segments.append(segment)
                     updateContinuation?.yield(.finalized(segment))
@@ -177,6 +179,30 @@ public actor TranscriptionSession {
         }
         guard let start, let end else { return nil }
         return (start, end)
+    }
+
+    /// The timed words in a result. Each run with an audio time range is a word;
+    /// untimed runs between them (spaces, punctuation) are kept on the word before,
+    /// so joining the words gives back the line. Used to split a line between
+    /// speakers at the word where the speaker changes.
+    static func words(in text: AttributedString, offset: TimeInterval) -> [TranscriptWord] {
+        var words: [TranscriptWord] = []
+        var leading = ""
+        for run in text.runs {
+            let piece = String(text[run.range].characters)
+            guard let range = run.audioTimeRange else {
+                if words.isEmpty {
+                    leading += piece
+                } else {
+                    words[words.count - 1].text += piece
+                }
+                continue
+            }
+            let start = range.start.seconds + offset
+            words.append(TranscriptWord(text: leading + piece, start: start, end: start + range.duration.seconds))
+            leading = ""
+        }
+        return words
     }
 
     // MARK: - Custom vocabulary
