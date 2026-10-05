@@ -237,7 +237,7 @@ public final class ModelDownloads {
             )
             DebugLog.shared.log("models", "nemotronStreaming: first compile took \(DebugLog.elapsed(since: compileStarted))")
         }
-        if pack.id == .minicpm5 {
+        if pack.id.rawValue.hasPrefix(ModelPack.ID.minicpm5.rawValue) {
             // Core AI compiles the portable model for this phone on first load.
             report(.preparing)
             // Two big compiles at once (after an update, the speaker model rebuilds
@@ -245,21 +245,21 @@ public final class ModelDownloads {
             let waitStarted = ContinuousClock.now
             await DiarizationService.shared.waitForWarmUp()
             if waitStarted.duration(to: .now) > .seconds(1) {
-                DebugLog.shared.log("models", "minicpm5: waited \(DebugLog.elapsed(since: waitStarted)) for the speaker model to finish loading")
+                DebugLog.shared.log("models", "\(pack.id.rawValue): waited \(DebugLog.elapsed(since: waitStarted)) for the speaker model to finish loading")
             }
             let compileStarted = ContinuousClock.now
             #if os(iOS)
-            DebugLog.shared.log("models", "minicpm5: compiling, \(CrashWatch.memoryLeft) memory left")
+            DebugLog.shared.log("models", "\(pack.id.rawValue): preparing, \(CrashWatch.memoryLeft) memory left")
             #endif
             let model = try await OnDeviceModel.loadLocalModel(
-                at: final.appendingPathComponent("ios-static", isDirectory: true),
+                at: pack.bundleFolder.map { final.appendingPathComponent($0, isDirectory: true) } ?? final,
                 eager: true
             )
             model.unload()
             #if os(iOS)
-            DebugLog.shared.log("models", "minicpm5: \(CrashWatch.memoryLeft) memory left after compiling")
+            DebugLog.shared.log("models", "\(pack.id.rawValue): \(CrashWatch.memoryLeft) memory left after preparing")
             #endif
-            DebugLog.shared.log("models", "minicpm5: first compile took \(DebugLog.elapsed(since: compileStarted))")
+            DebugLog.shared.log("models", "\(pack.id.rawValue): first compile took \(DebugLog.elapsed(since: compileStarted))")
         }
         try pack.revision.write(to: Self.markerURL(for: pack.id), atomically: true, encoding: .utf8)
         DebugLog.shared.log("models", "\(pack.id.rawValue): \(pack.files.count) files verified in \(DebugLog.elapsed(since: started))")

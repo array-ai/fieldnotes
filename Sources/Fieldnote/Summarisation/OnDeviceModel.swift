@@ -112,10 +112,12 @@ public enum OnDeviceModel {
             && localModelDirectory != nil
     }
 
-    /// The model bundle inside the download: the pack keeps the repo's layout, and
-    /// the portable iOS export is in `ios-static/`.
+    /// The model bundle inside the download: the pack keeps the repo's layout
+    /// (`ios-static/` for the portable model, `ios-<chip>/` for a compiled one).
     public static var localModelDirectory: URL? {
-        ModelDownloads.installedDirectory(for: .minicpm5)?.appendingPathComponent("ios-static", isDirectory: true)
+        guard let pack = SummaryEngine.minicpm5.modelPack,
+              let directory = ModelDownloads.installedDirectory(for: pack) else { return nil }
+        return ModelPack.pack(pack).bundleFolder.map { directory.appendingPathComponent($0, isDirectory: true) } ?? directory
     }
 
     /// Loads MiniCPM5 if it's the chosen summary model (tokenizer now, weights on

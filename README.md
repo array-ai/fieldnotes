@@ -36,8 +36,10 @@ two things you choose: optional model downloads, and Apple Maps place names.
   so on. Picks up names from
   self-introductions ("Hi, I'm Priya") and lets you rename speakers by hand.
 - **Summarises** into notes on the phone, with Apple's on-device Foundation Models
-  model or, optionally, MiniCPM5 1B (a 1.1 GB download, run through Apple's Core AI
-  runtime, without Apple's rate limits): an overview,
+  model or, optionally, MiniCPM5 1B (run through Apple's Core AI runtime, without
+  Apple's rate limits; iPhone 16 and 17 Pro chips download a build compiled ahead of
+  time by `.github/workflows/compile-models.yml`, 1.4 GB, other phones a 1.1 GB
+  portable one they prepare themselves): an overview,
   topic sections (headline, one-line summary, timestamped key points with supporting
   details), action items grouped by owner, decisions and open questions. The meeting
   list shows each meeting's top topics at a glance. Every point cites the transcript lines it came

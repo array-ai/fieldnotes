@@ -22,7 +22,7 @@ on:
       architectures:
         description: "Chip families to compile for, space separated (the app's debug log names its own). 'h17*' style patterns pick from the valid names. Empty: all, which is very slow"
         type: string
-        default: "h17g h17p h18g h18p"
+        default: "h17g h17p h18p"
 
 env:
   # Pinned sources, the same revisions the app's catalogue pins.

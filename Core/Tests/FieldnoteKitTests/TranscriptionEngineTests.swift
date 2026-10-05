@@ -67,6 +67,15 @@ struct TranscriptionEngineTests {
         #expect(SummaryEngine.minicpm5.modelPack == .minicpm5)
     }
 
+    @Test("A chip family picks its compiled summary model; others get the portable one")
+    func compiledPacks() {
+        #expect(ModelPack.ID.minicpm5.compiled(for: "h17g") == .minicpm5H17g)
+        #expect(ModelPack.ID.minicpm5.compiled(for: "h18p") == .minicpm5H18p)
+        #expect(ModelPack.ID.minicpm5.compiled(for: "h16p") == nil)
+        #expect(ModelPack.ID.minicpm5.compiled(for: nil) == nil)
+        #expect(ModelPack.pack(.minicpm5).bundleFolder == "ios-static")
+    }
+
     @Test("Cards rate every model within 0...1")
     func cards() {
         let cards = TranscriptionEngine.allCases.map(\.card) + DiarizationMethod.allCases.map(\.card)

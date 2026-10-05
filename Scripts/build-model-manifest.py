@@ -17,6 +17,9 @@ import json
 import os
 import urllib.request
 
+# The compile-models workflow's upload to publicarray/fieldnote-models.
+FIELDNOTE_MODELS_REVISION = "a834d4d182e589e4a32bda965e33b902f8619ece"
+
 PACKS = [
     {
         "id": "parakeetV3",
@@ -73,6 +76,21 @@ PACKS = [
         # iPhone 16.)
         "paths": ["ios-static"],
     },
+] + [
+    # MiniCPM5 1B compiled ahead of time by .github/workflows/compile-models.yml,
+    # one ready-to-load bundle per Core AI chip family. The app downloads only the
+    # one for its own chip (AIModel.deviceArchitectureName).
+    {
+        "id": "minicpm5" + arch[0].upper() + arch[1:],
+        "name": f"MiniCPM5 1B (Core AI, compiled for {arch})",
+        "repo": "publicarray/fieldnote-models",
+        "revision": FIELDNOTE_MODELS_REVISION,
+        "license": "Apache-2.0",
+        "paths": [f"ios-{arch}"],
+    }
+    # h18g isn't a supported iOS 27 target.
+    for arch in ["h17g", "h17p", "h18p"]
+] + [
     {
         "id": "pyannoteCommunity1",
         "name": "pyannote community-1",

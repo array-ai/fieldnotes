@@ -15,8 +15,21 @@ public struct ModelPack: Sendable, Identifiable, Equatable {
         case parakeetTdtCtc110m
         case nemotronStreaming
         case minicpm5
+        // MiniCPM5 compiled ahead of time for one Core AI chip family each (our
+        // compile-models workflow): the phone downloads a ready model. h17g/h17p are
+        // the iPhone 16 family, h18p the iPhone 17 Pro.
+        case minicpm5H17g
+        case minicpm5H17p
+        case minicpm5H18p
         case pyannoteCommunity1
         case pyannoteLegacy
+
+        /// The build of this model compiled for a Core AI chip family
+        /// (`AIModel.deviceArchitectureName`, e.g. "h17g"), if one is offered.
+        public func compiled(for architecture: String?) -> ID? {
+            guard let architecture, let first = architecture.first else { return nil }
+            return ID(rawValue: rawValue + first.uppercased() + architecture.dropFirst())
+        }
     }
 
     public let id: ID
@@ -27,6 +40,14 @@ public struct ModelPack: Sendable, Identifiable, Equatable {
     public let files: [ModelFile]
 
     public var totalBytes: Int64 { files.reduce(0) { $0 + $1.size } }
+
+    /// The folder the model sits in inside the download ("ios-static"), when the
+    /// pack keeps a repo subfolder; nil when its files are at the top.
+    public var bundleFolder: String? {
+        guard let first = files.first?.path, first.contains("/") else { return nil }
+        let folder = first.split(separator: "/").first.map(String.init)
+        return files.allSatisfy({ $0.path.hasPrefix((folder ?? "") + "/") }) ? folder : nil
+    }
 
     /// Where a file comes from: this exact revision, never `main`.
     public func url(for file: ModelFile) -> URL {

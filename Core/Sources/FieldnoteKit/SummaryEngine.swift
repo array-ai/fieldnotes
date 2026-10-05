@@ -11,6 +11,9 @@ public enum SummaryEngine: String, Codable, CaseIterable, Sendable {
     case minicpm5
 
     public static let defaultsKey = "summaryEngine"
+    /// This phone's Core AI chip family, stored by the app at launch (Core AI
+    /// itself isn't available to this package).
+    public static let deviceArchitectureKey = "coreAIDeviceArchitecture"
 
     public init(storedValue: String?) {
         self = storedValue.flatMap(SummaryEngine.init(rawValue:)) ?? .apple
@@ -19,7 +22,10 @@ public enum SummaryEngine: String, Codable, CaseIterable, Sendable {
     public var modelPack: ModelPack.ID? {
         switch self {
         case .apple: nil
-        case .minicpm5: .minicpm5
+        // The build compiled for this phone if there is one; else the portable model,
+        // which the phone compiles itself.
+        case .minicpm5:
+            ModelPack.ID.minicpm5.compiled(for: UserDefaults.standard.string(forKey: Self.deviceArchitectureKey)) ?? .minicpm5
         }
     }
 

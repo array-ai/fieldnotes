@@ -31,6 +31,8 @@ public final class AppModel {
     public var settings = Settings()
 
     public init(container: ModelContainer) {
+        // Read by SummaryEngine to pick the summary model compiled for this phone.
+        UserDefaults.standard.set(OnDeviceModel.deviceArchitecture, forKey: SummaryEngine.deviceArchitectureKey)
         let store = MeetingStore(modelContainer: container)
         self.store = store
         #if os(iOS)
