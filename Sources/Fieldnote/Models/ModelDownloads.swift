@@ -3,6 +3,9 @@ import FieldnoteKit
 import FluidAudio
 import Foundation
 import Observation
+#if os(iOS)
+import UIKit
+#endif
 
 /// Downloads the optional models (`ModelPack.catalog`) when the user asks, and
 /// nothing else.
@@ -16,6 +19,9 @@ import Observation
 ///   installed only when every file has verified, so a cut-off download never
 ///   half-works.
 /// - A retry skips files that already verified, so it resumes rather than restarts.
+/// - Files come through a background `URLSession` (`BackgroundDownloader`): the system
+///   keeps downloading while the phone is locked or the app is closed, and a dropped
+///   connection resumes from where it stopped instead of starting the file again.
 /// - Packs live in Application Support (not Caches, which iOS purges), excluded from
 ///   backup, and readable while the phone is locked — processing runs locked.
 @MainActor
@@ -38,7 +44,14 @@ public final class ModelDownloads {
 
     private init() {
         for id in ModelPack.ID.allCases {
-            states[id] = Self.installedDirectory(for: id) == nil ? .notInstalled : .installed
+            if Self.installedDirectory(for: id) != nil {
+                states[id] = .installed
+            } else if FileManager.default.fileExists(atPath: Self.staging(for: id).path) {
+                // Started before the app was last closed; finished files are kept.
+                states[id] = .failed("Interrupted. Tap Download to carry on where it stopped.")
+            } else {
+                states[id] = .notInstalled
+            }
         }
     }
 
@@ -134,16 +147,9 @@ public final class ModelDownloads {
             try manager.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
             let base = done
             let total = pack.totalBytes
-            let progress = DownloadProgress { written in
+            try await Self.fetch(pack.url(for: file), to: target, name: file.path) { written in
                 report(.downloading(Double(base + written) / Double(max(total, 1))))
             }
-            let (temporary, response) = try await URLSession.shared.download(from: pack.url(for: file), delegate: progress)
-            guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
-                try? manager.removeItem(at: temporary)
-                throw DownloadError.server(file.path)
-            }
-            try? manager.removeItem(at: target)
-            try manager.moveItem(at: temporary, to: target)
             guard try Self.sha256(of: target) == file.sha256 else {
                 try? manager.removeItem(at: target)
                 throw DownloadError.checksum(file.path)
@@ -177,6 +183,39 @@ public final class ModelDownloads {
         }
         try pack.revision.write(to: Self.markerURL(for: pack.id), atomically: true, encoding: .utf8)
         DebugLog.shared.log("models", "\(pack.id.rawValue): \(pack.files.count) files verified in \(DebugLog.elapsed(since: started))")
+    }
+
+    /// One file, retried when the connection drops. Each retry resumes from the bytes
+    /// already received; the background session also waits out a lost connection.
+    nonisolated private static func fetch(
+        _ url: URL,
+        to target: URL,
+        name: String,
+        onWrite: @escaping @Sendable (Int64) -> Void
+    ) async throws {
+        var attempt = 0
+        while true {
+            do {
+                try await BackgroundDownloader.shared.download(url, to: target, onWrite: onWrite)
+                return
+            } catch let error as URLError where attempt < 5 && Self.isTransient(error) {
+                attempt += 1
+                DebugLog.shared.log("models", "\(name): connection dropped (\(error.code.rawValue)); resuming, attempt \(attempt + 1)")
+                try await Task.sleep(for: .seconds(Double(attempt * attempt) * 2))
+            } catch BackgroundDownloader.Failure.status(let code) where attempt < 5 && code != 404 {
+                // A resumed request whose signed CDN link expired: start the file over.
+                attempt += 1
+                BackgroundDownloader.discardResumeData(for: target)
+                DebugLog.shared.log("models", "\(name): server answered \(code); restarting the file, attempt \(attempt + 1)")
+            } catch BackgroundDownloader.Failure.status {
+                throw DownloadError.server(name)
+            }
+        }
+    }
+
+    nonisolated private static func isTransient(_ error: URLError) -> Bool {
+        [.networkConnectionLost, .timedOut, .notConnectedToInternet, .cannotConnectToHost,
+         .dnsLookupFailed, .cannotFindHost, .backgroundSessionWasDisconnected].contains(error.code)
     }
 
     nonisolated private static func checkFreeSpace(for pack: ModelPack, at url: URL) throws {
@@ -228,15 +267,99 @@ public final class ModelDownloads {
     }
 }
 
-/// Reports bytes written for one file download.
-private final class DownloadProgress: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {
-    private let onWrite: @Sendable (Int64) -> Void
-    private let lock = NSLock()
-    private var reported: Int64 = 0
+/// The model files' background `URLSession`.
+///
+/// A background session is run by the system, not the app: downloads carry on while
+/// the phone is locked or the app is suspended or closed, and a request that fails
+/// mid-file leaves resume data so the next attempt picks up where it stopped.
+///
+/// Each task carries its destination in `taskDescription` and the delegate moves the
+/// finished file there itself, so a file that completes while the app isn't running
+/// is still kept: the next Download tap verifies it and moves on to the next file.
+final class BackgroundDownloader: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {
+    static let shared = BackgroundDownloader()
+    static let identifier = "com.publicarray.fieldnotes.models"
 
-    init(onWrite: @escaping @Sendable (Int64) -> Void) {
-        self.onWrite = onWrite
+    enum Failure: Error {
+        case status(Int)
     }
+
+    private let lock = NSLock()
+    private var waiting: [Int: CheckedContinuation<Void, Error>] = [:]
+    private var progress: [Int: @Sendable (Int64) -> Void] = [:]
+    private var reported: [Int: Int64] = [:]
+    private var failures: [Int: Error] = [:]
+    private var systemCompletion: (() -> Void)?
+
+    /// Created at launch (`ModelDownloadsAppDelegate`) so events for downloads that
+    /// finished while the app was closed are delivered.
+    lazy var session: URLSession = {
+        let configuration = URLSessionConfiguration.background(withIdentifier: Self.identifier)
+        configuration.isDiscretionary = false
+        configuration.sessionSendsLaunchEvents = true
+        configuration.timeoutIntervalForResource = 24 * 3_600
+        return URLSession(configuration: configuration, delegate: self, delegateQueue: nil)
+    }()
+
+    static func resumeDataURL(for target: URL) -> URL {
+        target.appendingPathExtension("resume")
+    }
+
+    static func discardResumeData(for target: URL) {
+        try? FileManager.default.removeItem(at: resumeDataURL(for: target))
+    }
+
+    func download(_ url: URL, to target: URL, onWrite: @escaping @Sendable (Int64) -> Void) async throws {
+        // Still running from before the app was closed: wait for it rather than start
+        // a second copy.
+        let running = await session.allTasks.first {
+            $0.taskDescription == target.path && ($0.state == .running || $0.state == .suspended)
+        } as? URLSessionDownloadTask
+        let task: URLSessionDownloadTask
+        if let running {
+            task = running
+        } else if let data = try? Data(contentsOf: Self.resumeDataURL(for: target)) {
+            task = session.downloadTask(withResumeData: data)
+        } else {
+            task = session.downloadTask(with: url)
+        }
+        Self.discardResumeData(for: target)
+        task.taskDescription = target.path
+
+        try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                lock.lock()
+                waiting[task.taskIdentifier] = continuation
+                progress[task.taskIdentifier] = onWrite
+                lock.unlock()
+                task.resume()
+                // A reattached task can finish before it was registered above.
+                if task.state == .completed {
+                    lock.lock()
+                    let pending = waiting.removeValue(forKey: task.taskIdentifier)
+                    lock.unlock()
+                    if FileManager.default.fileExists(atPath: target.path) {
+                        pending?.resume()
+                    } else {
+                        pending?.resume(throwing: URLError(.networkConnectionLost))
+                    }
+                }
+            }
+        } onCancel: {
+            task.cancel { data in
+                if let data { try? data.write(to: Self.resumeDataURL(for: target)) }
+            }
+        }
+    }
+
+    func handleSystemEvents(completion: @escaping () -> Void) {
+        lock.lock()
+        systemCompletion = completion
+        lock.unlock()
+        _ = session
+    }
+
+    // MARK: URLSessionDownloadDelegate
 
     func urlSession(
         _ session: URLSession,
@@ -247,11 +370,90 @@ private final class DownloadProgress: NSObject, URLSessionDownloadDelegate, @unc
     ) {
         // Every couple of MB is plenty for a progress bar.
         lock.lock()
-        let due = totalBytesWritten - reported >= 2_000_000
-        if due { reported = totalBytesWritten }
+        let id = downloadTask.taskIdentifier
+        let due = totalBytesWritten - (reported[id] ?? 0) >= 2_000_000
+        if due { reported[id] = totalBytesWritten }
+        let onWrite = progress[id]
         lock.unlock()
-        if due { onWrite(totalBytesWritten) }
+        if due { onWrite?(totalBytesWritten) }
     }
 
-    func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {}
+    /// The file must be moved before this returns: the system deletes it afterwards.
+    func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
+        let status = (downloadTask.response as? HTTPURLResponse)?.statusCode ?? 0
+        var failure: Error?
+        if status == 200 || status == 206, let path = downloadTask.taskDescription {
+            let target = URL(fileURLWithPath: path)
+            let manager = FileManager.default
+            do {
+                try manager.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try? manager.removeItem(at: target)
+                try manager.moveItem(at: location, to: target)
+            } catch {
+                failure = error
+            }
+        } else {
+            failure = Failure.status(status)
+        }
+        if let failure {
+            lock.lock()
+            failures[downloadTask.taskIdentifier] = failure
+            lock.unlock()
+        }
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        if let error = error as? URLError,
+           let data = error.downloadTaskResumeData,
+           let path = task.taskDescription {
+            try? data.write(to: Self.resumeDataURL(for: URL(fileURLWithPath: path)))
+        }
+        lock.lock()
+        let id = task.taskIdentifier
+        let continuation = waiting.removeValue(forKey: id)
+        let failure = failures.removeValue(forKey: id)
+        progress[id] = nil
+        reported[id] = nil
+        lock.unlock()
+        if let error {
+            continuation?.resume(throwing: (error as? URLError)?.code == .cancelled ? CancellationError() : error)
+        } else if let failure {
+            continuation?.resume(throwing: failure)
+        } else {
+            continuation?.resume()
+        }
+    }
+
+    func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) {
+        lock.lock()
+        let completion = systemCompletion
+        systemCompletion = nil
+        lock.unlock()
+        if let completion { DispatchQueue.main.async(execute: completion) }
+    }
 }
+
+#if os(iOS)
+/// Only here for the model downloads' background session (this file is the one
+/// allowed to touch `URLSession`).
+final class ModelDownloadsAppDelegate: NSObject, UIApplicationDelegate {
+    func application(
+        _ application: UIApplication,
+        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
+    ) -> Bool {
+        // Reconnects to downloads that carried on while the app was closed. No
+        // request is made unless one was already under way.
+        _ = BackgroundDownloader.shared.session
+        return true
+    }
+
+    func application(
+        _ application: UIApplication,
+        handleEventsForBackgroundURLSession identifier: String,
+        completionHandler: @escaping () -> Void
+    ) {
+        guard identifier == BackgroundDownloader.identifier else { return completionHandler() }
+        BackgroundDownloader.shared.handleSystemEvents(completion: completionHandler)
+    }
+}
+#endif

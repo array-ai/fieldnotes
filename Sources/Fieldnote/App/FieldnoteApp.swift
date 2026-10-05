@@ -5,6 +5,9 @@ import UserNotifications
 @main
 struct FieldnoteApp: App {
     @Environment(\.scenePhase) private var scenePhase
+    #if os(iOS)
+    @UIApplicationDelegateAdaptor(ModelDownloadsAppDelegate.self) private var downloadsDelegate
+    #endif
 
     @State private var model: AppModel
     private let container: ModelContainer

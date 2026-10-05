@@ -563,6 +563,9 @@ struct ModelCardView: View {
             switch state {
             case .downloading(let fraction):
                 ProgressView(value: fraction)
+                Text("Keeps downloading if you lock the phone or leave the app.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             case .preparing:
                 Text("Preparing for this phone… this can take a few minutes, once.")
                     .font(.caption)

@@ -41,6 +41,21 @@ struct ProcessingEstimatorTests {
         #expect(abs(after - 30) < 3)
     }
 
+    @Test("Each model learns its own speed")
+    func perModel() {
+        var parakeet = ProcessingEstimator(models: [.transcribing: "parakeetCtc110m"])
+        let apple = ProcessingEstimator(models: [.transcribing: "apple"])
+        #expect(parakeet.seconds(for: .transcribing, audio: 3_600, work: all)
+                < apple.seconds(for: .transcribing, audio: 3_600, work: all))
+
+        for _ in 0..<10 { parakeet.record(.transcribing, elapsed: 300, audio: 3_600) }
+        var switched = parakeet
+        switched.models = [.transcribing: "apple"]
+        // Learning Parakeet's rate leaves Apple's default untouched.
+        #expect(switched.seconds(for: .transcribing, audio: 3_600, work: all)
+                == apple.seconds(for: .transcribing, audio: 3_600, work: all))
+    }
+
     @Test("Very short recordings don't skew the rate")
     func ignoresTiny() {
         var estimator = ProcessingEstimator()

@@ -24,7 +24,7 @@ public enum SummaryEngine: String, Codable, CaseIterable, Sendable {
     }
 
     /// Ratings as in `ModelCard`: relative, and for Qwen an estimate until it's been
-    /// benchmarked on this phone. Speed for Apple's model is the iPhone 16 Pro benchmark
+    /// benchmarked on this phone. Speed for Apple's model is the iPhone 16 benchmark
     /// (~34 tokens/s); Qwen3 1.7B Core AI builds publish ~45–66 tokens/s on an iPhone 17
     /// Pro GPU, and this Neural-Engine-friendly build is unmeasured.
     public var card: ModelCard {

@@ -101,6 +101,14 @@ public actor ProcessingPipeline {
             summarises: !checkpoint.isComplete(.summarising)
         )
         var estimator = ProcessingEstimates.load()
+        estimator.models = [
+            .transcribing: (ParakeetTranscriber.selectedEngine(for: input.locale.identifier) ?? .apple).rawValue,
+            .diarizing: {
+                let method = DiarizationMethod(storedValue: UserDefaults.standard.string(forKey: DiarizationMethod.defaultsKey))
+                return (method.isInstalled ? method : .nemotron3).rawValue
+            }(),
+            .summarising: SummaryEngine(storedValue: UserDefaults.standard.string(forKey: SummaryEngine.defaultsKey)).rawValue,
+        ]
         let announce: (ProcessingStage) -> Void = { stage in
             let seconds = estimator.remaining(from: stage, audio: input.duration, work: work)
             estimate(stage, Date().addingTimeInterval(seconds))
@@ -379,7 +387,8 @@ public actor ProcessingPipeline {
 
 /// The learned processing speeds for this phone, kept in UserDefaults.
 enum ProcessingEstimates {
-    private static let key = "processingEstimator"
+    // v2: rates per model. The old per-stage rates mixed models, so start over.
+    private static let key = "processingEstimator.v2"
 
     static func load() -> ProcessingEstimator {
         guard let data = UserDefaults.standard.data(forKey: key),
