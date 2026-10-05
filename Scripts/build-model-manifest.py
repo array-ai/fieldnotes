@@ -30,6 +30,26 @@ PACKS = [
                   "JointDecisionv3.mlmodelc", "parakeet_vocab.json"],
     },
     {
+        "id": "parakeetV2",
+        "name": "Parakeet TDT v2 English (NVIDIA)",
+        "repo": "FluidInference/parakeet-tdt-0.6b-v2-coreml",
+        "revision": "ee09c569f73759e6d44c9bd16766f477b2b36d39",
+        "license": "CC-BY-4.0",
+        # FluidAudio's v2 set (AsrModels.getModelFileNames, default case).
+        "paths": ["Preprocessor.mlmodelc", "Encoder.mlmodelc", "Decoder.mlmodelc",
+                  "JointDecision.mlmodelc", "parakeet_vocab.json"],
+    },
+    {
+        "id": "parakeetTdtCtc110m",
+        "name": "Parakeet TDT-CTC 110M English (NVIDIA)",
+        "repo": "FluidInference/parakeet-tdt-ctc-110m-coreml",
+        "revision": "9bc92ead6e8f17eca92a869fd578ae76842b82ba",
+        "license": "CC-BY-4.0",
+        # Fused encoder: the preprocessor contains it (ModelNames.ASR.requiredModelsFused).
+        "paths": ["Preprocessor.mlmodelc", "Decoder.mlmodelc", "JointDecision.mlmodelc",
+                  "parakeet_vocab.json"],
+    },
+    {
         "id": "pyannoteCommunity1",
         "name": "pyannote community-1",
         "repo": "FluidInference/speaker-diarization-coreml",

@@ -13,9 +13,11 @@ two things you choose: optional model downloads, and Apple Maps place names.
 
 - **Records** with a Live Activity on the lock screen. Audio is written to disk in
   chunks as it goes, so a crash or a kill loses seconds, not the meeting.
-- **Transcribes** live with Apple's `SpeechAnalyzer`. Optionally, NVIDIA's Parakeet
-  TDT v3 (a 483 MB download, 25 European languages) rewrites the transcript after you
-  stop, for better accuracy on meetings.
+- **Transcribes** live with Apple's `SpeechAnalyzer`. Optionally, one of NVIDIA's
+  Parakeet models rewrites the transcript after you stop, for better accuracy:
+  TDT v3 (483 MB, 25 European languages), TDT v2 English (464 MB, the most accurate
+  for English) or TDT-CTC 110M English (228 MB, smaller and quicker). Settings shows
+  each model as a card with relative accuracy and speed, so the choice is easy.
 - **Identifies speakers** on device, chosen in Settings:
 
   | Method | What it is | |
@@ -87,7 +89,7 @@ SDKs are included.
 
 | | |
 |---|---|
-| Core logic (`Core/`) | Builds and tests on Linux, no Apple SDK. 125 tests, run in CI on every push |
+| Core logic (`Core/`) | Builds and tests on Linux, no Apple SDK. 128 tests, run in CI on every push |
 | App and widget | Build for `arm64-apple-ios27.0` in CI with Xcode 27, both through xtool and `xcodebuild` |
 | On a device | Runs on iPhone, with known small bugs. The device checks under [Testing](#testing) haven't all been done |
 | Linux device builds | Blocked: the bundled LLD can't read the iOS 27 SDK's stubs (see [Build](#build)) |

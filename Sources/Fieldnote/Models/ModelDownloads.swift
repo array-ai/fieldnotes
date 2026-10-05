@@ -24,7 +24,7 @@ public final class ModelDownloads {
 
     public static let shared = ModelDownloads()
 
-    public enum State: Equatable {
+    public enum State: Equatable, Sendable {
         case notInstalled
         case downloading(Double)
         /// Downloaded and verified; compiling for this phone's Neural Engine once.
@@ -161,11 +161,11 @@ public final class ModelDownloads {
         // Compile once now, while the user is watching. Parakeet's first Neural Engine
         // compile can take minutes; done inside a background task it would be cut off
         // and redone every time. CoreML caches the result for later loads.
-        if pack.id == .parakeetV3 {
+        if let version = ParakeetTranscriber.version(for: pack.id) {
             report(.preparing)
             let compileStarted = ContinuousClock.now
-            _ = try AsrModels.loadLocal(from: final, version: .v3)
-            DebugLog.shared.log("models", "parakeetV3: first compile took \(DebugLog.elapsed(since: compileStarted))")
+            _ = try AsrModels.loadLocal(from: final, version: version)
+            DebugLog.shared.log("models", "\(pack.id.rawValue): first compile took \(DebugLog.elapsed(since: compileStarted))")
         }
         try pack.revision.write(to: Self.markerURL(for: pack.id), atomically: true, encoding: .utf8)
         DebugLog.shared.log("models", "\(pack.id.rawValue): \(pack.files.count) files verified in \(DebugLog.elapsed(since: started))")

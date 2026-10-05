@@ -168,9 +168,10 @@ public actor ProcessingPipeline {
 
         // Parakeet, if the user chose it and has it: always redoes the transcript
         // after stop. Any failure falls back to Apple's transcript below.
-        if ParakeetTranscriber.isSelected(for: input.locale.identifier) {
+        if let engine = ParakeetTranscriber.selectedEngine(for: input.locale.identifier) {
             do {
                 let segments = try await ParakeetTranscriber.transcribe(
+                    engine: engine,
                     meetingID: input.meetingID,
                     localeIdentifier: input.locale.identifier
                 ) { fraction in

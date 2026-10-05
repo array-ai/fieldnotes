@@ -3,8 +3,9 @@ import FieldnoteKit
 import FluidAudio
 import Foundation
 
-/// Transcribes a finished recording with NVIDIA's Parakeet TDT v3, when the user has
-/// downloaded it and chosen it in Settings.
+/// Transcribes a finished recording with one of NVIDIA's Parakeet models (v3
+/// multilingual, v2 English, TDT-CTC 110M English), when the user has downloaded it
+/// and chosen it in Settings.
 ///
 /// Runs after stop, never during recording (Apple's model does the live text, and
 /// Nemotron may be running live). It reads the meeting's 16 kHz speaker buffer —
@@ -26,26 +27,45 @@ public enum ParakeetTranscriber {
         }
     }
 
-    /// Whether the next transcript for `localeIdentifier` would use Parakeet.
+    /// The Parakeet model the next transcript for `localeIdentifier` would use: the
+    /// one chosen in Settings, if it's downloaded and handles the language.
+    public static func selectedEngine(for localeIdentifier: String) -> TranscriptionEngine? {
+        let engine = TranscriptionEngine(storedValue: UserDefaults.standard.string(forKey: TranscriptionEngine.defaultsKey))
+        guard let pack = engine.modelPack,
+              ModelDownloads.installedDirectory(for: pack) != nil,
+              engine.supports(localeIdentifier) else { return nil }
+        return engine
+    }
+
     public static func isSelected(for localeIdentifier: String) -> Bool {
-        TranscriptionEngine(storedValue: UserDefaults.standard.string(forKey: TranscriptionEngine.defaultsKey)) == .parakeet
-            && ModelDownloads.installedDirectory(for: .parakeetV3) != nil
-            && TranscriptionEngine.parakeetSupports(localeIdentifier)
+        selectedEngine(for: localeIdentifier) != nil
+    }
+
+    /// FluidAudio's model version for each downloadable pack.
+    static func version(for pack: ModelPack.ID) -> AsrModelVersion? {
+        switch pack {
+        case .parakeetV3: .v3
+        case .parakeetV2: .v2
+        case .parakeetTdtCtc110m: .tdtCtc110m
+        case .pyannoteCommunity1, .pyannoteLegacy: nil
+        }
     }
 
     public static func transcribe(
+        engine: TranscriptionEngine,
         meetingID: UUID,
         localeIdentifier: String,
         progress: @Sendable (Double) -> Void
     ) async throws -> [TranscriptSegment] {
-        guard let directory = ModelDownloads.installedDirectory(for: .parakeetV3) else { throw Failure.notDownloaded }
+        guard let pack = engine.modelPack, let version = version(for: pack),
+              let directory = ModelDownloads.installedDirectory(for: pack) else { throw Failure.notDownloaded }
         let debug = DebugLog.shared
         let id = DebugLog.short(meetingID)
 
         let loadStarted = ContinuousClock.now
-        let models = try AsrModels.loadLocal(from: directory, version: .v3)
+        let models = try AsrModels.loadLocal(from: directory, version: version)
         let manager = AsrManager(config: .default, models: models)
-        debug.log("transcript", "\(id): Parakeet loaded in \(DebugLog.elapsed(since: loadStarted))")
+        debug.log("transcript", "\(id): \(engine.rawValue) loaded in \(DebugLog.elapsed(since: loadStarted))")
         progress(0.1)
 
         let wav = try writeWAV(meetingID: meetingID)
@@ -55,7 +75,8 @@ public enum ParakeetTranscriber {
 
         let runStarted = ContinuousClock.now
         var state = TdtDecoderState.make()
-        let language = Language(rawValue: String(localeIdentifier.prefix(2)).lowercased())
+        // Only the multilingual model takes a language hint.
+        let language = version == .v3 ? Language(rawValue: String(localeIdentifier.prefix(2)).lowercased()) : nil
         let result = try await manager.transcribe(wav.url, decoderState: &state, language: language)
         let words = buildWordTimings(from: result.tokenTimings ?? []).map {
             TranscriptWord(text: $0.word + " ", start: $0.startTime, end: $0.endTime)
@@ -65,8 +86,8 @@ public enum ParakeetTranscriber {
         let seconds = Double(elapsed.components.seconds) + Double(elapsed.components.attoseconds) / 1e18
         debug.log(
             "transcript",
-            String(format: "%@: Parakeet transcribed %.0f s in %.1f s (%.0f× real time), %d words, %d lines",
-                   id, wav.seconds, seconds, wav.seconds / max(seconds, 0.001), words.count, lines.count)
+            String(format: "%@: %@ transcribed %.0f s in %.1f s (%.0f× real time), %d words, %d lines",
+                   id, engine.rawValue, wav.seconds, seconds, wav.seconds / max(seconds, 0.001), words.count, lines.count)
         )
         progress(1)
         return lines

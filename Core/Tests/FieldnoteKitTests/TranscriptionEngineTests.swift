@@ -50,6 +50,27 @@ struct TranscriptionEngineTests {
         #expect(TranscriptionEngine.parakeetLanguages.count == 25)
     }
 
+    @Test("English-only models only take English")
+    func englishOnly() {
+        #expect(TranscriptionEngine.parakeetV2.supports("en_AU"))
+        #expect(!TranscriptionEngine.parakeetV2.supports("de_DE"))
+        #expect(TranscriptionEngine.parakeetCtc110m.supports("en-US"))
+        #expect(TranscriptionEngine.apple.supports("ja_JP"))
+    }
+
+    @Test("Every downloadable engine has a pack, and the stored v3 value still decodes")
+    func packs() {
+        #expect(TranscriptionEngine.apple.modelPack == nil)
+        #expect(TranscriptionEngine.allCases.filter { $0 != .apple }.allSatisfy { $0.modelPack != nil })
+        #expect(TranscriptionEngine(storedValue: "parakeet") == .parakeet)
+    }
+
+    @Test("Cards rate every model within 0...1")
+    func cards() {
+        let cards = TranscriptionEngine.allCases.map(\.card) + DiarizationMethod.allCases.map(\.card)
+        #expect(cards.allSatisfy { (0...1).contains($0.accuracy) && (0...1).contains($0.speed) && !$0.title.isEmpty })
+    }
+
     @Test("The model catalog is pinned and hashed")
     func catalog() {
         for pack in ModelPack.catalog {

@@ -11,6 +11,8 @@ public struct ModelPack: Sendable, Identifiable, Equatable {
 
     public enum ID: String, Sendable, CaseIterable {
         case parakeetV3
+        case parakeetV2
+        case parakeetTdtCtc110m
         case pyannoteCommunity1
         case pyannoteLegacy
     }

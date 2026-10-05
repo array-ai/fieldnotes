@@ -11,13 +11,14 @@ struct SettingsView: View {
 
     private func transcriptionFooter(_ settings: AppModel.Settings) -> String {
         var text = "One language per recording. Changing this affects the next meeting, not existing ones."
-        if settings.transcriptionEngine == .parakeet {
-            if !downloads.isInstalled(.parakeetV3) {
-                text += " Parakeet isn't downloaded yet, so Apple's model is used until it is."
-            } else if !TranscriptionEngine.parakeetSupports(settings.localeIdentifier) {
-                text += " Parakeet doesn't support this language, so Apple's model is used."
+        let engine = settings.transcriptionEngine
+        if let pack = engine.modelPack {
+            if !downloads.isInstalled(pack) {
+                text += " \(engine.card.title) isn't downloaded yet, so Apple's model is used until it is."
+            } else if !engine.supports(settings.localeIdentifier) {
+                text += " \(engine.card.title) doesn't support this language, so Apple's model is used."
             } else {
-                text += " The live transcript still comes from Apple's model; Parakeet rewrites it after you stop."
+                text += " The live transcript still comes from Apple's model; \(engine.card.title) rewrites it after you stop."
             }
         }
         return text
@@ -36,13 +37,10 @@ struct SettingsView: View {
                                 .tag(locale.identifier)
                         }
                     }
-                    Picker("Model", selection: $settings.transcriptionEngine) {
-                        ForEach(TranscriptionEngine.allCases, id: \.self) { engine in
-                            Text(engine == .parakeet && !downloads.isInstalled(.parakeetV3)
-                                 ? "\(engine.displayName) — download in Models"
-                                 : engine.displayName)
-                                .tag(engine)
-                        }
+                    NavigationLink {
+                        ModelsView(kind: .transcription)
+                    } label: {
+                        LabeledContent("Model", value: settings.transcriptionEngine.card.title)
                     }
                 } header: {
                     Text("Transcription")
@@ -51,11 +49,10 @@ struct SettingsView: View {
                 }
 
                 Section {
-                    Picker("Method", selection: $settings.diarizationMethod) {
-                        ForEach(DiarizationMethod.allCases, id: \.self) { method in
-                            Text(method.isInstalled ? method.displayName : "\(method.displayName) — download in Models")
-                                .tag(method)
-                        }
+                    NavigationLink {
+                        ModelsView(kind: .speakers)
+                    } label: {
+                        LabeledContent("Model", value: settings.diarizationMethod.card.title)
                     }
                     if settings.diarizationMethod == .nemotron3 {
                         Toggle("Identify while recording", isOn: $settings.liveSpeakers)
@@ -69,24 +66,6 @@ struct SettingsView: View {
                         \(settings.diarizationMethod.isInstalled ? "" : "Not downloaded yet, so Nemotron 3 is used until it is. ")\
                         \(settings.identifiesSpeakersLive ? "Speakers are labelled about ten seconds behind the conversation, and are ready when you stop. " : "")\
                         Changing this affects the next meeting, not existing ones.
-                        """
-                    )
-                }
-
-                Section {
-                    ForEach(ModelPack.catalog) { pack in
-                        ModelPackRow(pack: pack)
-                    }
-                } header: {
-                    Text("Models")
-                } footer: {
-                    Text(
-                        """
-                        Optional, and only downloaded when you tap Download: from \
-                        Hugging Face, at a fixed version, with every file checked \
-                        against its published checksum. Nothing else is sent. Keep \
-                        Fieldnote open while a download runs. Nemotron 3 and Apple's \
-                        speech model are built in.
                         """
                     )
                 }
@@ -432,45 +411,199 @@ struct SummaryPromptEditor: View {
     }
 }
 
-struct ModelPackRow: View {
-    let pack: ModelPack
+
+/// Model cards for one job (transcription or speakers): what each model is good at,
+/// relative accuracy and speed, languages, size, and download / delete. Tap a card to
+/// use that model.
+struct ModelsView: View {
+    enum Kind { case transcription, speakers }
+
+    let kind: Kind
+    @Environment(AppModel.self) private var model
     private var downloads: ModelDownloads { .shared }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(pack.name)
-                    Text("\(pack.totalBytes.byteCountDescription) · \(pack.license)")
-                        .font(.caption)
+        ScrollView {
+            VStack(spacing: 12) {
+                switch kind {
+                case .transcription:
+                    ForEach(TranscriptionEngine.allCases, id: \.self) { engine in
+                        card(engine.card, pack: engine.modelPack, active: model.settings.transcriptionEngine == engine) {
+                            model.settings.transcriptionEngine = engine
+                        } onDeleted: {
+                            if model.settings.transcriptionEngine == engine { model.settings.transcriptionEngine = .apple }
+                        }
+                    }
+                case .speakers:
+                    ForEach(DiarizationMethod.allCases, id: \.self) { method in
+                        card(method.card, pack: method.modelPack, active: model.settings.diarizationMethod == method) {
+                            model.settings.diarizationMethod = method
+                        } onDeleted: {
+                            if model.settings.diarizationMethod == method { model.settings.diarizationMethod = .nemotron3 }
+                        }
+                    }
+                }
+                Text(footer)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 4)
+            }
+            .padding()
+        }
+        .navigationTitle(kind == .transcription ? "Transcription models" : "Speaker models")
+    }
+
+    private var footer: String {
+        """
+        Accuracy and speed are relative, from published error rates and a benchmark on \
+        an iPhone 16 Pro; run Settings → Debug → Benchmark models for this phone. \
+        Downloads come from Hugging Face only when you tap Download, at a fixed \
+        version, with every file checked against its published checksum. Keep \
+        Fieldnote open while a download runs.
+        """
+    }
+
+    private func card(
+        _ card: ModelCard,
+        pack: ModelPack.ID?,
+        active: Bool,
+        select: @escaping () -> Void,
+        onDeleted: @escaping () -> Void
+    ) -> some View {
+        let state: ModelDownloads.State = pack.map { downloads.state($0) } ?? .installed
+        return ModelCardView(
+            card: card,
+            size: pack.map { ModelPack.pack($0).totalBytes.byteCountDescription } ?? "Built in",
+            state: state,
+            isBuiltIn: pack == nil,
+            isActive: active && state == .installed,
+            onSelect: { if state == .installed { select() } },
+            onDownload: { if let pack { downloads.download(pack) } },
+            onCancel: { if let pack { downloads.cancel(pack) } },
+            onDelete: {
+                if let pack {
+                    downloads.delete(pack)
+                    onDeleted()
+                }
+            }
+        )
+    }
+}
+
+struct ModelCardView: View {
+    let card: ModelCard
+    let size: String
+    let state: ModelDownloads.State
+    let isBuiltIn: Bool
+    let isActive: Bool
+    var onSelect: () -> Void
+    var onDownload: () -> Void
+    var onCancel: () -> Void
+    var onDelete: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 8) {
+                        Text(card.title).font(.headline)
+                        if isActive {
+                            Label("Active", systemImage: "checkmark")
+                                .font(.caption.weight(.semibold))
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 2)
+                                .background(Color.accentColor.opacity(0.2), in: Capsule())
+                        }
+                    }
+                    Text(card.summary)
+                        .font(.subheadline)
                         .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                Spacer()
-                switch downloads.state(pack.id) {
-                case .notInstalled, .failed:
-                    Button("Download") { downloads.download(pack.id) }
-                        .buttonStyle(.bordered)
-                case .downloading:
-                    Button("Cancel", role: .cancel) { downloads.cancel(pack.id) }
-                        .buttonStyle(.bordered)
-                case .preparing:
-                    ProgressView()
-                case .installed:
-                    Button("Delete", role: .destructive) { downloads.delete(pack.id) }
-                        .buttonStyle(.bordered)
+                Spacer(minLength: 8)
+                VStack(alignment: .trailing, spacing: 6) {
+                    RatingBar(label: "accuracy", value: card.accuracy)
+                    RatingBar(label: "speed", value: card.speed)
                 }
             }
-            if case .downloading(let fraction) = downloads.state(pack.id) {
+
+            switch state {
+            case .downloading(let fraction):
                 ProgressView(value: fraction)
-            }
-            if case .preparing = downloads.state(pack.id) {
+            case .preparing:
                 Text("Preparing for this phone… this can take a few minutes, once.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-            }
-            if case .failed(let message) = downloads.state(pack.id) {
+            case .failed(let message):
                 Text(message).font(.caption).foregroundStyle(.red)
+            default:
+                EmptyView()
+            }
+
+            Divider()
+
+            HStack(alignment: .bottom) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Label(card.languages, systemImage: "globe")
+                    Label(card.runs, systemImage: "waveform")
+                }
+                Spacer()
+                VStack(alignment: .trailing, spacing: 4) {
+                    Label(size, systemImage: "internaldrive")
+                    action
+                }
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .labelStyle(.titleAndIcon)
+        }
+        .padding()
+        .background(.background.secondary, in: RoundedRectangle(cornerRadius: 14))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .strokeBorder(isActive ? Color.accentColor : Color.clear, lineWidth: 2)
+        )
+        .contentShape(RoundedRectangle(cornerRadius: 14))
+        .onTapGesture(perform: onSelect)
+    }
+
+    @ViewBuilder
+    private var action: some View {
+        switch state {
+        case .notInstalled, .failed:
+            Button("Download", systemImage: "arrow.down.circle", action: onDownload)
+                .labelStyle(.titleAndIcon)
+        case .downloading:
+            Button("Cancel", role: .cancel, action: onCancel)
+        case .preparing:
+            ProgressView().controlSize(.small)
+        case .installed:
+            if !isBuiltIn {
+                Button("Delete", systemImage: "trash", role: .destructive, action: onDelete)
+                    .labelStyle(.titleAndIcon)
             }
         }
+    }
+}
+
+/// A short labelled bar, 0...1.
+struct RatingBar: View {
+    let label: String
+    let value: Double
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            ZStack(alignment: .leading) {
+                Capsule().fill(.quaternary)
+                Capsule().fill(Color.accentColor).frame(width: 64 * min(1, max(0, value)))
+            }
+            .frame(width: 64, height: 5)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(label) \(Int((value * 100).rounded())) percent")
     }
 }
