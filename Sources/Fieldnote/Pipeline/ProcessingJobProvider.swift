@@ -8,6 +8,8 @@ public protocol ProcessingJobProvider: Sendable {
     /// Meetings that stopped recording but have not finished processing, oldest first.
     func pendingJobs() async -> [ProcessingPipeline.Input]
     func markStage(_ stage: ProcessingStage, meetingID: UUID, estimatedCompletion: Date?) async
+    /// Transcript and speakers, before the summary: shown while it's written.
+    func applyTranscript(_ segments: [TranscriptSegment], embeddings: [String: [Float]], replacesEditedSegments: Bool, to meetingID: UUID) async
     func apply(_ output: ProcessingPipeline.Output, to meetingID: UUID) async
     func markFailed(meetingID: UUID, message: String) async
     /// Paused, not failed: stays queued with a note saying why.

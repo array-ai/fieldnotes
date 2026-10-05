@@ -57,6 +57,8 @@ public actor ProcessingPipeline {
     public typealias ProgressHandler = @Sendable (ProcessingStage, Double) -> Void
     /// Called as each stage starts, with when processing is expected to finish.
     public typealias EstimateHandler = @Sendable (ProcessingStage, Date) -> Void
+    /// The labelled transcript, once speakers are done and before summarising.
+    public typealias TranscriptHandler = @Sendable (_ segments: [TranscriptSegment], _ embeddings: [String: [Float]], _ replacesEditedSegments: Bool) async -> Void
 
     private let log = Logger(subsystem: "com.publicarray.fieldnotes", category: "pipeline")
     private let debug = DebugLog.shared
@@ -82,7 +84,8 @@ public actor ProcessingPipeline {
         _ input: Input,
         inBackgroundTask: Bool = false,
         progress: @escaping ProgressHandler = { _, _ in },
-        estimate: @escaping EstimateHandler = { _, _ in }
+        estimate: @escaping EstimateHandler = { _, _ in },
+        transcriptReady: @escaping TranscriptHandler = { _, _, _ in }
     ) async throws -> Output {
         let store = try ProcessingCheckpointStore(meetingID: input.meetingID)
         var checkpoint = await store.load()
@@ -133,6 +136,9 @@ public actor ProcessingPipeline {
         let speakers = Set(diarization.segments.compactMap(\.speakerID)).count
         debug.log("pipeline", "\(id): identifying speakers finished in \(DebugLog.elapsed(since: stageStart)), \(speakers) speaker(s)")
         learn(.diarizing, stageStart)
+        // Saved to the meeting now, so it can be read while the summary is written,
+        // or if the user stops the summary.
+        await transcriptReady(diarization.segments, diarization.embeddings, checkpoint.redoTranscript == true)
 
         stageStart = .now
         announce(.summarising)

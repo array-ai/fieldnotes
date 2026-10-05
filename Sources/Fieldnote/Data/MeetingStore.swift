@@ -111,34 +111,26 @@ public actor MeetingStore {
         try? modelContext.save()
     }
 
+    /// The transcript and speakers, saved as soon as those stages finish, so the
+    /// meeting shows them while the summary is still being written, or after the user
+    /// stops it. `apply` writes them again with the summary's speaker names.
+    public func applyTranscript(_ segments: [TranscriptSegment], embeddings: [String: [Float]], replacesEditedSegments: Bool, to meetingID: UUID) async {
+        guard let meeting = try? meeting(with: meetingID) else { return }
+        replaceTranscript(segments, embeddings: embeddings, speakerNames: [:], keepEdits: !replacesEditedSegments, on: meeting)
+        rebuildSearchText(for: meeting)
+        try? modelContext.save()
+    }
+
     public func apply(_ output: ProcessingPipeline.Output, to meetingID: UUID) async {
         guard let meeting = try? meeting(with: meetingID) else { return }
 
-        replaceSegments(output.segments, on: meeting, keepEdits: !output.replacesEditedSegments)
-
-        // Speakers are per-meeting labels. The embeddings ride along for v2. A name
-        // the user gave a speaker survives re-processing; the summary's grounded
-        // names only fill labels that have none.
-        let existingNames = Dictionary(
-            meeting.speakers.compactMap { speaker in speaker.displayName.map { (speaker.label, $0) } },
-            uniquingKeysWith: { first, _ in first }
+        replaceTranscript(
+            output.segments,
+            embeddings: output.embeddings,
+            speakerNames: output.summary.speakerNames,
+            keepEdits: !output.replacesEditedSegments,
+            on: meeting
         )
-        meeting.speakers.forEach(modelContext.delete)
-        meeting.speakers = []
-        let labels = Set(output.segments.compactMap(\.speakerID)).sorted()
-        for label in labels {
-            // Grounded in something a participant actually said (SummaryGrounder) --
-            // never a guess. A user's own rename always wins over this because it can
-            // only ever start unset: it is applied at the same point everything else
-            // about this speaker is (re)created from scratch.
-            let speaker = Speaker(
-                label: label,
-                displayName: existingNames[label] ?? output.summary.speakerNames[label],
-                embedding: output.embeddings[label]
-            )
-            speaker.meeting = meeting
-            modelContext.insert(speaker)
-        }
 
         if let existing = meeting.summary {
             modelContext.delete(existing)
@@ -335,6 +327,40 @@ public actor MeetingStore {
 
     private func segment(with id: UUID) throws -> Segment? {
         try modelContext.fetch(FetchDescriptor<Segment>(predicate: #Predicate { $0.id == id })).first
+    }
+
+    private func replaceTranscript(
+        _ segments: [TranscriptSegment],
+        embeddings: [String: [Float]],
+        speakerNames: [String: String],
+        keepEdits: Bool,
+        on meeting: Meeting
+    ) {
+        replaceSegments(segments, on: meeting, keepEdits: keepEdits)
+
+        // Speakers are per-meeting labels. The embeddings ride along for v2. A name
+        // the user gave a speaker survives re-processing; the summary's grounded
+        // names only fill labels that have none.
+        let existingNames = Dictionary(
+            meeting.speakers.compactMap { speaker in speaker.displayName.map { (speaker.label, $0) } },
+            uniquingKeysWith: { first, _ in first }
+        )
+        meeting.speakers.forEach(modelContext.delete)
+        meeting.speakers = []
+        let labels = Set(segments.compactMap(\.speakerID)).sorted()
+        for label in labels {
+            // Grounded in something a participant actually said (SummaryGrounder) --
+            // never a guess. A user's own rename always wins over this because it can
+            // only ever start unset: it is applied at the same point everything else
+            // about this speaker is (re)created from scratch.
+            let speaker = Speaker(
+                label: label,
+                displayName: existingNames[label] ?? speakerNames[label],
+                embedding: embeddings[label]
+            )
+            speaker.meeting = meeting
+            modelContext.insert(speaker)
+        }
     }
 
     private func replaceSegments(_ segments: [TranscriptSegment], on meeting: Meeting, keepEdits: Bool = true) {

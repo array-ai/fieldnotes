@@ -320,6 +320,9 @@ public final class BackgroundProcessingCoordinator: @unchecked Sendable {
                         // the Live Activity, so both say the same thing.
                         reporter.setEstimate(finish, for: stage)
                         Task { await provider.markStage(stage, meetingID: job.meetingID, estimatedCompletion: finish) }
+                    },
+                    transcriptReady: { [provider] segments, embeddings, replacesEdited in
+                        await provider.applyTranscript(segments, embeddings: embeddings, replacesEditedSegments: replacesEdited, to: job.meetingID)
                     }
                 )
                 await provider.apply(output, to: job.meetingID)
