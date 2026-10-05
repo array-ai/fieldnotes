@@ -46,6 +46,7 @@
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
 		<string>com.publicarray.fieldnotes.processing</string>
+		<string>com.publicarray.fieldnotes.summaries</string>
 	</array>
 	<key>NSSupportsLiveActivities</key>
 	<true/>

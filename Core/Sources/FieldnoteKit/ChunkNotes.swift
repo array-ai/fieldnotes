@@ -16,7 +16,7 @@ import Foundation
 /// asking it to invent one, and an unresolvable citation is worse than no citation
 /// because it looks like grounding. So the prompt numbers the lines, the model cites
 /// numbers, and the grounder maps them back.
-public struct ChunkNotes: Sendable, Hashable {
+public struct ChunkNotes: Codable, Sendable, Hashable {
     /// What was discussed, grouped into topics with cited key points.
     public var topics: [NoteTopic]
     public var points: [String]
@@ -66,7 +66,7 @@ public struct ChunkNotes: Sendable, Hashable {
 }
 
 /// One topic as the model saw it in one excerpt.
-public struct NoteTopic: Sendable, Hashable {
+public struct NoteTopic: Codable, Sendable, Hashable {
     public var title: String
     public var summary: String
     public var points: [NotePoint]
@@ -80,7 +80,7 @@ public struct NoteTopic: Sendable, Hashable {
 
 /// A key point under a topic, with short supporting details. The point carries the
 /// citation; the details are elaboration of the same cited lines.
-public struct NotePoint: Sendable, Hashable {
+public struct NotePoint: Codable, Sendable, Hashable {
     public var text: String
     public var details: [String]
     public var sourceLines: [Int]
@@ -92,7 +92,7 @@ public struct NotePoint: Sendable, Hashable {
     }
 }
 
-public struct NoteDecision: Sendable, Hashable {
+public struct NoteDecision: Codable, Sendable, Hashable {
     public var statement: String
     public var sourceLines: [Int]
 
@@ -102,7 +102,7 @@ public struct NoteDecision: Sendable, Hashable {
     }
 }
 
-public struct NoteActionItem: Sendable, Hashable {
+public struct NoteActionItem: Codable, Sendable, Hashable {
     public var task: String
     public var owner: String
     public var dueDate: String
@@ -116,12 +116,20 @@ public struct NoteActionItem: Sendable, Hashable {
     }
 }
 
-public struct NoteClaim: Sendable, Hashable {
+public struct NoteClaim: Codable, Sendable, Hashable {
     public var text: String
     public var sourceLines: [Int]
 
     public init(text: String, sourceLines: [Int]) {
         self.text = text
         self.sourceLines = sourceLines
+    }
+}
+
+extension TranscriptChunk {
+    /// Identifies a chunk's exact lines, so a saved summary part is only reused for
+    /// the same excerpt (budgets can change between runs, and with them chunk bounds).
+    public var partKey: String {
+        "\(lineNumbers.first ?? 0)-\(lineNumbers.last ?? 0)-\(segments.count)"
     }
 }

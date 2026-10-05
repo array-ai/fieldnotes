@@ -23,6 +23,9 @@ import OSLog
 public final class BackgroundProcessingCoordinator: @unchecked Sendable {
 
     public static let taskIdentifier = "com.publicarray.fieldnotes.processing"
+    /// A power-only task that finishes waiting summaries, app closed ("Finish notes
+    /// while charging"). iOS runs it when the phone is plugged in and idle.
+    public static let summaryTaskIdentifier = "com.publicarray.fieldnotes.summaries"
 
     private let log = Logger(subsystem: "com.publicarray.fieldnotes", category: "background")
     private let debug = DebugLog.shared
@@ -53,6 +56,13 @@ public final class BackgroundProcessingCoordinator: @unchecked Sendable {
 
     /// Call from `init` of the app type. Must complete before launch does.
     public func registerHandlers() {
+        BGTaskScheduler.shared.register(forTaskWithIdentifier: Self.summaryTaskIdentifier, using: nil) { [weak self] task in
+            guard let self, let task = task as? BGProcessingTask else {
+                task.setTaskCompleted(success: false)
+                return
+            }
+            self.handleSummaries(task)
+        }
         BGTaskScheduler.shared.register(forTaskWithIdentifier: Self.taskIdentifier, using: nil) { [weak self] task in
             guard let self, let task = task as? BGContinuedProcessingTask else {
                 task.setTaskCompleted(success: false)
@@ -178,6 +188,45 @@ public final class BackgroundProcessingCoordinator: @unchecked Sendable {
         }
     }
 
+    /// Asks iOS for a plugged-in, app-closed run to finish waiting summaries.
+    public func scheduleSummariesOnPower() {
+        guard SummaryInBackground.isEnabled else { return }
+        let request = BGProcessingTaskRequest(identifier: Self.summaryTaskIdentifier)
+        request.requiresExternalPower = true
+        request.requiresNetworkConnectivity = false
+        Task {
+            do {
+                try await BGTaskScheduler.shared.submitTaskRequest(request)
+                debug.log("background", "scheduled a run to finish notes when the phone is charging")
+            } catch {
+                debug.log("background", "couldn't schedule the charging run: \(error)")
+            }
+        }
+    }
+
+    private func handleSummaries(_ task: BGProcessingTask) {
+        debug.log("background", "charging run started by the system")
+        let reporter = ProgressReporter(progress: Progress(totalUnitCount: ProcessingStage.totalWeight), task: nil)
+        stateLock.lock()
+        guard runningTask == nil else {
+            redriveRequested = true
+            stateLock.unlock()
+            task.setTaskCompleted(success: true)
+            return
+        }
+        let completion = TaskCompletion(task)
+        let work = Task { [weak self] in
+            await self?.drainUntilIdle(reporting: reporter, inBackgroundTask: true)
+            completion.complete()
+        }
+        runningTask = work
+        stateLock.unlock()
+        task.expirationHandler = { [weak self] in
+            self?.debug.log("background", "charging run expired; the last finished part is saved")
+            work.cancel()
+        }
+    }
+
     private func runInProcess() {
         let reporter = ProgressReporter(
             progress: Progress(totalUnitCount: ProcessingStage.totalWeight),
@@ -192,7 +241,12 @@ public final class BackgroundProcessingCoordinator: @unchecked Sendable {
             return
         }
         runningTask = Task { [weak self] in
+            // Writing notes needs the app in front: keep the phone from locking while
+            // it runs, if the user wants that (on by default).
+            let keepAwake = UserDefaults.standard.object(forKey: "keepAwakeWhileProcessing") as? Bool ?? true
+            if keepAwake { await MainActor.run { UIApplication.shared.isIdleTimerDisabled = true } }
             await self?.drainUntilIdle(reporting: reporter, inBackgroundTask: false)
+            if keepAwake { await MainActor.run { UIApplication.shared.isIdleTimerDisabled = false } }
         }
         stateLock.unlock()
     }
@@ -270,6 +324,7 @@ public final class BackgroundProcessingCoordinator: @unchecked Sendable {
                 // background). Stop here; the rest would hit the same wall. The app
                 // resumes everything next time it's open.
                 await provider.markWaiting(meetingID: job.meetingID, message: deferred.localizedDescription)
+                scheduleSummariesOnPower()
                 let active = await MainActor.run { UIApplication.shared.applicationState == .active }
                 if !active {
                     await ProcessingNotifier.shared.notifyWaiting(meetingID: job.meetingID, title: job.title)
@@ -289,6 +344,22 @@ public final class BackgroundProcessingCoordinator: @unchecked Sendable {
                 await ProcessingNotifier.shared.notifyFailed(meetingID: job.meetingID, title: job.title)
             }
         }
+    }
+}
+
+/// Completes a `BGProcessingTask` (not Sendable) from the drain's task, once.
+private final class TaskCompletion: @unchecked Sendable {
+    private let lock = NSLock()
+    private var task: BGProcessingTask?
+
+    init(_ task: BGProcessingTask) { self.task = task }
+
+    func complete() {
+        lock.lock()
+        let task = self.task
+        self.task = nil
+        lock.unlock()
+        task?.setTaskCompleted(success: true)
     }
 }
 

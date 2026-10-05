@@ -296,6 +296,18 @@ public final class AppModel {
             didSet { UserDefaults.standard.set(notifyWhenProcessed, forKey: ProcessingNotifier.enabledKey) }
         }
 
+        /// Lets summaries run in the background while the phone is charging, including
+        /// an overnight run with the app closed. Off by default.
+        public var summariseWhileCharging: Bool {
+            didSet { UserDefaults.standard.set(summariseWhileCharging, forKey: SummaryInBackground.defaultsKey) }
+        }
+
+        /// Stops the phone locking while notes are written in the app (they can only be
+        /// written with the app in front, unless charging is allowed above).
+        public var keepAwakeWhileProcessing: Bool {
+            didSet { UserDefaults.standard.set(keepAwakeWhileProcessing, forKey: "keepAwakeWhileProcessing") }
+        }
+
         /// Shows the log viewer and the redo actions.
         public var debugMode: Bool {
             didSet { UserDefaults.standard.set(debugMode, forKey: "debugMode") }
@@ -313,6 +325,8 @@ public final class AppModel {
 
         public init() {
             self.debugMode = UserDefaults.standard.bool(forKey: "debugMode")
+            self.summariseWhileCharging = UserDefaults.standard.bool(forKey: SummaryInBackground.defaultsKey)
+            self.keepAwakeWhileProcessing = UserDefaults.standard.object(forKey: "keepAwakeWhileProcessing") as? Bool ?? true
             self.transcriptionEngine = TranscriptionEngine(
                 storedValue: UserDefaults.standard.string(forKey: TranscriptionEngine.defaultsKey)
             )

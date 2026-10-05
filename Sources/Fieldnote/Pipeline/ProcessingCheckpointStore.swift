@@ -87,6 +87,18 @@ public actor ProcessingCheckpointStore {
         read(MeetingSummary.self, from: "summary.json")
     }
 
+    /// Summary parts already written, by `TranscriptChunk.partKey`, so a run that was
+    /// stopped or killed continues from the next part instead of starting over.
+    public func loadSummaryParts() -> [String: ChunkNotes] {
+        read([String: ChunkNotes].self, from: "summary-parts.json") ?? [:]
+    }
+
+    public func saveSummaryPart(_ notes: ChunkNotes, key: String) throws {
+        var parts = loadSummaryParts()
+        parts[key] = notes
+        try write(parts, to: "summary-parts.json")
+    }
+
     /// Called once the meeting is persisted. Keeps the on-disk footprint honest.
     public func clear() {
         try? FileManager.default.removeItem(at: directory)

@@ -88,10 +88,21 @@ struct SettingsView: View {
 
                 Section {
                     Toggle("Notify when notes are ready", isOn: $settings.notifyWhenProcessed)
+                    Toggle("Finish notes while charging", isOn: $settings.summariseWhileCharging)
+                    Toggle("Keep screen on while writing notes", isOn: $settings.keepAwakeWhileProcessing)
                 } header: {
-                    Text("Notifications")
+                    Text("Processing")
                 } footer: {
-                    Text("A notification on this phone when a meeting finishes processing. It shows the meeting title and its first topic, which can appear on the lock screen.")
+                    Text(
+                        """
+                        Apple's on-device model won't write notes in the background on \
+                        battery. Transcripts and speakers always finish in the background; \
+                        notes are written with Fieldnote open, or — with "Finish notes while \
+                        charging" — whenever the phone is plugged in, even with the app \
+                        closed (iOS picks the moment, often overnight). Notifications show \
+                        the meeting title and first topic, which can appear on the lock screen.
+                        """
+                    )
                 }
 
                 Section {

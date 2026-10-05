@@ -66,6 +66,8 @@ public actor SummarizationService {
         segments: [TranscriptSegment],
         meeting: MeetingContext,
         allowDeferral: Bool = true,
+        savedParts: [String: ChunkNotes] = [:],
+        savePart: @Sendable (String, ChunkNotes) async -> Void = { _, _ in },
         progress: @Sendable (Double) -> Void = { _ in }
     ) async throws -> MeetingSummary {
         self.allowDeferral = allowDeferral
@@ -101,6 +103,12 @@ public actor SummarizationService {
 
         for chunk in chunks {
             try Task.checkCancellation()
+            if let saved = savedParts[chunk.partKey] {
+                notes.append(saved)
+                debug.log("summary", "chunk \(chunk.index + 1)/\(chunks.count): already written, reusing it")
+                progress(0.9 * Double(chunk.index + 1) / Double(chunks.count))
+                continue
+            }
             let started = ContinuousClock.now
             var chunkDegraded: [DegradedChunk] = []
             let chunkNotes = try await summarisePiece(
@@ -108,6 +116,8 @@ public actor SummarizationService {
             )
             notes.append(chunkNotes)
             degraded.append(contentsOf: chunkDegraded)
+            // Only clean parts are kept for a resume; a degraded one gets another go.
+            if chunkDegraded.isEmpty { await savePart(chunk.partKey, chunkNotes) }
             debug.log(
                 "summary",
                 "chunk \(chunk.index + 1)/\(chunks.count): \(chunk.segments.count) lines, \(chunkNotes.points.count) points, \(chunkDegraded.isEmpty ? "ok" : "\(chunkDegraded.count) degraded piece(s)") in \(DebugLog.elapsed(since: started))"

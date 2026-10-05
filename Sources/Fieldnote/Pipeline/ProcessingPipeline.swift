@@ -136,8 +136,13 @@ public actor ProcessingPipeline {
         stageStart = .now
         announce(.summarising)
         if inBackgroundTask, !checkpoint.isComplete(.summarising) {
-            debug.log("pipeline", "\(id): transcript and speakers done; summarising waits for an in-app run (background tasks are rate-limited)")
-            throw SummarizationService.Deferred(detail: "background task", withoutAttempt: true)
+            // Apple rate-limits its model for background work on battery, not on power.
+            let onPower = await PowerState.isOnPower()
+            if !(SummaryInBackground.isEnabled && onPower) {
+                debug.log("pipeline", "\(id): transcript and speakers done; summarising waits for the app\(SummaryInBackground.isEnabled ? " or a charger" : "") (background on battery is rate-limited)")
+                throw SummarizationService.Deferred(detail: "background task", withoutAttempt: true)
+            }
+            debug.log("pipeline", "\(id): on power, summarising in the background")
         }
         let summary = try await summariseStage(
             input,
@@ -337,7 +342,14 @@ public actor ProcessingPipeline {
         let summary: MeetingSummary
         do {
             // After a few waits, accept thinner notes rather than waiting forever.
-            summary = try await summariser.summarise(segments: segments, meeting: context, allowDeferral: deferrals < 3) { fraction in
+            let saved = await store.loadSummaryParts()
+            summary = try await summariser.summarise(
+                segments: segments,
+                meeting: context,
+                allowDeferral: deferrals < 3,
+                savedParts: saved,
+                savePart: { key, notes in try? await store.saveSummaryPart(notes, key: key) }
+            ) { fraction in
                 progress(.summarising, fraction)
             }
         } catch let deferred as SummarizationService.Deferred {
@@ -386,3 +398,32 @@ extension DiarizationMethod {
         modelPack.map { ModelDownloads.installedDirectory(for: $0) != nil } ?? true
     }
 }
+
+/// "Finish notes while charging" (Settings): lets summaries run in the background,
+/// where Apple's model is only rate-limited on battery. Off by default.
+public enum SummaryInBackground {
+    public static let defaultsKey = "summariseWhileCharging"
+    public static var isEnabled: Bool { UserDefaults.standard.bool(forKey: defaultsKey) }
+}
+
+#if os(iOS)
+import UIKit
+
+public enum PowerState {
+    /// Plugged in (charging or full).
+    @MainActor
+    public static func isOnPowerNow() -> Bool {
+        UIDevice.current.isBatteryMonitoringEnabled = true
+        let state = UIDevice.current.batteryState
+        return state == .charging || state == .full
+    }
+
+    public static func isOnPower() async -> Bool {
+        await MainActor.run { isOnPowerNow() }
+    }
+}
+#else
+public enum PowerState {
+    public static func isOnPower() async -> Bool { true }
+}
+#endif
