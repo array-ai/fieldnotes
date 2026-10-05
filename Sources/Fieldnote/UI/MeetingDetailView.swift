@@ -16,6 +16,9 @@ struct MeetingDetailView: View {
     @State private var newTitle = ""
     /// Bumped to restart polling after a redo is queued.
     @State private var pollGeneration = 0
+    @State private var player = MeetingPlayer()
+    /// Keep the playing line in view. Off when the user wants to read elsewhere.
+    @State private var follow = true
 
     enum Tab: String, CaseIterable { case summary, transcript }
 
@@ -28,6 +31,8 @@ struct MeetingDetailView: View {
             }
         }
         .task(id: pollGeneration) { await loadAndPollWhileProcessing() }
+        .task { await player.load(meetingID: meetingID) }
+        .onDisappear { player.stop() }
         .navigationTitle(meeting?.title ?? "Meeting")
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
@@ -125,19 +130,28 @@ struct MeetingDetailView: View {
             .pickerStyle(.segmented)
             .padding(.horizontal)
 
+            if tab == .transcript, player.isReady {
+                PlayerBar(player: player, follow: $follow)
+            }
+
             ScrollViewReader { proxy in
                 List {
                     switch tab {
                     case .summary:
                         SummarySections(meeting: meeting, showsDetail: model.settings.debugMode) { segmentID in
-                            // Tapping a citation jumps to the line it came from
-                            // (spec 4.5). Every claim has one or it was not saved.
+                            // Tapping a citation jumps to the line it came from,
+                            // and plays it. Every claim has one or it was not saved.
                             tab = .transcript
                             scrollTarget = segmentID
+                            if let line = meeting.segments.first(where: { $0.id == segmentID }) {
+                                player.play(from: line.start)
+                            }
                         }
                     case .transcript:
                         TranscriptSections(
                             meeting: meeting,
+                            playingID: player.isReady ? playingSegmentID(meeting) : nil,
+                            onPlay: { player.play(from: $0.start) },
                             onEdit: { editingSegment = $0 },
                             onRelabel: { relabelling = $0 }
                         )
@@ -148,8 +162,16 @@ struct MeetingDetailView: View {
                     withAnimation { proxy.scrollTo(target, anchor: .center) }
                     scrollTarget = nil
                 }
+                .onChange(of: playingSegmentID(meeting)) { _, playing in
+                    guard follow, player.isPlaying, tab == .transcript, let playing else { return }
+                    withAnimation { proxy.scrollTo(playing, anchor: .center) }
+                }
             }
         }
+    }
+
+    private func playingSegmentID(_ meeting: MeetingSnapshot) -> UUID? {
+        TranscriptPlayback.currentIndex(at: player.currentTime, in: meeting.segments).map { meeting.segments[$0].id }
     }
 
     private func redo(_ stage: MeetingStore.RedoStage, _ meeting: MeetingSnapshot) {
@@ -386,6 +408,9 @@ struct CitedRow: View {
 
 struct TranscriptSections: View {
     let meeting: MeetingSnapshot
+    /// The line under the playhead, highlighted.
+    var playingID: UUID? = nil
+    var onPlay: (TranscriptSegment) -> Void = { _ in }
     var onEdit: (TranscriptSegment) -> Void
     var onRelabel: (TranscriptSegment) -> Void
 
@@ -406,8 +431,13 @@ struct TranscriptSections: View {
                     }
                     Text(segment.text)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+                .onTapGesture { onPlay(segment) }
+                .listRowBackground(segment.id == playingID ? Color.accentColor.opacity(0.15) : nil)
                 .id(segment.id)
                 .contextMenu {
+                    Button("Play from here", systemImage: "play") { onPlay(segment) }
                     Button("Change speaker", systemImage: "person.crop.circle") { onRelabel(segment) }
                     Button("Edit text", systemImage: "pencil") { onEdit(segment) }
                 }
@@ -457,5 +487,58 @@ struct SegmentEditor: View {
                     }
                 }
         }
+    }
+}
+
+/// Play/pause, skip, scrubber and speed for the meeting's recording.
+struct PlayerBar: View {
+    let player: MeetingPlayer
+    @Binding var follow: Bool
+    @State private var scrubbing: Double?
+
+    var body: some View {
+        VStack(spacing: 4) {
+            Slider(
+                value: Binding(
+                    get: { scrubbing ?? player.currentTime },
+                    set: { scrubbing = $0 }
+                ),
+                in: 0...max(player.duration, 1),
+                onEditingChanged: { editing in
+                    if !editing, let target = scrubbing {
+                        player.seek(to: target)
+                        scrubbing = nil
+                    }
+                }
+            )
+            HStack {
+                Text(Timecode.short(scrubbing ?? player.currentTime))
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button { player.skip(by: -15) } label: { Image(systemName: "gobackward.15") }
+                Button { player.togglePlay() } label: {
+                    Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
+                        .font(.title2)
+                        .frame(width: 44)
+                }
+                Button { player.skip(by: 15) } label: { Image(systemName: "goforward.15") }
+                Spacer()
+                Button { player.cycleRate() } label: {
+                    Text(player.rate == 1 ? "1×" : String(format: "%g×", player.rate))
+                        .font(.caption.monospacedDigit().weight(.semibold))
+                }
+                Button { follow.toggle() } label: {
+                    Image(systemName: follow ? "text.line.first.and.arrowtriangle.forward" : "text.justify.left")
+                }
+                .accessibilityLabel(follow ? "Stop following playback" : "Follow playback")
+                Text(Timecode.short(player.duration))
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.borderless)
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 6)
     }
 }

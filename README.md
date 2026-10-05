@@ -39,6 +39,9 @@ you turn on Apple Maps place names.
   from a meeting service such as Fireflies): use Import in the meeting list, or
   "Open in Fieldnote" from another app's share sheet. Imported audio is transcribed,
   split by speaker and summarised like a recording made in the app.
+- **Plays back** the recording above the transcript, with the line being spoken
+  highlighted and kept in view. Tap a line, or a timestamp in the summary, to play
+  from there.
 - **Exports** through the share sheet as Markdown, plain text, PDF, SRT/VTT subtitles
   or audio, sends tasks to Reminders, and makes encrypted backups.
 - **Keeps working in the background** after you press stop. Processing runs as a
@@ -80,7 +83,7 @@ SDKs are included.
 
 | | |
 |---|---|
-| Core logic (`Core/`) | Builds and tests on Linux, no Apple SDK. 115 tests, run in CI on every push |
+| Core logic (`Core/`) | Builds and tests on Linux, no Apple SDK. 118 tests, run in CI on every push |
 | App and widget | Build for `arm64-apple-ios27.0` in CI with Xcode 27, both through xtool and `xcodebuild` |
 | On a device | Runs on iPhone, with known small bugs. The device checks under [Testing](#testing) haven't all been done |
 | Linux device builds | Blocked: the bundled LLD can't read the iOS 27 SDK's stubs (see [Build](#build)) |
