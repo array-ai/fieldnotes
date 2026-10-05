@@ -21,8 +21,13 @@ public actor RemindersExporter {
         try await store.requestFullAccessToEvents()
     }
 
+    /// Every Reminders list, by name. Picks up lists made since the store was
+    /// opened, including ones still syncing from iCloud.
     public func availableLists() -> [(id: String, title: String)] {
-        store.calendars(for: .reminder).map { ($0.calendarIdentifier, $0.title) }
+        store.refreshSourcesIfNecessary()
+        return store.calendars(for: .reminder)
+            .sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+            .map { ($0.calendarIdentifier, $0.title) }
     }
 
     /// - Returns: how many reminders were created.

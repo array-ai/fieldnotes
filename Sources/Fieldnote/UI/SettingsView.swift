@@ -1,9 +1,11 @@
+import EventKit
 import FieldnoteKit
 import SwiftUI
 
 struct SettingsView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.scenePhase) private var scenePhase
 
     @State private var locales: [Locale] = []
     @State private var reminderLists: [(id: String, title: String)] = []
@@ -17,6 +19,8 @@ struct SettingsView: View {
                 text += " \(engine.card.title) isn't downloaded yet, so Apple's model is used until it is."
             } else if !engine.supports(settings.localeIdentifier) {
                 text += " \(engine.card.title) doesn't support this language, so Apple's model is used."
+            } else if engine.runsLive {
+                text += " \(engine.card.title) writes the live transcript while you record."
             } else {
                 text += " The live transcript still comes from Apple's model; \(engine.card.title) rewrites it after you stop."
             }
@@ -168,13 +172,31 @@ struct SettingsView: View {
             }
             .task {
                 locales = await SpeechAssetProvisioner.supportedLocales()
-                if settings.remindersEnabled {
-                    let exporter = RemindersExporter()
-                    if (try? await exporter.requestRemindersAccess()) == true {
-                        reminderLists = await exporter.availableLists()
-                    }
-                }
+                await loadReminderLists()
             }
+            // Turned on just now, a list made in Reminders while this was open, or
+            // back from the Reminders app: read the lists again.
+            .onChange(of: settings.remindersEnabled) { _, _ in Task { await loadReminderLists() } }
+            .onReceive(NotificationCenter.default.publisher(for: .EKEventStoreChanged)) { _ in
+                Task { await loadReminderLists() }
+            }
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active { Task { await loadReminderLists() } }
+            }
+        }
+    }
+}
+
+extension SettingsView {
+    func loadReminderLists() async {
+        let settings = model.settings
+        guard settings.remindersEnabled else { return }
+        let exporter = RemindersExporter()
+        guard (try? await exporter.requestRemindersAccess()) == true else { return }
+        reminderLists = await exporter.availableLists()
+        // The chosen list was deleted in Reminders: fall back to the default.
+        if let chosen = settings.remindersListID, !reminderLists.contains(where: { $0.id == chosen }) {
+            settings.remindersListID = nil
         }
     }
 }
