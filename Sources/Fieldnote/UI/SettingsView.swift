@@ -84,8 +84,9 @@ struct SettingsView: View {
                         """
                         Optional, and only downloaded when you tap Download: from \
                         Hugging Face, at a fixed version, with every file checked \
-                        against its published checksum. Nothing else is sent. Nemotron 3 \
-                        and Apple's speech model are built in.
+                        against its published checksum. Nothing else is sent. Keep \
+                        Fieldnote open while a download runs. Nemotron 3 and Apple's \
+                        speech model are built in.
                         """
                     )
                 }
@@ -452,6 +453,8 @@ struct ModelPackRow: View {
                 case .downloading:
                     Button("Cancel", role: .cancel) { downloads.cancel(pack.id) }
                         .buttonStyle(.bordered)
+                case .preparing:
+                    ProgressView()
                 case .installed:
                     Button("Delete", role: .destructive) { downloads.delete(pack.id) }
                         .buttonStyle(.bordered)
@@ -459,6 +462,11 @@ struct ModelPackRow: View {
             }
             if case .downloading(let fraction) = downloads.state(pack.id) {
                 ProgressView(value: fraction)
+            }
+            if case .preparing = downloads.state(pack.id) {
+                Text("Preparing for this phone… this can take a few minutes, once.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
             if case .failed(let message) = downloads.state(pack.id) {
                 Text(message).font(.caption).foregroundStyle(.red)

@@ -23,10 +23,10 @@ public enum TranscriptionEngine: String, Codable, CaseIterable, Sendable {
         }
     }
 
-    /// Languages Parakeet v3 handles (its language hint values, BCP-47 primary tags).
+    /// The 25 languages Parakeet TDT v3 was trained on (BCP-47 primary tags).
     public static let parakeetLanguages: Set<String> = [
-        "en", "es", "fr", "de", "it", "pt", "ro", "nl", "da", "sv", "fi", "hu", "et", "lv",
-        "lt", "mt", "pl", "cs", "sk", "sl", "hr", "bs", "ru", "uk", "be", "bg", "sr", "el",
+        "bg", "hr", "cs", "da", "nl", "en", "et", "fi", "fr", "de", "el", "hu", "it",
+        "lv", "lt", "mt", "pl", "pt", "ro", "sk", "sl", "es", "sv", "ru", "uk",
     ]
 
     /// Whether Parakeet can transcribe a locale; Apple's model is used otherwise.

@@ -46,6 +46,8 @@ struct TranscriptionEngineTests {
         #expect(TranscriptionEngine.parakeetSupports("de-DE"))
         #expect(!TranscriptionEngine.parakeetSupports("ja_JP"))
         #expect(!TranscriptionEngine.parakeetSupports("zh-Hans"))
+        #expect(!TranscriptionEngine.parakeetSupports("sr_RS"))
+        #expect(TranscriptionEngine.parakeetLanguages.count == 25)
     }
 
     @Test("The model catalog is pinned and hashed")

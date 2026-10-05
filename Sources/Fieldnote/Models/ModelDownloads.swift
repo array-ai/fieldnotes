@@ -1,5 +1,6 @@
 import CryptoKit
 import FieldnoteKit
+import FluidAudio
 import Foundation
 import Observation
 
@@ -26,6 +27,8 @@ public final class ModelDownloads {
     public enum State: Equatable {
         case notInstalled
         case downloading(Double)
+        /// Downloaded and verified; compiling for this phone's Neural Engine once.
+        case preparing
         case installed
         case failed(String)
     }
@@ -72,7 +75,11 @@ public final class ModelDownloads {
         states[id] = .downloading(0)
         tasks[id] = Task {
             do {
-                try await install(ModelPack.pack(id))
+                // Off the main actor: hashing and the first model compile take seconds
+                // to minutes and must not freeze the UI.
+                try await Self.install(ModelPack.pack(id)) { state in
+                    Task { @MainActor in ModelDownloads.shared.states[id] = state }
+                }
                 states[id] = .installed
                 DebugLog.shared.log("models", "\(id.rawValue): installed")
             } catch is CancellationError {
@@ -104,12 +111,15 @@ public final class ModelDownloads {
         root.appendingPathComponent(id.rawValue + ".partial", isDirectory: true)
     }
 
-    private func install(_ pack: ModelPack) async throws {
+    nonisolated private static func install(
+        _ pack: ModelPack,
+        report: @escaping @Sendable (State) -> Void
+    ) async throws {
         let manager = FileManager.default
         let staging = Self.staging(for: pack.id)
         try FieldnoteStorage.ensureDirectory(Self.root)
         try manager.createDirectory(at: staging, withIntermediateDirectories: true)
-        try checkFreeSpace(for: pack, at: Self.root)
+        try Self.checkFreeSpace(for: pack, at: Self.root)
 
         let started = ContinuousClock.now
         DebugLog.shared.log("models", "\(pack.id.rawValue): downloading \(pack.totalBytes.byteCountDescription) from \(pack.repo)@\(pack.revision.prefix(7))")
@@ -124,10 +134,8 @@ public final class ModelDownloads {
             try manager.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
             let base = done
             let total = pack.totalBytes
-            let progress = DownloadProgress { [weak self] written in
-                Task { @MainActor in
-                    self?.states[pack.id] = .downloading(Double(base + written) / Double(max(total, 1)))
-                }
+            let progress = DownloadProgress { written in
+                report(.downloading(Double(base + written) / Double(max(total, 1))))
             }
             let (temporary, response) = try await URLSession.shared.download(from: pack.url(for: file), delegate: progress)
             guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
@@ -141,7 +149,7 @@ public final class ModelDownloads {
                 throw DownloadError.checksum(file.path)
             }
             done += file.size
-            states[pack.id] = .downloading(Double(done) / Double(max(pack.totalBytes, 1)))
+            report(.downloading(Double(done) / Double(max(pack.totalBytes, 1))))
         }
 
         // Every file verified: move into place, then mark installed last.
@@ -149,11 +157,21 @@ public final class ModelDownloads {
         try? manager.removeItem(at: final)
         try manager.moveItem(at: staging, to: final)
         try Self.prepareForLockedUse(final)
+
+        // Compile once now, while the user is watching. Parakeet's first Neural Engine
+        // compile can take minutes; done inside a background task it would be cut off
+        // and redone every time. CoreML caches the result for later loads.
+        if pack.id == .parakeetV3 {
+            report(.preparing)
+            let compileStarted = ContinuousClock.now
+            _ = try AsrModels.loadLocal(from: final, version: .v3)
+            DebugLog.shared.log("models", "parakeetV3: first compile took \(DebugLog.elapsed(since: compileStarted))")
+        }
         try pack.revision.write(to: Self.markerURL(for: pack.id), atomically: true, encoding: .utf8)
         DebugLog.shared.log("models", "\(pack.id.rawValue): \(pack.files.count) files verified in \(DebugLog.elapsed(since: started))")
     }
 
-    private func checkFreeSpace(for pack: ModelPack, at url: URL) throws {
+    nonisolated private static func checkFreeSpace(for pack: ModelPack, at url: URL) throws {
         let values = try url.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
         if let free = values.volumeAvailableCapacityForImportantUsage, free < pack.totalBytes + 200_000_000 {
             throw DownloadError.space(pack.totalBytes)
