@@ -61,7 +61,7 @@ public actor SummarizationService {
         }
 
         // Fails early, with a clear reason, if the on-device model isn't available.
-        _ = try OnDeviceModel.session(tier: tier, instructions: prompt.instructions)
+        _ = try OnDeviceModel.session(tier: tier, instructions: self.prompt.instructions)
 
         let budget = await measureBudget()
         debug.log(
@@ -138,7 +138,7 @@ public actor SummarizationService {
     // MARK: - Budget
 
     private func measureBudget() async -> PromptBudget {
-        let instructions = await OnDeviceModel.tokenCount(instructions: prompt.instructions, tier: tier)
+        let instructions = await OnDeviceModel.tokenCount(instructions: self.prompt.instructions, tier: tier)
         let schema = await OnDeviceModel.tokenCount(schema: DraftChunkNotes.generationSchema, tier: tier)
         guard let instructions, let schema else { return .fallback }
         return PromptBudget(
@@ -168,7 +168,7 @@ public actor SummarizationService {
         depth: Int,
         degraded: inout [DegradedChunk]
     ) async -> ChunkNotes {
-        let prompt = PromptTemplates.chunkPrompt(chunk: piece, chunkIndex: piece.index, chunkCount: total, request: prompt.effectiveRequest)
+        let prompt = PromptTemplates.chunkPrompt(chunk: piece, chunkIndex: piece.index, chunkCount: total, request: self.prompt.effectiveRequest)
         let tokens = await cost(of: prompt)
 
         if !budget.fits(promptTokens: tokens), depth < maxSplitDepth, let halves = piece.halves() {
@@ -177,7 +177,7 @@ public actor SummarizationService {
         }
 
         do {
-            let session = try OnDeviceModel.session(tier: tier, instructions: prompt.instructions)
+            let session = try OnDeviceModel.session(tier: tier, instructions: self.prompt.instructions)
             let response = try await session.respond(to: prompt, generating: DraftChunkNotes.self)
             return response.content.notes
         } catch {
@@ -222,7 +222,7 @@ public actor SummarizationService {
     }
 
     private func respond(to prompt: String) async throws -> ChunkNotes {
-        let session = try OnDeviceModel.session(tier: tier, instructions: prompt.instructions)
+        let session = try OnDeviceModel.session(tier: tier, instructions: self.prompt.instructions)
         return try await session.respond(to: prompt, generating: DraftChunkNotes.self).content.notes
     }
 
@@ -272,7 +272,7 @@ public actor SummarizationService {
 
         if budget.fits(promptTokens: await cost(of: prompt)) {
             do {
-                let session = try OnDeviceModel.session(tier: tier, instructions: prompt.instructions)
+                let session = try OnDeviceModel.session(tier: tier, instructions: self.prompt.instructions)
                 let response = try await session.respond(to: prompt, generating: DraftOutline.self)
                 let sections = response.content.sections.map {
                     TopicMerger.Section(
@@ -310,7 +310,7 @@ public actor SummarizationService {
             debug.log("summary", "overview uses \(kept.count) of \(points.count) points to fit the context")
         }
         do {
-            let session = try OnDeviceModel.session(tier: tier, instructions: prompt.instructions)
+            let session = try OnDeviceModel.session(tier: tier, instructions: self.prompt.instructions)
             let response = try await session.respond(to: prompt, generating: DraftRollup.self)
             return response.content.overview.trimmed()
         } catch {
