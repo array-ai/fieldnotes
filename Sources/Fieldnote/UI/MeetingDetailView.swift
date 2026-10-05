@@ -19,6 +19,9 @@ struct MeetingDetailView: View {
     @State private var player = MeetingPlayer()
     /// Keep the playing line in view. Off when the user wants to read elsewhere.
     @State private var follow = true
+    /// Find in this meeting; starts with the list's search, if there was one.
+    @State private var find = ""
+    @State private var findPrefilled = false
 
     enum Tab: String, CaseIterable { case summary, transcript }
 
@@ -37,6 +40,15 @@ struct MeetingDetailView: View {
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
+        .searchable(text: $find, prompt: "Find in this meeting")
+        .onAppear {
+            guard !findPrefilled else { return }
+            findPrefilled = true
+            if !model.searchQuery.trimmed().isEmpty { find = model.searchQuery }
+        }
+        .onChange(of: find) { _, text in
+            if !text.trimmed().isEmpty { tab = .transcript }
+        }
         .toolbar {
             if let meeting {
                 ToolbarItem(placement: .primaryAction) {
@@ -137,7 +149,8 @@ struct MeetingDetailView: View {
                     }
                 )
             }
-            Picker("View", selection: $tab) {
+            MeetingHeader(meeting: meeting)
+                        Picker("View", selection: $tab) {
                 Text("Summary").tag(Tab.summary)
                 Text("Transcript").tag(Tab.transcript)
             }
@@ -165,7 +178,15 @@ struct MeetingDetailView: View {
                         TranscriptSections(
                             meeting: meeting,
                             playingID: player.isReady ? playingSegmentID(meeting) : nil,
-                            onPlay: { player.play(from: $0.start) },
+                            terms: MeetingSearch.terms(find),
+                            onPlay: { segment in
+                                // From a find result: back to the whole transcript, at that line.
+                                if !find.isEmpty {
+                                    find = ""
+                                    scrollTarget = segment.id
+                                }
+                                player.play(from: segment.start)
+                            },
                             onEdit: { editingSegment = $0 },
                             onRelabel: { relabelling = $0 }
                         )
@@ -284,25 +305,6 @@ struct SummarySections: View {
     var onCitation: (UUID) -> Void
 
     var body: some View {
-        if let latitude = meeting.latitude, let longitude = meeting.longitude {
-            Section("Location") {
-                if let url = URL(string: "https://maps.apple.com/?ll=\(latitude),\(longitude)") {
-                    Link(destination: url) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Label(
-                                meeting.placeName ?? String(format: "%.3f, %.3f", latitude, longitude),
-                                systemImage: "mappin.and.ellipse"
-                            )
-                            if meeting.placeName != nil {
-                                Text(String(format: "%.4f, %.4f", latitude, longitude))
-                                    .font(.caption.monospacedDigit())
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                    }
-                }
-            }
-        }
         if let summary = meeting.summary {
             if !summary.overview.isEmpty {
                 Section("Overview") { Text(summary.overview) }
@@ -442,13 +444,23 @@ struct TranscriptSections: View {
     let meeting: MeetingSnapshot
     /// The line under the playhead, highlighted.
     var playingID: UUID? = nil
+    /// While finding: only the lines holding every word, with the words in bold.
+    var terms: [String] = []
     var onPlay: (TranscriptSegment) -> Void = { _ in }
     var onEdit: (TranscriptSegment) -> Void
     var onRelabel: (TranscriptSegment) -> Void
 
     var body: some View {
+        let lines = terms.isEmpty
+            ? meeting.segments
+            : meeting.segments.filter { MeetingSearch.matches(MeetingSearch.normalize($0.text), terms: terms) }
         Section {
-            ForEach(meeting.segments) { segment in
+            if !terms.isEmpty {
+                Text(lines.isEmpty ? "No lines match." : lines.count == 1 ? "1 line matches. Tap it to see it in place." : "\(lines.count) lines match. Tap one to see it in place.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            ForEach(lines) { segment in
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 6) {
                         Text(speakerName(segment))
@@ -461,7 +473,7 @@ struct TranscriptSections: View {
                             Image(systemName: "pencil").font(.caption2).foregroundStyle(.secondary)
                         }
                     }
-                    Text(segment.text)
+                    Text(MeetingSearch.highlighted(segment.text, terms: terms))
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
@@ -572,5 +584,30 @@ struct PlayerBar: View {
         }
         .padding(.horizontal)
         .padding(.vertical, 6)
+    }
+}
+
+/// When and where: the date and time, and the place if location was on.
+struct MeetingHeader: View {
+    let meeting: MeetingSnapshot
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Text(meeting.startedAt.formatted(date: .complete, time: .shortened))
+            if let latitude = meeting.latitude, let longitude = meeting.longitude,
+               let url = URL(string: "https://maps.apple.com/?ll=\(latitude),\(longitude)") {
+                Text("·")
+                // Opens the Maps app; Fieldnote itself makes no request.
+                Link(destination: url) {
+                    Label(meeting.placeName ?? String(format: "%.3f, %.3f", latitude, longitude), systemImage: "mappin")
+                        .lineLimit(1)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .padding(.horizontal)
+        .padding(.bottom, 8)
     }
 }

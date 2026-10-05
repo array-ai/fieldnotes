@@ -16,7 +16,7 @@ struct MeetingListView: View {
             List {
                 ForEach(model.meetings) { meeting in
                     NavigationLink(value: meeting.id) {
-                        MeetingRow(meeting: meeting)
+                        MeetingRow(meeting: meeting, searchTerms: MeetingSearch.terms(model.searchQuery))
                     }
                     .contextMenu {
                         // Each payload is independently shareable from here as well as
@@ -137,6 +137,8 @@ struct MeetingListView: View {
 
 struct MeetingRow: View {
     let meeting: MeetingSnapshot
+    /// While searching: show where the words were found instead of the topics.
+    var searchTerms: [String] = []
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -153,6 +155,12 @@ struct MeetingRow: View {
             }
             HStack(spacing: 6) {
                 Text(meeting.startedAt.formatted(date: .abbreviated, time: .shortened))
+                if let place = meeting.placeName {
+                    Text("·")
+                    Label(place, systemImage: "mappin")
+                        .labelStyle(.titleAndIcon)
+                        .lineLimit(1)
+                }
                 if let folder = meeting.folderName {
                     Text("·")
                     Text(folder)
@@ -163,8 +171,22 @@ struct MeetingRow: View {
             .font(.caption)
             .foregroundStyle(.secondary)
 
+            if let snippet = MeetingSearch.snippet(in: meeting, terms: searchTerms) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    if let start = snippet.start {
+                        Text(Timecode.short(start))
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Image(systemName: "text.quote").foregroundStyle(.secondary)
+                    }
+                    Text(MeetingSearch.highlighted(snippet.text, terms: searchTerms))
+                        .lineLimit(3)
+                }
+                .font(.subheadline)
+                .padding(.top, 6)
             // The meeting at a glance: the first few sections of its notes.
-            if let topics = meeting.summary?.topics, !topics.isEmpty {
+            } else if let topics = meeting.summary?.topics, !topics.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
                     ForEach(topics.prefix(3)) { topic in
                         HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -222,5 +244,23 @@ struct ProcessingBadge: View {
         case .summarising: ProcessingStage.summarising.displayName
         default: ""
         }
+    }
+}
+
+extension MeetingSearch {
+    /// The text with each search word in bold.
+    static func highlighted(_ text: String, terms: [String]) -> AttributedString {
+        var result = AttributedString(text)
+        for term in terms {
+            var searchFrom = text.startIndex
+            while let range = text.range(of: term, options: [.caseInsensitive, .diacriticInsensitive], range: searchFrom..<text.endIndex) {
+                if let lower = AttributedString.Index(range.lowerBound, within: result),
+                   let upper = AttributedString.Index(range.upperBound, within: result) {
+                    result[lower..<upper].inlinePresentationIntent = .stronglyEmphasized
+                }
+                searchFrom = range.upperBound
+            }
+        }
+        return result
     }
 }

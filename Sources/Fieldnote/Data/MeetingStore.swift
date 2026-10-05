@@ -273,6 +273,7 @@ public actor MeetingStore {
         let descriptor = FetchDescriptor<Speaker>(predicate: #Predicate { $0.id == speakerID })
         guard let speaker = try modelContext.fetch(descriptor).first else { return }
         speaker.displayName = displayName?.trimmed().nilIfEmpty
+        if let meeting = speaker.meeting { rebuildSearchText(for: meeting) }
         try modelContext.save()
     }
 
@@ -303,14 +304,18 @@ public actor MeetingStore {
     }
 
     public func search(_ query: String, limit: Int = 50) throws -> [MeetingSnapshot] {
-        let needle = query.lowercased().trimmed()
-        guard !needle.isEmpty else { return try recentSnapshots(limit: limit) }
-        var descriptor = FetchDescriptor<Meeting>(
+        // Every word, in any order. The longest word goes to the database; the
+        // rest are checked here (a #Predicate can't take a variable number of terms).
+        let terms = MeetingSearch.terms(query)
+        guard let needle = terms.first else { return try recentSnapshots(limit: limit) }
+        let descriptor = FetchDescriptor<Meeting>(
             predicate: #Predicate { $0.searchText.contains(needle) },
             sortBy: [SortDescriptor(\.startedAt, order: .reverse)]
         )
-        descriptor.fetchLimit = limit
-        return try modelContext.fetch(descriptor).map(MeetingSnapshot.init)
+        return try modelContext.fetch(descriptor)
+            .filter { MeetingSearch.matches($0.searchText, terms: terms) }
+            .prefix(limit)
+            .map(MeetingSnapshot.init)
     }
 
     public func recentSnapshots(limit: Int = 50) throws -> [MeetingSnapshot] {
@@ -381,15 +386,25 @@ public actor MeetingStore {
     }
 
     private func rebuildSearchText(for meeting: Meeting) {
-        var parts = [meeting.title]
-        if let place = meeting.placeName?.nilIfEmpty { parts.append(place) }
-        parts.append(contentsOf: meeting.segments.map(\.text))
-        if let summary = meeting.summary?.summary {
-            parts.append(summary.overview)
-            parts.append(contentsOf: summary.decisions.map(\.statement))
-            parts.append(contentsOf: summary.actionItems.map(\.task))
-        }
-        meeting.searchText = parts.joined(separator: " ").lowercased()
+        meeting.searchText = MeetingSearch.indexText(
+            title: meeting.title,
+            placeName: meeting.placeName,
+            speakerNames: meeting.speakers.compactMap(\.displayName),
+            segments: meeting.orderedSegments.map(\.text),
+            summary: meeting.summary?.summary
+        )
+    }
+
+    /// Re-indexes every meeting once when what's indexed changes
+    /// (`MeetingSearch.indexVersion`), so older meetings are found by the same rules.
+    public func reindexIfNeeded() {
+        let key = "searchIndexVersion"
+        guard UserDefaults.standard.integer(forKey: key) < MeetingSearch.indexVersion else { return }
+        let meetings = (try? modelContext.fetch(FetchDescriptor<Meeting>())) ?? []
+        meetings.forEach(rebuildSearchText)
+        try? modelContext.save()
+        UserDefaults.standard.set(MeetingSearch.indexVersion, forKey: key)
+        DebugLog.shared.log("store", "re-indexed \(meetings.count) meeting(s) for search")
     }
 }
 
