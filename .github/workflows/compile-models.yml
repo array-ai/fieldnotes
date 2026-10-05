@@ -60,15 +60,41 @@ jobs:
 
       # As documented: one .aimodelc per device architecture, named
       # <model>.<arch>.aimodelc, where <arch> is AIModel.deviceArchitectureName.
+      # All architectures in one process ran the runner out of memory (Qwen,
+      # killed after 6 min), so: one architecture per process, smallest model
+      # first, and a model that fails doesn't stop the others.
+      - name: List architectures
+        run: |
+          set -uo pipefail
+          model=$(find src -name "*.aimodel" -maxdepth 3 | head -1)
+          # An unknown architecture makes coreai-build name the valid ones.
+          xcrun coreai-build compile "$model" --platform iOS --architecture none --output "$RUNNER_TEMP/probe" > probe.txt 2>&1 || true
+          cat probe.txt
+          grep -oE '\bh[0-9]+[a-z]*\b' probe.txt | sort -u > archs.txt || true
+          echo "architectures: $(tr '\n' ' ' < archs.txt)"
+
       - name: Compile
         run: |
-          set -euo pipefail
+          set -uo pipefail
           mkdir -p out
-          for model in $(find src -name "*.aimodel" -maxdepth 3); do
+          failed=0
+          for model in $(find src -name "*.aimodel" -maxdepth 3 -exec du -sk {} + | sort -n | cut -f2); do
             name=$(basename "$model" .aimodel)
-            echo "=== $name"
-            xcrun coreai-build compile "$model" --platform iOS --min-deployment-version 27.0 --output "out/$name"
+            mkdir -p "out/$name"
+            if [ -s archs.txt ]; then
+              for arch in $(cat archs.txt); do
+                echo "=== $name for $arch"
+                xcrun coreai-build compile "$model" --platform iOS --min-deployment-version 27.0 \
+                  --architecture "$arch" --output "out/$name" || { echo "failed: $name $arch"; failed=1; }
+              done
+            else
+              echo "=== $name, all architectures (none listed)"
+              xcrun coreai-build compile "$model" --platform iOS --min-deployment-version 27.0 \
+                --output "out/$name" || { echo "failed: $name"; failed=1; }
+            fi
           done
+          vm_stat | head -5
+          exit 0
 
       - name: Report
         run: |
