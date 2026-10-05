@@ -190,6 +190,26 @@ These checks can't cover the following, which needs a device:
 - Comparing the three speaker-identification methods on the same recordings.
 - After any prompt change, re-reading the output for a fixed set of real recordings.
 
+## Benchmarks
+
+Measured on an iPhone 16 (iPhone17,3, 8 GB, iOS 27.0.1) with the app in front. Run
+your own from Settings → Debug → Benchmark.
+
+| Stage | Model | Audio | Time | × real time |
+|---|---|---|---|---|
+| Speakers | Nemotron 3, Neural Engine | 5 min / 68 min | 0.73 s / 33 s | 410× / 124× |
+| Speakers | Nemotron 3, CPU fallback | 5 min | 2.15 s | 140× |
+| Speakers | pyannote community-1 | 5 min | 1.39 s | 215× |
+| Speakers | pyannote 3.1 (legacy) | 5 min | 3.42 s | 88× |
+| Transcript | Parakeet TDT-CTC 110M | 18.6 min / 68 min | 5.0 s / 48.8 s | 224× / 84× |
+| Transcript | Apple speech, from the audio files | 18.6 min | 80 s | 14× |
+| Summary | Apple's on-device model | 18.6 min | 290 s | 27–40 tokens/s |
+
+- Nemotron's Neural Engine model compiles once per install (23–40 s). The CPU model covers that first run.
+- Apple's language model ran at about 10 tokens/s in one long run, three to four times slower; likely a hot or locked phone. In background tasks on battery it is rate-limited.
+- Parakeet v3, v2 English and Qwen3 1.7B are not measured yet.
+- Processing-time estimates start from these numbers and then learn this phone's speed for each model.
+
 ## How it works
 
 ```
