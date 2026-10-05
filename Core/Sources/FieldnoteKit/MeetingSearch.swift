@@ -9,7 +9,9 @@ import Foundation
 public enum MeetingSearch {
 
     /// Bump when `indexText` changes, so stored meetings are re-indexed once.
-    public static let indexVersion = 2
+    /// 3: re-index once more, as notes written by processing could be missed (the
+    /// index was built before the new summary was linked to its meeting).
+    public static let indexVersion = 3
 
     /// Lowercased, accents removed, typographic quotes made plain.
     public static func normalize(_ text: String) -> String {

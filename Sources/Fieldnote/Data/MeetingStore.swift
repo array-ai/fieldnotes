@@ -168,6 +168,9 @@ public actor MeetingStore {
         let record = SummaryRecord(summary: output.summary)
         record.meeting = meeting
         modelContext.insert(record)
+        // Set from this side too: until the save, `meeting.summary` can still read
+        // the old (deleted) record, and the search index would be built from it.
+        meeting.summary = record
 
         meeting.processingState = .complete
         meeting.failureMessage = nil
@@ -372,14 +375,18 @@ public actor MeetingStore {
         // rest are checked here (a #Predicate can't take a variable number of terms).
         let terms = MeetingSearch.terms(query)
         guard let needle = terms.first else { return try recentSnapshots(limit: limit) }
+        let started = ContinuousClock.now
         let descriptor = FetchDescriptor<Meeting>(
             predicate: #Predicate { $0.searchText.contains(needle) },
             sortBy: [SortDescriptor(\.startedAt, order: .reverse)]
         )
-        return try modelContext.fetch(descriptor)
-            .filter { MeetingSearch.matches($0.searchText, terms: terms) }
-            .prefix(limit)
-            .map(MeetingSnapshot.init)
+        let candidates = try modelContext.fetch(descriptor)
+        let found = candidates.filter { MeetingSearch.matches($0.searchText, terms: terms) }
+        DebugLog.shared.log(
+            "search",
+            "\(terms.count) word(s): \(candidates.count) meeting(s) contain the longest, \(found.count) contain all, in \(DebugLog.elapsed(since: started))"
+        )
+        return found.prefix(limit).map(MeetingSnapshot.init)
     }
 
     public func recentSnapshots(limit: Int = 50) throws -> [MeetingSnapshot] {
@@ -417,6 +424,7 @@ public actor MeetingStore {
         meeting.speakers.forEach(modelContext.delete)
         meeting.speakers = []
         let labels = Set(segments.compactMap(\.speakerID)).sorted()
+        var created: [Speaker] = []
         for label in labels {
             // Grounded in something a participant actually said (SummaryGrounder) --
             // never a guess. A user's own rename always wins over this because it can
@@ -429,7 +437,10 @@ public actor MeetingStore {
             )
             speaker.meeting = meeting
             modelContext.insert(speaker)
+            created.append(speaker)
         }
+        // Set from this side too, so the search index built next sees the new names.
+        meeting.speakers = created
     }
 
     private func replaceSegments(_ segments: [TranscriptSegment], on meeting: Meeting, keepEdits: Bool = true) {
@@ -450,12 +461,30 @@ public actor MeetingStore {
     }
 
     private func rebuildSearchText(for meeting: Meeting) {
+        rebuildSearchText(for: meeting, log: true)
+    }
+
+    /// Logs what went in (counts only), so a meeting search can't find can be
+    /// checked: no notes indexed, no transcript, and so on.
+    private func rebuildSearchText(for meeting: Meeting, log: Bool) {
+        let summary = meeting.summary?.summary
+        let names = meeting.speakers.compactMap(\.displayName)
+        let lines = meeting.orderedSegments.map(\.text)
         meeting.searchText = MeetingSearch.indexText(
             title: meeting.title,
             placeName: meeting.placeName,
-            speakerNames: meeting.speakers.compactMap(\.displayName),
-            segments: meeting.orderedSegments.map(\.text),
-            summary: meeting.summary?.summary
+            speakerNames: names,
+            segments: lines,
+            summary: summary
+        )
+        guard log else { return }
+        let topics = summary?.topics ?? []
+        let notes = summary.map { summary in
+            "notes with \(topics.count) topic(s), \(topics.reduce(0) { $0 + $1.points.count }) point(s), \(summary.actionItems.count) task(s), \(summary.decisions.count) decision(s)\(summary.overview.isEmpty ? ", no overview" : "")"
+        } ?? "no notes"
+        DebugLog.shared.log(
+            "search",
+            "\(DebugLog.short(meeting.id)): indexed \(meeting.searchText.count) characters: \(lines.count) transcript line(s), \(notes), \(names.count) speaker name(s)\(meeting.placeName == nil ? "" : ", place")"
         )
     }
 
@@ -466,7 +495,7 @@ public actor MeetingStore {
         guard UserDefaults.standard.integer(forKey: key) < MeetingSearch.indexVersion else { return }
         do {
             let meetings = try modelContext.fetch(FetchDescriptor<Meeting>())
-            meetings.forEach(rebuildSearchText)
+            for meeting in meetings { rebuildSearchText(for: meeting, log: false) }
             try modelContext.save()
             UserDefaults.standard.set(MeetingSearch.indexVersion, forKey: key)
             DebugLog.shared.log("store", "re-indexed \(meetings.count) meeting(s) for search")
