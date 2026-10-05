@@ -55,6 +55,15 @@ public actor SummarizationService {
         }
     }
 
+    /// The model wouldn't write the notes after the one automatic retry. The meeting
+    /// stops with Try again, rather than saving empty notes or retrying forever.
+    public struct NotWritten: Error, LocalizedError {
+        public var detail: String
+        public var errorDescription: String? {
+            "Couldn't write the notes: the on-device model is busy or limited right now. Tap Try again."
+        }
+    }
+
     /// Whether this run may defer (the pipeline allows it a few times per meeting,
     /// then accepts thinner notes rather than waiting forever).
     private var allowDeferral = true
@@ -243,13 +252,13 @@ public actor SummarizationService {
                     if error is CancellationError || Task.isCancelled { throw CancellationError() }
                     let again = Failure(error)
                     debug.log("summary", "chunk \(piece.index + 1): retry after rate limit failed: \(again.reason.rawValue)")
-                    if allowDeferral, again.isTemporary { throw Deferred(detail: again.detail) }
+                    if again.isTemporary { throw allowDeferral ? Deferred(detail: again.detail) : NotWritten(detail: again.detail) }
                     degraded.append(again.degraded(piece, recovered: false))
                     return ChunkNotes()
                 }
 
             case .timeout, .modelError:
-                if allowDeferral, failure.isTemporary { throw Deferred(detail: failure.detail) }
+                if failure.isTemporary { throw allowDeferral ? Deferred(detail: failure.detail) : NotWritten(detail: failure.detail) }
                 degraded.append(failure.degraded(piece, recovered: false))
                 return ChunkNotes()
             }

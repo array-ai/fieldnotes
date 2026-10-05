@@ -333,6 +333,10 @@ public final class BackgroundProcessingCoordinator: @unchecked Sendable {
                 // transcripts and speakers. A real rate limit in the app: stop here.
                 if deferred.withoutAttempt { continue }
                 return
+            } catch let notWritten as SummarizationService.NotWritten {
+                // Stop with Try again; no more automatic attempts.
+                await provider.markFailed(meetingID: job.meetingID, message: notWritten.localizedDescription)
+                await ProcessingNotifier.shared.notifyFailed(meetingID: job.meetingID, title: job.title)
             } catch is CancellationError {
                 log.notice("Processing cancelled for \(job.meetingID.uuidString, privacy: .public); checkpoint holds")
                 debug.log("pipeline", "\(DebugLog.short(job.meetingID)): cancelled; will resume from the last finished stage")

@@ -117,6 +117,7 @@ public actor ProcessingPipeline {
             log.notice("Resuming meeting \(input.meetingID.uuidString, privacy: .public) after \(checkpoint.completedStages.count, privacy: .public) completed stages")
         }
         let done = checkpoint.completedStages.map(\.rawValue).sorted().joined(separator: ", ")
+        debug.log("pipeline", "\(DebugLog.short(input.meetingID)): \(inBackgroundTask ? "background task" : "in app"), \(await PowerState.summary())")
         debug.log("pipeline", "\(id): start, \(String(format: "%.1f", input.duration))s of audio in \(input.chunks.count) chunk(s), \(input.liveSegments.count) live lines\(done.isEmpty ? "" : ", already done: \(done)")")
         let started = ContinuousClock.now
 
@@ -346,16 +347,20 @@ public actor ProcessingPipeline {
             summary = try await summariser.summarise(
                 segments: segments,
                 meeting: context,
-                allowDeferral: deferrals < 3,
+                // One automatic retry; after that it's the user's Try again.
+                allowDeferral: deferrals < 1,
                 savedParts: saved,
                 savePart: { key, notes in try? await store.saveSummaryPart(notes, key: key) }
             ) { fraction in
                 progress(.summarising, fraction)
             }
+        } catch let notWritten as SummarizationService.NotWritten {
+            debug.log("pipeline", "\(DebugLog.short(input.meetingID)): notes not written after the automatic retry (\(await PowerState.summary())): \(notWritten.detail.prefix(160))")
+            throw notWritten
         } catch let deferred as SummarizationService.Deferred {
             checkpoint.summaryDeferrals = deferrals + 1
             try await store.save(checkpoint)
-            debug.log("pipeline", "\(DebugLog.short(input.meetingID)): summarising put off (\(deferrals + 1)/3), will finish when the app is open: \(deferred.detail.prefix(160))")
+            debug.log("pipeline", "\(DebugLog.short(input.meetingID)): summarising put off, will retry once when the app is open (\(await PowerState.summary())): \(deferred.detail.prefix(160))")
             throw deferred
         }
 
@@ -421,9 +426,32 @@ public enum PowerState {
     public static func isOnPower() async -> Bool {
         await MainActor.run { isOnPowerNow() }
     }
+
+    /// "battery 64%, Low Power Mode on, app in front": for the Activity log.
+    public static func summary() async -> String {
+        await MainActor.run {
+            UIDevice.current.isBatteryMonitoringEnabled = true
+            let level = UIDevice.current.batteryLevel
+            let percent = level >= 0 ? " \(Int((level * 100).rounded()))%" : ""
+            let power: String = switch UIDevice.current.batteryState {
+            case .charging: "charging\(percent)"
+            case .full: "plugged in, full"
+            case .unplugged: "on battery\(percent)"
+            default: "power unknown"
+            }
+            let lowPower = ProcessInfo.processInfo.isLowPowerModeEnabled ? ", Low Power Mode on" : ""
+            let app: String = switch UIApplication.shared.applicationState {
+            case .active: "app in front"
+            case .inactive: "app inactive"
+            default: "app in background"
+            }
+            return "\(power)\(lowPower), \(app)"
+        }
+    }
 }
 #else
 public enum PowerState {
     public static func isOnPower() async -> Bool { true }
+    public static func summary() async -> String { "power unknown" }
 }
 #endif

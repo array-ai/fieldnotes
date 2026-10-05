@@ -220,6 +220,12 @@ public final class AppModel {
 
     public func retryProcessing(_ meetingID: UUID, title: String) async {
         DebugLog.shared.log("user", "\(DebugLog.short(meetingID)): tapped Try again")
+        // A fresh go gets its one automatic retry back.
+        if let checkpoints = try? ProcessingCheckpointStore(meetingID: meetingID) {
+            var checkpoint = await checkpoints.load()
+            checkpoint.summaryDeferrals = 0
+            try? await checkpoints.save(checkpoint)
+        }
         await store.requeue(meetingID: meetingID)
         await ProcessingNotifier.shared.requestPermissionIfNeeded()
         #if os(iOS)
