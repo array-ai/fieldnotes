@@ -35,7 +35,7 @@ two things you choose: optional model downloads, and Apple Maps place names.
   so on. Picks up names from
   self-introductions ("Hi, I'm Priya") and lets you rename speakers by hand.
 - **Summarises** into notes on the phone, with Apple's on-device Foundation Models
-  model or, optionally, MiniCPM5 1B (run through Apple's Core AI runtime, without
+  model or, optionally, MiniCPM5 1B or 2B (run through Apple's Core AI runtime, without
   Apple's rate limits; iPhone 16 and 17 Pro chips download a build compiled ahead of
   time by `.github/workflows/compile-models.yml`, 1.4 GB, other phones a 1.1 GB
   portable one they prepare themselves): an overview,

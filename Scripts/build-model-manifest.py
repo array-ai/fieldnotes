@@ -92,6 +92,25 @@ PACKS = [
     for arch in ["h17g", "h17p", "h18p"]
 ] + [
     {
+        "id": "minicpm5_2b",
+        "name": "MiniCPM5 2B (Core AI)",
+        "repo": "mlboydaisuke/MiniCPM5-2B-CoreAI",
+        "revision": "39db5ff9480e5d80e423889e3bacb7f9e9b9e40f",
+        "license": "Apache-2.0",
+        # The portable iOS static export (6-bit palettized, 4,096-token context),
+        # compiled on the phone, for chips without a compiled build below.
+        "paths": ["ios-static"],
+    },
+    {
+        "id": "minicpm5_2bH17p",
+        "name": "MiniCPM5 2B (Core AI, compiled for h17p)",
+        "repo": "publicarray/fieldnote-models",
+        "revision": "5b6e48f1a895a7a74011f98f8aef74a0c99a0707",
+        "license": "Apache-2.0",
+        "paths": ["minicpm5-2b/ios-h17p"],
+    },
+] + [
+    {
         "id": "pyannoteCommunity1",
         "name": "pyannote community-1",
         "repo": "FluidInference/speaker-diarization-coreml",

@@ -104,7 +104,7 @@ public actor SummarizationService {
         try await OnDeviceModel.prepareSummaryModel()
         defer { OnDeviceModel.releaseSummaryModel() }
         plain = OnDeviceModel.usesLocalModel
-        debug.log("summary", "\(DebugLog.short(meeting.id)): writing notes with \(plain ? "MiniCPM5 1B (Core AI), plain-text notes" : "Apple's model")")
+        debug.log("summary", "\(DebugLog.short(meeting.id)): writing notes with \(plain ? "\(OnDeviceModel.selectedEngine.card.title) (Core AI), plain-text notes" : "Apple's model")")
         if !prompt.isBuiltIn {
             debug.log("summary", "\(DebugLog.short(meeting.id)): using an edited summary prompt")
         }

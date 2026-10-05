@@ -235,7 +235,7 @@ public final class ModelBenchmark {
         }
         defer { OnDeviceModel.releaseSummaryModel() }
         let local = OnDeviceModel.usesLocalModel
-        add("Summary", "Model", local ? "MiniCPM5 1B (Core AI)" : "Apple's on-device model")
+        add("Summary", "Model", local ? "\(OnDeviceModel.selectedEngine.card.title) (Core AI)" : "Apple's on-device model")
         add("Summary", "Context window", "\(local ? OnDeviceModel.localContextSize : OnDeviceModel.contextSize(tier: .coreAdvanced)) tokens")
 
         let lines = meeting.segments.filter { !$0.text.trimmed().isEmpty }

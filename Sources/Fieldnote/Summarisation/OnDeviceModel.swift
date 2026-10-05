@@ -106,16 +106,20 @@ public enum OnDeviceModel {
     /// suffix of the ahead-of-time compiled model that runs here.
     public static var deviceArchitecture: String { AIModel.deviceArchitectureName }
 
-    /// MiniCPM5 is chosen in Settings and fully downloaded.
+    /// The summary model chosen in Settings.
+    public static var selectedEngine: SummaryEngine {
+        SummaryEngine(storedValue: UserDefaults.standard.string(forKey: SummaryEngine.defaultsKey))
+    }
+
+    /// A downloaded model (MiniCPM5 1B or 2B) is chosen and fully downloaded.
     public static var usesLocalModel: Bool {
-        SummaryEngine(storedValue: UserDefaults.standard.string(forKey: SummaryEngine.defaultsKey)) == .minicpm5
-            && localModelDirectory != nil
+        selectedEngine.isLocal && localModelDirectory != nil
     }
 
     /// The model bundle inside the download: the pack keeps the repo's layout
     /// (`ios-static/` for the portable model, `ios-<chip>/` for a compiled one).
     public static var localModelDirectory: URL? {
-        guard let pack = SummaryEngine.minicpm5.modelPack,
+        guard let pack = selectedEngine.modelPack,
               let directory = ModelDownloads.installedDirectory(for: pack) else { return nil }
         return ModelPack.pack(pack).bundleFolder.map { directory.appendingPathComponent($0, isDirectory: true) } ?? directory
     }

@@ -69,6 +69,7 @@ public struct ProcessingEstimator: Codable, Sendable, Equatable {
         case (.diarizing, "pyannoteCommunity1"): Rate(fixed: 3, perMinute: 0.6)
         case (.diarizing, _): Rate(fixed: 3, perMinute: 0.6)
         case (.summarising, "minicpm5"): Rate(fixed: 15, perMinute: 12)
+        case (.summarising, "minicpm5_2b"): Rate(fixed: 20, perMinute: 20)
         case (.summarising, _): Rate(fixed: 10, perMinute: 18)
         }
     }

@@ -74,6 +74,10 @@ struct TranscriptionEngineTests {
         #expect(ModelPack.ID.minicpm5.compiled(for: "h16p") == nil)
         #expect(ModelPack.ID.minicpm5.compiled(for: nil) == nil)
         #expect(ModelPack.pack(.minicpm5).bundleFolder == "ios-static")
+        #expect(ModelPack.ID.minicpm5_2b.compiled(for: "h17p") == .minicpm5_2bH17p)
+        #expect(ModelPack.ID.minicpm5_2b.compiled(for: "h17g") == nil)
+        #expect(ModelPack.pack(.minicpm5_2bH17p).bundleFolder == "minicpm5-2b/ios-h17p")
+        #expect(ModelPack.pack(.minicpm5H17p).bundleFolder == "ios-h17p")
     }
 
     @Test("Cards rate every model within 0...1")
