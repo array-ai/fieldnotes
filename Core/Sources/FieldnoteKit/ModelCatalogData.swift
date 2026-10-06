@@ -380,6 +380,26 @@ extension ModelPack {
             ]
         ),
         ModelPack(
+            id: .qwen3_4b,
+            name: "Qwen3 4B (Core AI)",
+            repo: "mlboydaisuke/qwen3-4b-CoreAI-official",
+            revision: "f3d6746370fbb73ee57f2de9ebe111eb628287f1",
+            license: "Apache-2.0",
+            files: [
+                ModelFile(path: "ios/metadata.json", size: 600, sha256: "fc587542475e3c92651554f537ee732cbae944d8bc818423fea5e68cb9f20880"),
+                ModelFile(path: "ios/qwen3_4b_mixed_4bit_8bit_static.aimodel/main.hash", size: 32, sha256: "2cc4cb63d9665aa328735b13728c2e42211ba3e0a834f5c8a9875e7fc1b4ecad"),
+                ModelFile(path: "ios/qwen3_4b_mixed_4bit_8bit_static.aimodel/main.mlirb", size: 2486265426, sha256: "882606b7f573743b2d89496c9207d9ffdaaec21b2af689b9ca15cd9a066f2f82"),
+                ModelFile(path: "ios/qwen3_4b_mixed_4bit_8bit_static.aimodel/metadata.json", size: 105, sha256: "090e1b5c1f5ce50fec99b32ff1d4b025a138b1d80c0409e65775297f77e2246f"),
+                ModelFile(path: "ios/tokenizer/added_tokens.json", size: 707, sha256: "c0284b582e14987fbd3d5a2cb2bd139084371ed9acbae488829a1c900833c680"),
+                ModelFile(path: "ios/tokenizer/chat_template.jinja", size: 4168, sha256: "a55ee1b1660128b7098723e0abcd92caa0788061051c62d51cbe87d9cf1974d8"),
+                ModelFile(path: "ios/tokenizer/merges.txt", size: 1671853, sha256: "8831e4f1a044471340f7c0a83d7bd71306a5b867e95fd870f74d0c5308a904d5"),
+                ModelFile(path: "ios/tokenizer/special_tokens_map.json", size: 613, sha256: "76862e765266b85aa9459767e33cbaf13970f327a0e88d1c65846c2ddd3a1ecd"),
+                ModelFile(path: "ios/tokenizer/tokenizer.json", size: 11422654, sha256: "aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4"),
+                ModelFile(path: "ios/tokenizer/tokenizer_config.json", size: 5404, sha256: "443bfa629eb16387a12edbf92a76f6a6f10b2af3b53d87ba1550adfcf45f7fa0"),
+                ModelFile(path: "ios/tokenizer/vocab.json", size: 2776833, sha256: "ca10d7e9fb3ed18575dd1e277a2579c16d108e32f27439684afa0e10b1440910"),
+            ]
+        ),
+        ModelPack(
             id: .pyannoteCommunity1,
             name: "pyannote community-1",
             repo: "FluidInference/speaker-diarization-coreml",

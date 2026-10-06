@@ -154,4 +154,10 @@ struct PlainNotesTests {
     func overview() {
         #expect(PlainNotes.cleanOverview("**Overview:** \"The team moved to the technical phase.\"") == "The team moved to the technical phase.")
     }
+
+    @Test("A think block is dropped, finished or not")
+    func thinking() {
+        #expect(PlainNotes.cleanOverview("<think>\n\n</think>\n\nThe team chose a backup tool.") == "The team chose a backup tool.")
+        #expect(PlainNotes.cleanOverview("Done.<think>half a thought") == "Done.")
+    }
 }

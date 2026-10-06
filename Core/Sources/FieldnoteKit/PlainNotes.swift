@@ -63,8 +63,18 @@ public enum PlainNotes {
     }
 
     /// Cleans a free-text overview: drops a leading label and surrounding quotes.
+    /// The answer without a `<think>…</think>` block: Qwen3 can still open with an
+    /// empty one when told not to think, or an unfinished one if cut off.
+    static func withoutThinking(_ text: String) -> String {
+        guard let open = text.range(of: "<think>") else { return text }
+        guard let close = text.range(of: "</think>", range: open.upperBound..<text.endIndex) else {
+            return String(text[..<open.lowerBound])
+        }
+        return String(text[..<open.lowerBound] + text[close.upperBound...])
+    }
+
     public static func cleanOverview(_ text: String) -> String {
-        var result = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        var result = withoutThinking(text).trimmingCharacters(in: .whitespacesAndNewlines)
         if let range = result.range(of: #"^[*#\s]*(overview|summary)[*\s]*[:\-][*\s]*"#, options: [.regularExpression, .caseInsensitive]) {
             result.removeSubrange(range)
         }
@@ -74,6 +84,7 @@ public enum PlainNotes {
     // MARK: - Parsing
 
     public static func parse(_ text: String, chunk: TranscriptChunk) -> ChunkNotes {
+        let text = withoutThinking(text)
         var topics: [NoteTopic] = []
         var decisions: [NoteDecision] = []
         var actions: [NoteActionItem] = []

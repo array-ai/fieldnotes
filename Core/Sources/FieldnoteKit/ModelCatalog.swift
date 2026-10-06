@@ -26,7 +26,14 @@ public struct ModelPack: Sendable, Identifiable, Equatable {
         // MiniCPM5 2B: the portable model, and the build compiled for h17p.
         case minicpm5_2b
         case minicpm5_2bH17p
+        // Qwen3 4B, Apple's own export recipe (mlboydaisuke/qwen3-4b-CoreAI-official).
+        case qwen3_4b
         case pyannoteCommunity1
+
+        /// A notes model run through Core AI (prepared on the phone after download).
+        public var isLanguageModel: Bool {
+            rawValue.hasPrefix(ID.minicpm5.rawValue) || rawValue.hasPrefix(ID.qwen3_4b.rawValue)
+        }
 
         /// The build of this model compiled for a Core AI chip family
         /// (`AIModel.deviceArchitectureName`, e.g. "h17g"), if one is offered.

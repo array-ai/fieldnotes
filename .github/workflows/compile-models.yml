@@ -22,7 +22,7 @@ on:
       model:
         description: "Which model to compile"
         type: choice
-        options: [minicpm5-1b, minicpm5-2b]
+        options: [minicpm5-1b, minicpm5-2b, qwen3-4b]
         default: minicpm5-1b
       architectures:
         description: "Chip families to compile for, space separated (the app's debug log names its own). 'h17*' style patterns pick from the valid names. Empty: all, which is very slow"
@@ -33,9 +33,11 @@ env:
   # Pinned sources, the same revisions the app's catalogue pins.
   # Pinned sources. The 1B's bundles sit at the repo root (the app pins them
   # there); every other model's go in a folder named after it.
-  MINICPM_REPO: ${{ inputs.model == 'minicpm5-2b' && 'mlboydaisuke/MiniCPM5-2B-CoreAI' || 'mlboydaisuke/MiniCPM5-1B-CoreAI' }}
-  MINICPM_REV: ${{ inputs.model == 'minicpm5-2b' && '39db5ff9480e5d80e423889e3bacb7f9e9b9e40f' || 'f38d143ec50cb2e54d8388479b919e3b9283943b' }}
-  UPLOAD_PATH: ${{ inputs.model == 'minicpm5-2b' && 'minicpm5-2b' || '.' }}
+  SRC_REPO: ${{ inputs.model == 'qwen3-4b' && 'mlboydaisuke/qwen3-4b-CoreAI-official' || inputs.model == 'minicpm5-2b' && 'mlboydaisuke/MiniCPM5-2B-CoreAI' || 'mlboydaisuke/MiniCPM5-1B-CoreAI' }}
+  SRC_REV: ${{ inputs.model == 'qwen3-4b' && 'f3d6746370fbb73ee57f2de9ebe111eb628287f1' || inputs.model == 'minicpm5-2b' && '39db5ff9480e5d80e423889e3bacb7f9e9b9e40f' || 'f38d143ec50cb2e54d8388479b919e3b9283943b' }}
+  # The portable iOS model's folder in the source repo.
+  SRC_PATH: ${{ inputs.model == 'qwen3-4b' && 'ios' || 'ios-static' }}
+  UPLOAD_PATH: ${{ inputs.model == 'qwen3-4b' && 'qwen3-4b' || inputs.model == 'minicpm5-2b' && 'minicpm5-2b' || '.' }}
 
 jobs:
   compile:
@@ -64,7 +66,7 @@ jobs:
       - name: Download the portable models
         run: |
           set -euo pipefail
-          hf download "$MINICPM_REPO" --revision "$MINICPM_REV" --include "ios-static/*" --local-dir src/minicpm5
+          hf download "$SRC_REPO" --revision "$SRC_REV" --include "$SRC_PATH/*" --local-dir src/model
           find src -name "*.aimodel" -maxdepth 3
 
       # As documented: one .aimodelc per device architecture, named
@@ -173,7 +175,12 @@ jobs:
             exit 1
           fi
           # The model's licence goes up with it.
-          hf download "$MINICPM_REPO" LICENSE --revision "$MINICPM_REV" --local-dir licence
+          if [ "$SRC_PATH" = "ios" ]; then
+            # The Qwen export carries no licence file: Qwen's own, from the base model.
+            hf download Qwen/Qwen3-4B LICENSE --revision 1cfa9a7208912126459214e8b04321603b3df60c --local-dir licence
+          else
+            hf download "$SRC_REPO" LICENSE --revision "$SRC_REV" --local-dir licence
+          fi
           cp licence/LICENSE bundles/LICENSE
           # Replaces the earlier loose compiled folders with the bundles.
           if [ "$UPLOAD_PATH" = "." ]; then

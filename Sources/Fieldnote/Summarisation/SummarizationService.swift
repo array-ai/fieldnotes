@@ -77,7 +77,7 @@ public actor SummarizationService {
 
     /// Session instructions for this run.
     private var instructions: String {
-        plain ? PlainNotes.instructions : prompt.instructions
+        plain ? OnDeviceModel.selectedEngine.plainInstructions : prompt.instructions
     }
 
     /// Whether this run may defer (the pipeline allows it a few times per meeting,
@@ -231,7 +231,7 @@ public actor SummarizationService {
             // MiniCPM5's own tokenizer isn't exposed; Apple's counts are a close proxy and
             // the margins absorb the difference. No schema in the prompt; the format
             // lines of the plain prompt cost about 200 tokens; plain notes are short.
-            let instructions = await OnDeviceModel.tokenCount(instructions: PlainNotes.instructions, tier: tier) ?? 80
+            let instructions = await OnDeviceModel.tokenCount(instructions: OnDeviceModel.selectedEngine.plainInstructions, tier: tier) ?? 80
             return PromptBudget(
                 contextSize: OnDeviceModel.localContextSize,
                 fixedCost: Int(Double(instructions + 200) * 1.2),

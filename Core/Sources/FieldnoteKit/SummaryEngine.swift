@@ -10,6 +10,7 @@ public enum SummaryEngine: String, Codable, CaseIterable, Sendable {
     case apple
     case minicpm5
     case minicpm5_2b
+    case qwen3_4b
 
     public static let defaultsKey = "summaryEngine"
     /// This phone's Core AI chip family, stored by the app at launch (Core AI
@@ -29,7 +30,15 @@ public enum SummaryEngine: String, Codable, CaseIterable, Sendable {
             ModelPack.ID.minicpm5.compiled(for: UserDefaults.standard.string(forKey: Self.deviceArchitectureKey)) ?? .minicpm5
         case .minicpm5_2b:
             ModelPack.ID.minicpm5_2b.compiled(for: UserDefaults.standard.string(forKey: Self.deviceArchitectureKey)) ?? .minicpm5_2b
+        case .qwen3_4b:
+            ModelPack.ID.qwen3_4b.compiled(for: UserDefaults.standard.string(forKey: Self.deviceArchitectureKey)) ?? .qwen3_4b
         }
+    }
+
+    /// The plain-text notes instructions for this model. Qwen3 thinks aloud before
+    /// answering unless told not to, which would spend the answer on reasoning.
+    public var plainInstructions: String {
+        self == .qwen3_4b ? PlainNotes.instructions + "\n/no_think" : PlainNotes.instructions
     }
 
     /// Ratings as in `ModelCard`, from a 68-minute meeting on an iPhone 16 (build 41):
@@ -56,6 +65,12 @@ public enum SummaryEngine: String, Codable, CaseIterable, Sendable {
                 title: "MiniCPM5 2B",
                 summary: "Recommended. The clearest notes in our tests: real questions, decisions and owners, and five times faster than Apple's model on long meetings.",
                 accuracy: 0.8, speed: 0.75, languages: "English and Chinese best", runs: "In the app, or while charging")
+        case .qwen3_4b:
+            // Not yet measured on the phone: ratings are placeholders until it is.
+            ModelCard(
+                title: "Qwen3 4B",
+                summary: "Alibaba's open model, twice the size of MiniCPM5 2B, on Apple's Core AI. Not yet tested on this phone; expect slower notes.",
+                accuracy: 0.8, speed: 0.5, languages: "Many languages", runs: "In the app, or while charging")
         }
     }
 

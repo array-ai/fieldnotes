@@ -163,7 +163,7 @@ public final class ModelDownloads {
         cancel(id)
         // Core AI's prepared copy outlives the files and would be found again by a
         // re-download at the same path; delete it too.
-        if id.rawValue.hasPrefix(ModelPack.ID.minicpm5.rawValue), let bundle = OnDeviceModel.bundle(for: id) {
+        if id.isLanguageModel, let bundle = OnDeviceModel.bundle(for: id) {
             OnDeviceModel.clearPreparedCopy(in: bundle)
         }
         try? FileManager.default.removeItem(at: Self.directory(for: id))
@@ -229,7 +229,7 @@ public final class ModelDownloads {
         let prepares = ParakeetTranscriber.version(for: pack.id) != nil
             || pack.id == .nemotronStreaming
             || pack.id == .parakeetCtcWords
-            || pack.id.rawValue.hasPrefix(ModelPack.ID.minicpm5.rawValue)
+            || pack.id.isLanguageModel
         if prepares {
             report(.preparing)
             await HeavyModelWork.shared.acquire("preparing \(pack.id.rawValue)")
@@ -258,7 +258,7 @@ public final class ModelDownloads {
                 )
                 DebugLog.shared.log("models", "nemotronStreaming: first compile took \(DebugLog.elapsed(since: compileStarted))")
             }
-            if pack.id.rawValue.hasPrefix(ModelPack.ID.minicpm5.rawValue) {
+            if pack.id.isLanguageModel {
                 // Core AI compiles the portable model for this phone on first load.
                 report(.preparing)
                 // Two big compiles at once (after an update, the speaker model rebuilds

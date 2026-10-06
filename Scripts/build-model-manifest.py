@@ -121,6 +121,17 @@ PACKS = [
     },
 ] + [
     {
+        "id": "qwen3_4b",
+        "name": "Qwen3 4B (Core AI)",
+        "repo": "mlboydaisuke/qwen3-4b-CoreAI-official",
+        "revision": "f3d6746370fbb73ee57f2de9ebe111eb628287f1",
+        "license": "Apache-2.0",
+        # Apple's coreai-models export recipe, unmodified: iOS static, 4,096-token
+        # context, mixed 4/8-bit palettized. The phone compiles it, unless a build
+        # compiled for its chip is listed.
+        "paths": ["ios"],
+    },
+    {
         "id": "pyannoteCommunity1",
         "name": "pyannote community-1",
         "repo": "FluidInference/speaker-diarization-coreml",
