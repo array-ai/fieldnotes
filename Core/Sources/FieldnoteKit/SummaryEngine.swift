@@ -54,7 +54,7 @@ public enum SummaryEngine: String, Codable, CaseIterable, Sendable {
         case .minicpm5_2b:
             ModelCard(
                 title: "MiniCPM5 2B",
-                summary: "The larger MiniCPM5. The cleanest notes: real questions, decisions and owners, and many times faster than Apple's model on long meetings.",
+                summary: "Recommended. The clearest notes in our tests: real questions, decisions and owners, and five times faster than Apple's model on long meetings.",
                 accuracy: 0.8, speed: 0.75, languages: "English and Chinese best", runs: "In the app, or while charging")
         }
     }

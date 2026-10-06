@@ -88,6 +88,9 @@ struct SettingsView: View {
                     Text("Processing")
                 } footer: {
                     Text(
+                        (settings.summaryEngine == .apple
+                            ? "For clearer notes, try MiniCPM5 2B as the notes model (a 2.6 GB download): on an iPhone 16 it wrote a 68-minute meeting's notes in 3 minutes. "
+                            : "") +
                         """
                         Apple's on-device model won't write notes in the background on \
                         battery. Transcripts and speakers always finish in the background; \
