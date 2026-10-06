@@ -58,8 +58,9 @@ public struct ProcessingEstimator: Codable, Sendable, Equatable {
     ///   compile after each install or update (40–150 s) is not counted.
     /// - pyannote community-1: 5 min in 1.3 s (0.26 s/min).
     /// - Notes, Apple's model: 68 min in 917 s (13.5 s/min), 27–40 tokens/s.
-    /// - Notes, MiniCPM5 1B: 68 min in 96 s (1.4 s/min), about 40 tokens/s.
-    /// - Notes, MiniCPM5 2B: 68 min in 450 s (6.6 s/min), about 16 tokens/s.
+    /// - Notes, MiniCPM5 1B: 68 min in 95 s (1.4 s/min), about 40 tokens/s (build 44).
+    /// - Notes, MiniCPM5 2B: 68 min in 100 s (1.5 s/min), about 16 tokens/s (build 43;
+    ///   450 s in build 42, before small talk was skipped and parts were steadier).
     public static func defaultRate(_ stage: ProcessingStage, model: String?) -> Rate {
         switch (stage, model) {
         case (.transcribing, "parakeetCtc110m"): Rate(fixed: 5, perMinute: 0.2)
@@ -69,7 +70,7 @@ public struct ProcessingEstimator: Codable, Sendable, Equatable {
         case (.diarizing, "pyannoteCommunity1"): Rate(fixed: 3, perMinute: 0.3)
         case (.diarizing, _): Rate(fixed: 3, perMinute: 0.2)
         case (.summarising, "minicpm5"): Rate(fixed: 10, perMinute: 1.5)
-        case (.summarising, "minicpm5_2b"): Rate(fixed: 20, perMinute: 7)
+        case (.summarising, "minicpm5_2b"): Rate(fixed: 15, perMinute: 1.5)
         case (.summarising, _): Rate(fixed: 10, perMinute: 14)
         }
     }

@@ -210,24 +210,28 @@ app in front, mostly on a real 68-minute meeting. Run your own from Settings →
 | Transcript | Nemotron 3.5 Streaming, from a file | 68 min | 95 s | 43× (live while recording) |
 | Transcript | Apple speech, from the audio files | 68 min / 5 min | 58 s / 3.8 s | 70× / 80× |
 | Notes | Apple's on-device model | 68 min | 917 s (19 parts) | 27–40 tokens/s |
-| Notes | MiniCPM5 1B (Core AI) | 68 min | 96 s (10 parts) | about 40 tokens/s |
-| Notes | MiniCPM5 2B (Core AI) | 68 min | 450 s (10 parts) | about 16 tokens/s |
+| Notes | MiniCPM5 1B (Core AI) | 68 min / 18 min | 95 s / 36 s | about 40 tokens/s |
+| Notes | MiniCPM5 2B (Core AI) | 68 min | 100 s (10 parts) | about 16 tokens/s |
 
-Notes quality on the same meeting, read by hand:
+Notes quality on the same meeting, read by hand (all on the phone, with "Skip small
+talk" on for the MiniCPM5 runs):
 
-| Model | Sections | Tasks | Decisions | Open questions | Verdict |
-|---|---|---|---|---|---|
-| Apple | 4 (from 42) | 25, junk owners | 21, many reactions | 40, mostly fragments | detailed but noisy; much is transcript copied |
-| MiniCPM5 1B | 13 | 2 | 5 | — | fast; some parts come back as the transcript itself |
-| MiniCPM5 2B | 11 | 11, real owners | 9, real decisions | 10, real questions | the cleanest notes, fewer points |
+| Model | Build | Sections | Points | Tasks | Decisions | Questions | Verdict |
+|---|---|---|---|---|---|---|---|
+| Apple | 42 | 4 (from 42) | 143 | 25, junk owners | 21, many reactions | 40, mostly fragments | detailed but noisy; much is transcript copied |
+| MiniCPM5 1B | 44 | 17 | 91 | 2 | 4 | 0 | lots of text, but repeats, quotes the transcript and invents decisions |
+| MiniCPM5 2B | 43 | 10 | 30 | 9 | 9 | 5 | accurate and readable; rigid, three points per section |
 
-These counts are from before `NoteQuality`, which now filters fragments, reactions
-and repeats for every model.
+Each run predates some of the clean-up now in the app (`NoteQuality`: fragments,
+reactions, quoted lines and repeats are dropped; labelled bullets are sorted into
+tasks and decisions), so later runs should be cleaner. Build 44 also decodes greedily,
+which the 2B hasn't been measured with yet.
 
 - The increased memory limit raises what the app may use from about 3.1 GB to 6 GB.
-- First-use preparation, once per install: Nemotron 3 speakers 40–150 s (after every
-  app update), Parakeet v2 14 s, v3 24 s, Nemotron 3.5 15 s, MiniCPM5 1B 57 s and 2B
-  7 min, even compiled ahead of time for this chip.
+- First-use preparation, once per install: Nemotron 3 speakers 40–180 s (after every
+  app update), Parakeet v2 14 s, v3 24 s, Nemotron 3.5 15 s, MiniCPM5 1B 44–57 s and
+  2B 7 min, even compiled ahead of time for this chip.
+- "Skip small talk" leaves out about 10% of a meeting's lines (97 of 974, 54 of 317).
 - Parakeet v3 and v2 English aren't timed yet.
 - Qwen3 1.7B, offered before, ran out of memory compiling on the phone and was dropped.
 - Processing-time estimates start from these numbers and then learn this phone's

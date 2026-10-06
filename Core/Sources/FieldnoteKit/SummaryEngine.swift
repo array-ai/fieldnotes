@@ -37,8 +37,8 @@ public enum SummaryEngine: String, Codable, CaseIterable, Sendable {
     ///   questions", most not questions) before `NoteQuality` filtered them.
     /// - MiniCPM5 1B: 1.6 min; sometimes returns the transcript instead of notes, and
     ///   finds few tasks or decisions.
-    /// - MiniCPM5 2B: 7.5 min; the cleanest notes (real questions, decisions, owners),
-    ///   but fewer points per section.
+    /// - MiniCPM5 2B: 1.7 min (build 43); the cleanest notes (real questions,
+    ///   decisions, owners), but only three points per section.
     public var card: ModelCard {
         switch self {
         case .apple:
@@ -54,8 +54,8 @@ public enum SummaryEngine: String, Codable, CaseIterable, Sendable {
         case .minicpm5_2b:
             ModelCard(
                 title: "MiniCPM5 2B",
-                summary: "The larger MiniCPM5. The cleanest notes: real questions, decisions and owners. Twice as fast as Apple's model on long meetings.",
-                accuracy: 0.75, speed: 0.6, languages: "English and Chinese best", runs: "In the app, or while charging")
+                summary: "The larger MiniCPM5. The cleanest notes: real questions, decisions and owners, and many times faster than Apple's model on long meetings.",
+                accuracy: 0.75, speed: 0.85, languages: "English and Chinese best", runs: "In the app, or while charging")
         }
     }
 
