@@ -172,7 +172,9 @@ public enum PlainNotes {
         var body = text
         var lines: [Int] = []
         let patterns = [
-            #"\[\s*(?:lines?\s*|L)?([\-–0-9][0-9,\s\-–Ll]*)\]"#,
+            // "[<1, 6>]": the prompt's "<line numbers>" placeholder, copied (MiniCPM5 2B).
+            #"\[\s*<?\s*(?:lines?\s*|L)?([\-–0-9][0-9,\s\-–Ll]*)>?\s*\]"#,
+            #"<\s*(?:lines?\s*|L)?([0-9][0-9,\s\-–Ll]*)>"#,
             #"\(\s*(?:lines?\s*|L)?([0-9][0-9,\s\-–Ll]*)\)"#,
             #"\b(?:lines?|L)\s*([0-9]+(?:\s*[-–,]\s*[0-9]+)*)"#,
         ]

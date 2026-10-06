@@ -55,6 +55,23 @@ struct PlainNotesTests {
         #expect(notes.openQuestions.isEmpty)
     }
 
+    @Test("Citations written with the prompt's angle brackets still count")
+    func angleBrackets() {
+        let text = """
+            TOPIC: Firewall rules [<13, 14>]
+            - The firewall rules are due Friday [<13, 14>]
+            TASK: Send the firewall rules | Alex | Friday [<14>]
+            NAME: Alex [<12>]
+            QUESTION: Who checks them? <13>
+            """
+        let notes = PlainNotes.parse(text, chunk: chunk)
+        #expect(notes.topics.first?.title == "Firewall rules")
+        #expect(notes.topics.first?.points.first?.sourceLines == [13, 14])
+        #expect(notes.actionItems.first?.sourceLines == [14])
+        #expect(notes.speakerNames.first?.sourceLines == [12])
+        #expect(notes.openQuestions.first?.sourceLines == [13])
+    }
+
     @Test("A point without a usable citation is matched to the line it repeats")
     func bestLineFallback() {
         let text = """
