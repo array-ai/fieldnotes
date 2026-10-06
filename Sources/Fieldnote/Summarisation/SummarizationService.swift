@@ -99,8 +99,7 @@ public actor SummarizationService {
         let spoken = segments.filter { $0.isFinalized && !$0.text.trimmed().isEmpty }
         // "Skip small talk" (Settings, on by default): lines like "Okay." and "Give
         // us a second." are left out of what the model reads. On a 68-minute meeting
-        // this cut 10% of the lines and gave more, more specific sections (laptop
-        // evaluation with MiniCPM5 2B).
+        // this cut 10% of the lines.
         let skipSmallTalk = UserDefaults.standard.object(forKey: Self.skipSmallTalkKey) as? Bool ?? true
         let finalized = skipSmallTalk ? spoken.filter { !NoteQuality.isFiller($0.text) } : spoken
         if skipSmallTalk, finalized.count < spoken.count {
@@ -287,9 +286,8 @@ public actor SummarizationService {
             if plain {
                 // Plain notes are short; a small model given more room rambles (1,000
                 // tokens for eight lines of transcript, build 40).
-                // Greedy, as on the laptop: the phone's default sampling gave exactly
-                // one topic and three points per part every time; greedy decoding gave
-                // 1–3 topics and 2–6 points (MiniCPM5 2B, same meeting).
+                // Greedy: with default sampling MiniCPM5 2B gave exactly one topic and
+                // three points per part, every part (build 43).
                 let response = try await session.respond(to: prompt, options: GenerationOptions(sampling: .greedy, maximumResponseTokens: min(answerCap, 600)), contextOptions: OnDeviceModel.contextOptions)
                 let notes = PlainNotes.parse(response.content, chunk: piece)
                 debug.log(
