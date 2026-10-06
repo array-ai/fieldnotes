@@ -1,7 +1,7 @@
 import FieldnoteKit
 import Foundation
 
-/// The MSP stack: the built-in custom words. The user's own list (Settings →
+/// Common MSP products: the built-in custom words. The user's own list (Settings →
 /// Transcription → Custom words) extends it; see `CustomWords`.
 public enum MSPVocabulary {
     /// The built-in words and the user's, as Apple's model and the word fixer get them.
@@ -11,19 +11,32 @@ public enum MSPVocabulary {
     }
 
 
+    /// Products MSPs commonly use, not any one MSP's stack. Plain English words
+    /// ("Teams", "Keeper", "Duo") are left out: as custom words they'd pull ordinary
+    /// speech towards them.
     public static let contextualStrings: [String] = [
-        // Network
-        "Ubiquiti", "UniFi", "UniFi Dream Machine", "UDM Pro", "VLAN", "SSID", "PoE",
+        // RMM, PSA and documentation
+        "Kaseya", "Kaseya VSA", "Kaseya 365", "Datto", "Datto RMM", "Autotask", "IT Glue",
+        "BullPhish ID", "Dark Web ID", "RocketCyber", "Graphus", "Unitrends",
+        "ConnectWise", "ConnectWise Manage", "ConnectWise Automate", "ScreenConnect",
+        "N-able", "N-central", "N-sight", "NinjaOne", "NinjaRMM", "Atera", "Syncro", "SuperOps",
+        "HaloPSA", "Hudu", "Liongard", "Rewst", "Pax8", "TeamViewer", "Splashtop",
         // Security
-        "Huntress", "Bitdefender", "GravityZone", "Perception Point", "Inky",
-        "1Password", "Entra", "Intune", "Defender",
-        // Platform
-        "Microsoft 365", "Exchange Online", "SharePoint", "OneDrive", "Azure",
-        // Tooling
-        "Hudu", "HaloPSA", "NinjaOne", "NinjaRMM", "Acronis", "Acronis Cyber Infrastructure",
+        "Huntress", "SentinelOne", "CrowdStrike", "Bitdefender", "GravityZone", "Sophos",
+        "ESET", "Webroot", "Malwarebytes", "ThreatLocker", "Blackpoint", "Arctic Wolf",
+        "Microsoft Defender", "Mimecast", "Proofpoint", "Avanan", "Ironscales",
+        "Perception Point", "Inky", "DNSFilter", "Cisco Umbrella", "KnowBe4", "Okta",
+        // Passwords
+        "1Password", "Bitwarden", "LastPass", "Passportal",
+        // Backup
+        "Acronis", "Veeam", "Axcient", "Backblaze", "Datto BCDR",
+        // Microsoft
+        "Microsoft 365", "Entra", "Intune", "Exchange Online", "SharePoint", "OneDrive",
+        "Azure", "Autopilot", "Purview",
+        // Network
+        "Ubiquiti", "UniFi", "Meraki", "Fortinet", "FortiGate", "SonicWall", "WatchGuard",
+        "Aruba", "pfSense", "VLAN", "SSID",
         // Hardware
-        "HPE", "ProLiant", "iLO", "Aruba",
-        // Local
-        "Coffs Harbour"
+        "HPE", "ProLiant", "iLO", "iDRAC", "Synology", "QNAP",
     ]
 }
