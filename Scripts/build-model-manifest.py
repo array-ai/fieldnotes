@@ -132,6 +132,14 @@ PACKS = [
         "paths": ["ios"],
     },
     {
+        "id": "qwen3_4bH17p",
+        "name": "Qwen3 4B (Core AI, compiled for h17p)",
+        "repo": "publicarray/fieldnote-models",
+        "revision": "75fd5ff1d17c04a8d492437fdc7bfd2a88462d16",
+        "license": "Apache-2.0",
+        "paths": ["qwen3-4b/ios-h17p"],
+    },
+    {
         "id": "pyannoteCommunity1",
         "name": "pyannote community-1",
         "repo": "FluidInference/speaker-diarization-coreml",

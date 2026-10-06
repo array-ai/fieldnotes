@@ -28,6 +28,7 @@ public struct ModelPack: Sendable, Identifiable, Equatable {
         case minicpm5_2bH17p
         // Qwen3 4B, Apple's own export recipe (mlboydaisuke/qwen3-4b-CoreAI-official).
         case qwen3_4b
+        case qwen3_4bH17p
         case pyannoteCommunity1
 
         /// A notes model run through Core AI (prepared on the phone after download).
