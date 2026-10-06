@@ -220,47 +220,61 @@ public final class ModelDownloads {
         UserDefaults.standard.set(pack.id.rawValue, forKey: Self.preparingKey)
         defer { UserDefaults.standard.removeObject(forKey: Self.preparingKey) }
 
-        // Compile once now, while the user is watching. Parakeet's first Neural Engine
-        // compile can take minutes; done inside a background task it would be cut off
-        // and redone every time. CoreML caches the result for later loads.
-        if let version = ParakeetTranscriber.version(for: pack.id) {
+        // Preparing loads the model into memory: one heavy job at a time.
+        let prepares = ParakeetTranscriber.version(for: pack.id) != nil
+            || pack.id == .nemotronStreaming
+            || pack.id.rawValue.hasPrefix(ModelPack.ID.minicpm5.rawValue)
+        if prepares {
             report(.preparing)
-            let compileStarted = ContinuousClock.now
-            _ = try AsrModels.loadLocal(from: final, version: version)
-            DebugLog.shared.log("models", "\(pack.id.rawValue): first compile took \(DebugLog.elapsed(since: compileStarted))")
+            await HeavyModelWork.shared.acquire("preparing \(pack.id.rawValue)")
         }
-        if pack.id == .nemotronStreaming {
-            report(.preparing)
-            let compileStarted = ContinuousClock.now
-            _ = try await StreamingNemotronMultilingualAsrManager.preloadShared(
-                from: final.appendingPathComponent(NemotronStreamingTranscriber.variantPath, isDirectory: true)
-            )
-            DebugLog.shared.log("models", "nemotronStreaming: first compile took \(DebugLog.elapsed(since: compileStarted))")
-        }
-        if pack.id.rawValue.hasPrefix(ModelPack.ID.minicpm5.rawValue) {
-            // Core AI compiles the portable model for this phone on first load.
-            report(.preparing)
-            // Two big compiles at once (after an update, the speaker model rebuilds
-            // at launch) is how the app ran out of memory. One at a time.
-            let waitStarted = ContinuousClock.now
-            await DiarizationService.shared.waitForWarmUp()
-            if waitStarted.duration(to: .now) > .seconds(1) {
-                DebugLog.shared.log("models", "\(pack.id.rawValue): waited \(DebugLog.elapsed(since: waitStarted)) for the speaker model to finish loading")
+        do {
+            // Compile once now, while the user is watching. Parakeet's first Neural Engine
+            // compile can take minutes; done inside a background task it would be cut off
+            // and redone every time. CoreML caches the result for later loads.
+            if let version = ParakeetTranscriber.version(for: pack.id) {
+                report(.preparing)
+                let compileStarted = ContinuousClock.now
+                _ = try AsrModels.loadLocal(from: final, version: version)
+                DebugLog.shared.log("models", "\(pack.id.rawValue): first compile took \(DebugLog.elapsed(since: compileStarted))")
             }
-            let compileStarted = ContinuousClock.now
-            #if os(iOS)
-            DebugLog.shared.log("models", "\(pack.id.rawValue): preparing, \(CrashWatch.memoryLeft) memory left")
-            #endif
-            let model = try await OnDeviceModel.loadLocalModel(
-                at: pack.bundleFolder.map { final.appendingPathComponent($0, isDirectory: true) } ?? final,
-                eager: true
-            )
-            model.unload()
-            #if os(iOS)
-            DebugLog.shared.log("models", "\(pack.id.rawValue): \(CrashWatch.memoryLeft) memory left after preparing")
-            #endif
-            DebugLog.shared.log("models", "\(pack.id.rawValue): first compile took \(DebugLog.elapsed(since: compileStarted))")
+            if pack.id == .nemotronStreaming {
+                report(.preparing)
+                let compileStarted = ContinuousClock.now
+                _ = try await StreamingNemotronMultilingualAsrManager.preloadShared(
+                    from: final.appendingPathComponent(NemotronStreamingTranscriber.variantPath, isDirectory: true)
+                )
+                DebugLog.shared.log("models", "nemotronStreaming: first compile took \(DebugLog.elapsed(since: compileStarted))")
+            }
+            if pack.id.rawValue.hasPrefix(ModelPack.ID.minicpm5.rawValue) {
+                // Core AI compiles the portable model for this phone on first load.
+                report(.preparing)
+                // Two big compiles at once (after an update, the speaker model rebuilds
+                // at launch) is how the app ran out of memory. One at a time.
+                let waitStarted = ContinuousClock.now
+                await DiarizationService.shared.waitForWarmUp()
+                if waitStarted.duration(to: .now) > .seconds(1) {
+                    DebugLog.shared.log("models", "\(pack.id.rawValue): waited \(DebugLog.elapsed(since: waitStarted)) for the speaker model to finish loading")
+                }
+                let compileStarted = ContinuousClock.now
+                #if os(iOS)
+                DebugLog.shared.log("models", "\(pack.id.rawValue): preparing, \(CrashWatch.memoryLeft) memory left")
+                #endif
+                let model = try await OnDeviceModel.loadLocalModel(
+                    at: pack.bundleFolder.map { final.appendingPathComponent($0, isDirectory: true) } ?? final,
+                    eager: true
+                )
+                model.unload()
+                #if os(iOS)
+                DebugLog.shared.log("models", "\(pack.id.rawValue): \(CrashWatch.memoryLeft) memory left after preparing")
+                #endif
+                DebugLog.shared.log("models", "\(pack.id.rawValue): first compile took \(DebugLog.elapsed(since: compileStarted))")
+            }
+        } catch {
+            if prepares { await HeavyModelWork.shared.release() }
+            throw error
         }
+        if prepares { await HeavyModelWork.shared.release() }
         try pack.revision.write(to: Self.markerURL(for: pack.id), atomically: true, encoding: .utf8)
         DebugLog.shared.log("models", "\(pack.id.rawValue): \(pack.files.count) files verified in \(DebugLog.elapsed(since: started))")
     }

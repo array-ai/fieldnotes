@@ -87,6 +87,24 @@ public actor ProcessingPipeline {
         estimate: @escaping EstimateHandler = { _, _ in },
         transcriptReady: @escaping TranscriptHandler = { _, _, _ in }
     ) async throws -> Output {
+        await HeavyModelWork.shared.acquire("processing \(DebugLog.short(input.meetingID))")
+        do {
+            let output = try await runStages(input, inBackgroundTask: inBackgroundTask, progress: progress, estimate: estimate, transcriptReady: transcriptReady)
+            await HeavyModelWork.shared.release()
+            return output
+        } catch {
+            await HeavyModelWork.shared.release()
+            throw error
+        }
+    }
+
+    private func runStages(
+        _ input: Input,
+        inBackgroundTask: Bool,
+        progress: @escaping ProgressHandler,
+        estimate: @escaping EstimateHandler,
+        transcriptReady: @escaping TranscriptHandler
+    ) async throws -> Output {
         let store = try ProcessingCheckpointStore(meetingID: input.meetingID)
         var checkpoint = await store.load()
 

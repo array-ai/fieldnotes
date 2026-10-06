@@ -46,12 +46,17 @@ public final class ModelBenchmark {
         add("Device", "Memory", String(format: "%.1f GB", Double(ProcessInfo.processInfo.physicalMemory) / 1e9))
         add("Device", "Thermal state", Self.thermal(ProcessInfo.processInfo.thermalState))
 
+        // Not alongside a processing run or a model preparing: the memory it takes
+        // on top of theirs is how the app ran out (build 41).
+        status = "Waiting for other model work to finish…"
+        await HeavyModelWork.shared.acquire("the benchmark")
         await benchmarkSpeakers(meeting)
         await benchmarkTranscription(meeting, locale: locale)
         await benchmarkParakeet(meeting, locale: locale)
         await benchmarkNemotronStreaming(meeting, locale: locale)
         await benchmarkSummary(meeting)
 
+        await HeavyModelWork.shared.release()
         add("Device", "Thermal state after", Self.thermal(ProcessInfo.processInfo.thermalState))
         debug.log("benchmark", "finished:\n" + report)
     }
