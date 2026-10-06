@@ -48,4 +48,23 @@ struct CustomWordsTests {
         let original = words("Hello, there. Okay")
         #expect(WordRevision.apply(["Hello", "there", "Okay"], to: original) == original)
     }
+
+    @Test("Swaps only respellings or non-words, never real words (build 46)")
+    func shouldReplace() {
+        let dictionary: Set<String> = ["plan", "sure", "data", "dog", "tail", "scale", "hit", "enter"]
+        let isWord = { dictionary.contains($0) }
+        #expect(CustomWords.shouldReplace(["Data", "Dog"], with: ["Datadog"], isWord: isWord))
+        #expect(CustomWords.shouldReplace(["tail", "scale,"], with: ["Tailscale,"], isWord: isWord))
+        #expect(CustomWords.shouldReplace(["Grafina"], with: ["Grafana"], isWord: isWord))
+        #expect(!CustomWords.shouldReplace(["plan"], with: ["VLAN"], isWord: isWord))
+        #expect(!CustomWords.shouldReplace(["sure"], with: ["Azure"], isWord: isWord))
+        #expect(!CustomWords.shouldReplace(["hit", "enter."], with: ["hit", "Entra."], isWord: isWord))
+    }
+
+    @Test("A rejected swap keeps the original words and times")
+    func rejected() {
+        let original = words("the protection plan here")
+        let fixed = WordRevision.apply(["the", "protection", "VLAN", "here"], to: original) { old, _ in old != ["plan "] }
+        #expect(fixed == original)
+    }
 }

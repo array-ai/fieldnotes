@@ -97,7 +97,7 @@ public enum ParakeetTranscriber {
         await manager.cleanup()
         progress(0.9)
 
-        let fixed = fixWords ? await WordFixer.fix(tokenTimings, meetingID: meetingID) ?? words : words
+        let fixed = fixWords ? await WordFixer.fix(tokenTimings, meetingID: meetingID, localeIdentifier: localeIdentifier) ?? words : words
         let lines = WordLines.lines(from: fixed)
         debug.log("transcript", "\(id): \(lines.count) lines")
         progress(1)

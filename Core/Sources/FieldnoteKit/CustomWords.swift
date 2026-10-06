@@ -25,6 +25,18 @@ public enum CustomWords {
         return unique(builtIn).filter { !taken.contains($0.lowercased()) } + users
     }
 
+    /// Whether the word checker may put `replacement` where the speech model wrote
+    /// `original`. The audio alone isn't enough: "plan" sounds like "VLAN" and "sure"
+    /// like "Azure", and build 46 made 234 swaps in one meeting, many of them that.
+    /// So a swap goes through only when it's the same letters spelled differently
+    /// ("Data Dog" → "Datadog"), or when none of the words it replaces is a
+    /// real word ("Grafina" → "Grafana"). `isWord` is the system dictionary.
+    public static func shouldReplace(_ original: [String], with replacement: [String], isWord: (String) -> Bool) -> Bool {
+        let letters = { (words: [String]) in words.map(WordRevision.key).joined() }
+        if letters(original) == letters(replacement) { return true }
+        return !original.map(WordRevision.key).contains { !$0.isEmpty && isWord($0) }
+    }
+
     static func unique(_ words: [String]) -> [String] {
         var seen = Set<String>()
         var out: [String] = []
@@ -45,7 +57,13 @@ public enum CustomWords {
 /// "Hudu" → "Halo PSA" splits the one word's span in two.
 public enum WordRevision {
 
-    public static func apply(_ revised: [String], to words: [TranscriptWord]) -> [TranscriptWord] {
+    /// - Parameter accept: whether a changed run (the original words, their
+    ///   replacement) goes in; a rejected one keeps the original words.
+    public static func apply(
+        _ revised: [String],
+        to words: [TranscriptWord],
+        accept: ([String], [String]) -> Bool = { _, _ in true }
+    ) -> [TranscriptWord] {
         let old = words.map { key($0.text) }
         let new = revised.map { key($0) }
         guard old != new else { return words }
@@ -66,7 +84,12 @@ public enum WordRevision {
 
         func flush() {
             defer { pendingOld = []; pendingNew = [] }
-            guard !pendingNew.isEmpty else { return }  // Words dropped: nothing to place.
+            // Words are never dropped, and a rejected swap keeps what was said.
+            guard !pendingNew.isEmpty,
+                  pendingOld.isEmpty || accept(pendingOld.map(\.text), pendingNew) else {
+                out += pendingOld
+                return
+            }
             guard let first = pendingOld.first, let last = pendingOld.last else {
                 // Inserted with nothing replaced: a zero-length word at the previous end.
                 let at = out.last?.end ?? words.first?.start ?? 0

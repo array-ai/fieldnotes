@@ -1,13 +1,17 @@
 import FieldnoteKit
 import FluidAudio
 import Foundation
+#if canImport(UIKit)
+import UIKit
+#endif
 
 /// Puts custom words into a Parakeet transcript ("Grafina" → "Grafana").
 ///
 /// Parakeet can't be told words in advance. Once it has written the transcript, a
 /// small CTC model (the optional "custom words" download) listens to the audio
 /// again, and FluidAudio's rescorer swaps a word only when the sound supports the
-/// custom one, so a real "team" stays "team". Runs after Parakeet's models are
+/// custom one. Even then a real word is never swapped ("plan" sounds like "VLAN"):
+/// see `CustomWords.shouldReplace`. Runs after Parakeet's models are
 /// released, a window of about a minute at a time, so the meeting is never in
 /// memory whole.
 enum WordFixer {
@@ -16,7 +20,7 @@ enum WordFixer {
 
     /// The words with custom words put in, or nil when there's nothing to do or the
     /// fixer failed (the transcript is used as Parakeet wrote it).
-    static func fix(_ tokenTimings: [TokenTiming], meetingID: UUID) async -> [TranscriptWord]? {
+    static func fix(_ tokenTimings: [TokenTiming], meetingID: UUID, localeIdentifier: String) async -> [TranscriptWord]? {
         guard let directory = ModelDownloads.installedDirectory(for: .parakeetCtcWords),
               !tokenTimings.isEmpty else { return nil }
         let terms = MSPVocabulary.current
@@ -32,8 +36,9 @@ enum WordFixer {
                 ctcModels: models
             )
             let audio = try AudioSamples(meetingID: meetingID)
+            let language = String(localeIdentifier.prefix(2)).lowercased()
             var fixed: [TranscriptWord] = []
-            var replaced = 0
+            var replaced = 0, kept = 0
             for window in windows(tokenTimings) {
                 guard let first = window.first, let last = window.last else { continue }
                 let words = words(from: window)
@@ -48,19 +53,46 @@ enum WordFixer {
                 let text = words.map { $0.text.trimmingCharacters(in: .whitespaces) }.joined(separator: " ")
                 if let output = await session.rescore(text: text, tokenTimings: local, audioSamples: samples),
                    output.wasModified {
-                    fixed += WordRevision.apply(output.text.split(separator: " ").map(String.init), to: words)
-                    replaced += output.replacements.filter(\.shouldReplace).count
+                    let revised = output.text.split(separator: " ").map(String.init)
+                    let result = await MainActor.run {
+                        var swaps = 0, refusals = 0
+                        let words = WordRevision.apply(revised, to: words) { old, new in
+                            let ok = CustomWords.shouldReplace(old, with: new) { isWord($0, language: language) }
+                            if ok { swaps += 1 } else { refusals += 1 }
+                            return ok
+                        }
+                        return (words, swaps, refusals)
+                    }
+                    fixed += result.0
+                    replaced += result.1
+                    kept += result.2
                 } else {
                     fixed += words
                 }
             }
             // Counts only: the words themselves are meeting content.
-            debug.log("transcript", "\(id): custom words: \(terms.count) term(s), \(replaced) word(s) replaced in \(DebugLog.elapsed(since: started))")
+            debug.log("transcript", "\(id): custom words: \(terms.count) term(s), \(replaced) swap(s) made, \(kept) refused (real words), in \(DebugLog.elapsed(since: started))")
             return fixed
         } catch {
             debug.log("transcript", "\(id): custom words skipped after \(DebugLog.elapsed(since: started)): \(error)")
             return nil
         }
+    }
+
+    /// Whether the system dictionary knows the word. Without a dictionary for the
+    /// language, every word counts as real, so only respellings go through.
+    @MainActor
+    private static func isWord(_ word: String, language: String) -> Bool {
+        #if canImport(UIKit)
+        guard UITextChecker.availableLanguages.contains(where: { $0.hasPrefix(language) }) else { return true }
+        let range = UITextChecker().rangeOfMisspelledWord(
+            in: word, range: NSRange(location: 0, length: (word as NSString).length),
+            startingAt: 0, wrap: false, language: language
+        )
+        return range.location == NSNotFound
+        #else
+        return true
+        #endif
     }
 
     static func words(from tokenTimings: [TokenTiming]) -> [TranscriptWord] {
