@@ -27,6 +27,7 @@ public enum PlainNotes {
         You write short meeting notes from a numbered transcript.
         Only write what was said. Copy names exactly. "Speaker A" is not a name.
         Put the line numbers each item comes from in square brackets.
+        Skip greetings and small talk. QUESTION is only for questions nobody answered.
         """
 
     public static func prompt(chunk: TranscriptChunk, chunkIndex: Int, chunkCount: Int) -> String {

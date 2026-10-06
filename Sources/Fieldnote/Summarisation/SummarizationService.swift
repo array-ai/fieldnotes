@@ -160,6 +160,9 @@ public actor SummarizationService {
             log.notice("Discarded \(grounded.discardedClaims, privacy: .public) claims with unresolvable citations")
             debug.log("summary", "discarded \(grounded.discardedClaims) claim(s) with citations that didn't resolve")
         }
+        if grounded.droppedAsNoise > 0 {
+            debug.log("summary", "dropped \(grounded.droppedAsNoise) item(s) as noise: fragments, non-questions, repeats")
+        }
 
         let starts = Dictionary(finalized.map { ($0.id, $0.start) }, uniquingKeysWith: { first, _ in first })
         let outlineStarted = ContinuousClock.now

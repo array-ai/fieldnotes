@@ -11,6 +11,8 @@ public enum PromptTemplates {
     public static let groundingRules = """
         Rules:
         - Only what was said. No inference or advice.
+        - Your own words: don't copy transcript lines. Skip greetings, small talk and filler.
+        - Open questions: only real questions nobody answered.
         - Cite line numbers for every item; leave out what you can't cite.
         - Copy names exactly as written.
         - Don't describe people.

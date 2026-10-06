@@ -35,13 +35,16 @@ public struct SummaryGrounder: Sendable {
         /// eval corpus (spec 11.4) has something to measure, and so a prompt change
         /// that wrecks grounding is visible rather than quiet.
         public var discardedClaims: Int = 0
+        /// Items dropped as noise: fragments, non-questions as questions, near
+        /// repeats (`NoteQuality`).
+        public var droppedAsNoise: Int = 0
     }
 
     public func ground(_ notes: [ChunkNotes], chunks: [TranscriptChunk]) -> Outcome {
         var outcome = Outcome()
-        var seenDecisions = Set<String>()
-        var seenActions = Set<String>()
-        var seenQuestions = Set<String>()
+        var seenDecisions: [Set<String>] = []
+        var seenActions: [Set<String>] = []
+        var seenQuestions: [Set<String>] = []
         var seenSystems = Set<String>()
 
         for (draft, chunk) in zip(notes, chunks) {
@@ -72,8 +75,11 @@ public struct SummaryGrounder: Sendable {
                     outcome.discardedClaims += 1
                     continue
                 }
-                let key = dedupeKey(decision.statement)
-                guard seenDecisions.insert(key).inserted else { continue }
+                guard NoteQuality.isDecision(decision.statement),
+                      NoteQuality.isNew(decision.statement, among: &seenDecisions) else {
+                    outcome.droppedAsNoise += 1
+                    continue
+                }
                 outcome.decisions.append(
                     Decision(
                         statement: decision.statement.trimmed(),
@@ -88,13 +94,16 @@ public struct SummaryGrounder: Sendable {
                     outcome.discardedClaims += 1
                     continue
                 }
-                let key = dedupeKey(action.task)
-                guard seenActions.insert(key).inserted else { continue }
+                guard NoteQuality.isTask(action.task),
+                      NoteQuality.isNew(action.task, among: &seenActions) else {
+                    outcome.droppedAsNoise += 1
+                    continue
+                }
                 let spoken = action.dueDate.trimmed().nilIfEmpty
                 outcome.actionItems.append(
                     ActionItem(
                         task: action.task.trimmed(),
-                        owner: action.owner.trimmed().nilIfEmpty,
+                        owner: NoteQuality.owner(action.owner),
                         dueDate: spoken,
                         resolvedDueDate: dateResolver.resolve(spoken, relativeTo: meetingDate),
                         sourceSegmentID: citations.primary,
@@ -108,8 +117,11 @@ public struct SummaryGrounder: Sendable {
                     outcome.discardedClaims += 1
                     continue
                 }
-                let key = dedupeKey(question.text)
-                guard seenQuestions.insert(key).inserted else { continue }
+                guard NoteQuality.isQuestion(question.text),
+                      NoteQuality.isNew(question.text, among: &seenQuestions) else {
+                    outcome.droppedAsNoise += 1
+                    continue
+                }
                 outcome.openQuestions.append(
                     OpenQuestion(text: question.text.trimmed(), sourceSegmentID: citations.primary)
                 )
@@ -159,13 +171,6 @@ public struct SummaryGrounder: Sendable {
         }
         guard let primary = resolved.first else { return nil }
         return Citations(primary: primary, supporting: Array(resolved.dropFirst()))
-    }
-
-    private func dedupeKey(_ text: String) -> String {
-        text.lowercased()
-            .components(separatedBy: CharacterSet.alphanumerics.inverted)
-            .filter { !$0.isEmpty }
-            .joined(separator: " ")
     }
 
     private func sortKey(for segmentID: UUID, chunks: [TranscriptChunk]) -> TimeInterval {

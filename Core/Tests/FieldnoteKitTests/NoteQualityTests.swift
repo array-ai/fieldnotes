@@ -1,0 +1,55 @@
+import FieldnoteKit
+import Testing
+
+/// Cases taken from a real meeting's notes (Apple's model, 68 minutes).
+@Suite("Note quality")
+struct NoteQualityTests {
+
+    @Test("Real questions stay; fragments copied from the transcript go")
+    func questions() {
+        for kept in [
+            "How involved is the migration process from VendorA to VendorB?",
+            "Is ITDR a paid option?",
+            "Do you guys catch ClickFix?",
+            "Which partner migrated 15,000 devices",
+        ] {
+            #expect(NoteQuality.isQuestion(kept), "\(kept)")
+        }
+        for dropped in [
+            "VendorC.",
+            "Sorry. Back up.",
+            "So if you're using...",
+            "Also Microsoft products.",
+            "Is that correct?",
+            "It's just a spreadsheet of everything at times.",
+        ] {
+            #expect(!NoteQuality.isQuestion(dropped), "\(dropped)")
+        }
+    }
+
+    @Test("Decisions are statements of what was agreed")
+    func decisions() {
+        #expect(NoteQuality.isDecision("Discuss pricing in another meeting."))
+        #expect(NoteQuality.isDecision("VendorB EDR is cheaper than VendorA's EDR for this setup."))
+        #expect(!NoteQuality.isDecision("I agree as well."))
+        #expect(NoteQuality.isDecision("Ship it"))
+        #expect(!NoteQuality.isDecision("Which is a bit,"))
+    }
+
+    @Test("Placeholder owners become no owner")
+    func owners() {
+        #expect(NoteQuality.owner("None") == nil)
+        #expect(NoteQuality.owner("Unassigned") == nil)
+        #expect(NoteQuality.owner(" unknown ") == nil)
+        #expect(NoteQuality.owner("Jordan") == "Jordan")
+    }
+
+    @Test("Near repeats are dropped")
+    func repeats() {
+        var seen: [Set<String>] = []
+        #expect(NoteQuality.isNew("How does VendorC work together with VendorB?", among: &seen))
+        #expect(!NoteQuality.isNew("How does VendorC work together with VendorB", among: &seen))
+        #expect(!NoteQuality.isNew("how does vendorc and vendorb work together?", among: &seen))
+        #expect(NoteQuality.isNew("What's the pricing on ITDR?", among: &seen))
+    }
+}
