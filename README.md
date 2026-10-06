@@ -206,7 +206,9 @@ app in front, mostly on a real 68-minute meeting. Run your own from Settings →
 | Speakers | Nemotron 3, Neural Engine | 5 min / 68 min | 0.74 s / 10 s | 408× / 410× |
 | Speakers | Nemotron 3, CPU fallback | 5 min | 2.4 s | 126× |
 | Speakers | pyannote community-1 | 5 min | 1.3 s | 231× |
-| Transcript | Parakeet TDT-CTC 110M | 68 min | 10.4 s (+5 s load) | 394× |
+| Transcript | Parakeet TDT-CTC 110M | 68 min | 10.4 s (+5 s load) | 394× (169× when hot) |
+| Transcript | Parakeet TDT v3 | 68 min | 48 s, including load | 86× |
+| Transcript | Parakeet TDT v2 English | 68 min | 47 s, including load | 87× |
 | Transcript | Nemotron 3.5 Streaming, from a file | 68 min | 95 s | 43× (live while recording) |
 | Transcript | Apple speech, from the audio files | 68 min / 5 min | 58 s / 3.8 s | 70× / 80× |
 | Notes | Apple's on-device model | 68 min | 917 s (19 parts) | 27–40 tokens/s |
@@ -234,7 +236,9 @@ the time. Greedy decoding (build 44) changed nothing.
   app update), Parakeet v2 14 s, v3 24 s, Nemotron 3.5 15 s, MiniCPM5 1B 44–57 s and
   2B 7 min, even compiled ahead of time for this chip.
 - "Skip small talk" leaves out about 10% of a meeting's lines (97 of 974, 54 of 317).
-- Parakeet v3 and v2 English aren't timed yet.
+- The full benchmark (build 45) left the phone's thermal state at "serious": runs late in
+  it were throttled (Parakeet 110M took 24 s instead of 10 s; the notes models' one-excerpt
+  speeds fell to 8–12 tokens/s from 14–40).
 - Qwen3 1.7B, offered before, ran out of memory compiling on the phone and was dropped.
 - Processing-time estimates start from these numbers and then learn this phone's
   speed for each model.

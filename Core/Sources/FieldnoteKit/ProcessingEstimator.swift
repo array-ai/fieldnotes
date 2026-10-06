@@ -52,7 +52,7 @@ public struct ProcessingEstimator: Codable, Sendable, Equatable {
     ///
     /// - Apple speech, from the audio files: 68 min in 58 s (0.9 s/min).
     /// - Parakeet TDT-CTC 110M: 68 min in 10–11 s plus 5 s to load (0.16 s/min).
-    ///   Parakeet v3 and v2 (0.6B) aren't measured yet; about 3× the 110M model.
+    /// - Parakeet v3 and v2 English (0.6B): 68 min in 47–48 s including load (0.7 s/min).
     /// - Nemotron 3.5 Streaming, from a file (imports, redo): 68 min in 95 s (1.4 s/min).
     /// - Nemotron 3 speakers on the Neural Engine: 68 min in 10 s (0.15 s/min). Its
     ///   compile after each install or update (40–150 s) is not counted.
