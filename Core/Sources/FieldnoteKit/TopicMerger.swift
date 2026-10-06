@@ -32,6 +32,7 @@ public enum TopicMerger {
     public static func merge(
         _ candidates: [SummaryTopic],
         sections: [Section],
+        maxPerSection: Int = 4,
         time: (UUID) -> TimeInterval
     ) -> [SummaryTopic] {
         var used = Set<Int>()
@@ -40,11 +41,16 @@ public enum TopicMerger {
         for section in sections {
             let members = section.members.filter { candidates.indices.contains($0) && used.insert($0).inserted }
             guard !members.isEmpty else { continue }
-            let title = section.title.trimmed().nilIfEmpty ?? candidates[members[0]].title
-            let summary = section.summary.trimmed().nilIfEmpty ?? candidates[members[0]].summary
-            var topic = combine(members.map { candidates[$0] }, title: title, summary: summary, time: time)
-            topic.emoji = section.emoji?.trimmed().nilIfEmpty.map { String($0.prefix(2)) }
-            result.append(topic)
+            let emoji = section.emoji?.trimmed().nilIfEmpty.map { String($0.prefix(2)) }
+            for (index, run) in runs(members, maxPerSection: maxPerSection).enumerated() {
+                // The model's title and summary fit the first run; a later run is the
+                // same subject coming back, under its own excerpt title.
+                let title = (index == 0 ? section.title.trimmed().nilIfEmpty : nil) ?? candidates[run[0]].title
+                let summary = (index == 0 ? section.summary.trimmed().nilIfEmpty : nil) ?? candidates[run[0]].summary
+                var topic = combine(run.map { candidates[$0] }, title: title, summary: summary, time: time)
+                topic.emoji = emoji
+                result.append(topic)
+            }
         }
 
         // Anything the grouping missed: join by matching title, else stand alone.
@@ -52,6 +58,22 @@ public enum TopicMerger {
         result.append(contentsOf: mergeByTitle(leftovers, time: time))
 
         return result.sorted { earliest($0, time) < earliest($1, time) }
+    }
+
+    /// A section's topics in runs of neighbours (at most one topic apart), each at
+    /// most `maxPerSection` long. Apple's model once put 20 topics from all over a
+    /// 68-minute meeting into one section of 30 points; this keeps the sections it
+    /// meant (neighbouring excerpts on one subject) and undoes the rest.
+    static func runs(_ members: [Int], maxPerSection: Int) -> [[Int]] {
+        var runs: [[Int]] = []
+        for member in members.sorted() {
+            if let last = runs.last?.last, member - last <= 2, runs[runs.count - 1].count < maxPerSection {
+                runs[runs.count - 1].append(member)
+            } else {
+                runs.append([member])
+            }
+        }
+        return runs
     }
 
     /// Used when the grouping pass fails: topics with the same title are joined.

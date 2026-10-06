@@ -43,10 +43,9 @@ struct DraftPoint {
     @Guide(description: "One sentence in your own words. Never a quote from the transcript.")
     var text: String
 
-    @Guide(description: "Up to two brief facts said.")
-    var details: [String]
-
-    @Guide(description: "Line numbers.")
+    // No "details": Apple's model filled them with words copied from the point
+    // (a few words repeated from the point itself) and they cost output tokens.
+    @Guide(description: "One to three line numbers.")
     var sourceLines: [Int]
 }
 
@@ -55,7 +54,7 @@ struct DraftDecision {
     @Guide(description: "One sentence.")
     var statement: String
 
-    @Guide(description: "Line numbers.")
+    @Guide(description: "One to three line numbers.")
     var sourceLines: [Int]
 }
 
@@ -70,7 +69,7 @@ struct DraftActionItem {
     @Guide(description: "When, as said. Empty if none.")
     var dueDate: String
 
-    @Guide(description: "Line numbers.")
+    @Guide(description: "One to three line numbers.")
     var sourceLines: [Int]
 }
 
@@ -79,7 +78,7 @@ struct DraftClaim {
     @Guide(description: "One sentence.")
     var text: String
 
-    @Guide(description: "Line numbers.")
+    @Guide(description: "One to three line numbers.")
     var sourceLines: [Int]
 }
 
@@ -90,7 +89,7 @@ struct DraftOutline {
     @Guide(description: "One to three sentences on the whole meeting. No preamble.")
     var overview: String
 
-    @Guide(description: "Main topics in order; join topics on the same subject. Each topic number in exactly one section.")
+    @Guide(description: "The meeting's main sections in order, usually five to twelve. Join only neighbouring topics on the same subject. Each topic number in exactly one section.")
     var sections: [DraftSection]
 }
 
@@ -126,19 +125,30 @@ extension DraftChunkNotes {
                 NoteTopic(
                     title: topic.title,
                     summary: topic.summary,
-                    points: topic.points.map { NotePoint(text: $0.text, details: $0.details, sourceLines: $0.sourceLines) }
+                    points: topic.points.map { NotePoint(text: $0.text, details: [], sourceLines: Self.lines($0.sourceLines)) }
                 )
             },
             // The overview fallback reads these.
             points: topics.map { "\($0.title): \($0.summary)" },
-            decisions: decisions.map { NoteDecision(statement: $0.statement, sourceLines: $0.sourceLines) },
+            decisions: decisions.map { NoteDecision(statement: $0.statement, sourceLines: Self.lines($0.sourceLines)) },
             actionItems: actionItems.map {
-                NoteActionItem(task: $0.task, owner: $0.owner, dueDate: $0.dueDate, sourceLines: $0.sourceLines)
+                NoteActionItem(task: $0.task, owner: Self.owner($0.owner), dueDate: $0.dueDate, sourceLines: Self.lines($0.sourceLines))
             },
-            openQuestions: openQuestions.map { NoteClaim(text: $0.text, sourceLines: $0.sourceLines) },
+            openQuestions: openQuestions.map { NoteClaim(text: $0.text, sourceLines: Self.lines($0.sourceLines)) },
             // No longer asked for: it cost context on every call for little use.
             mentionedSystems: [],
-            speakerNames: speakerNames.map { NoteClaim(text: $0.text, sourceLines: $0.sourceLines) }
+            speakerNames: speakerNames.map { NoteClaim(text: $0.text, sourceLines: Self.lines($0.sourceLines)) }
         )
+    }
+
+    /// The first three cited lines. One answer cited 270 in a row, all the way to
+    /// the token cap (build 45).
+    static func lines(_ lines: [Int]) -> [Int] { Array(lines.prefix(3)) }
+
+    /// The transcript labels unnamed speakers by letter; an owner written as just
+    /// "E" reads as "Speaker E".
+    static func owner(_ owner: String) -> String {
+        let trimmed = owner.trimmingCharacters(in: .whitespaces)
+        return trimmed.count == 1 && trimmed.first?.isUppercase == true ? "Speaker \(trimmed)" : owner
     }
 }

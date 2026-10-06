@@ -52,6 +52,24 @@ struct TopicTests {
         #expect(merged[1].emoji == "🔌")
     }
 
+    @Test("A section of far-apart or too many topics is split into runs of neighbours")
+    func runs() {
+        let topics = (0..<12).map {
+            SummaryTopic(title: "T\($0)", summary: "", points: [TopicPoint(text: "P\($0)", sourceSegmentID: segments[0].id)])
+        }
+        let merged = TopicMerger.merge(
+            topics,
+            sections: [TopicMerger.Section(title: "Everything", summary: "All", members: [0, 1, 2, 3, 4, 5, 9, 11])],
+            time: time
+        )
+        // 0–3 (capped at four), 4–5, then 9 and 11 (one apart): all twelve accounted for.
+        #expect(merged.filter { $0.title == "Everything" }.count == 1)
+        #expect(merged.first { $0.title == "Everything" }?.points.count == 4)
+        #expect(merged.contains { $0.title == "T4" && $0.points.count == 2 })
+        #expect(merged.contains { $0.title == "T9" && $0.points.count == 2 })
+        #expect(merged.reduce(0) { $0 + $1.points.count } == 12)
+    }
+
     @Test("Without a grouping, same-titled topics join")
     func fallback() {
         let a = SummaryTopic(title: "Backups", summary: "s", points: [TopicPoint(text: "One", sourceSegmentID: segments[0].id)])
