@@ -140,6 +140,7 @@ struct ComposedShareView: View {
     @Environment(\.dismiss) private var dismiss
 
     @AppStorage("share.overview") private var overview = true
+    @AppStorage("share.notes") private var notes = true
     @AppStorage("share.decisions") private var decisions = true
     @AppStorage("share.actions") private var actions = true
     @AppStorage("share.questions") private var questions = true
@@ -154,6 +155,7 @@ struct ComposedShareView: View {
             Form {
                 Section("Include") {
                     Toggle("Overview", isOn: $overview)
+                    Toggle("Notes", isOn: $notes)
                     Toggle("Decisions", isOn: $decisions)
                     Toggle("Action items", isOn: $actions)
                     Toggle("Open questions", isOn: $questions)
@@ -196,6 +198,9 @@ struct ComposedShareView: View {
     private var sections: MarkdownRenderer.Sections {
         var sections: MarkdownRenderer.Sections = []
         if overview { sections.insert(.overview) }
+        // The topic sections: most of what the notes say. Missing from this sheet
+        // until now, so shared meetings left them out.
+        if notes { sections.insert(.notes) }
         if decisions { sections.insert(.decisions) }
         if actions { sections.insert(.actions) }
         if questions { sections.insert(.openQuestions) }
