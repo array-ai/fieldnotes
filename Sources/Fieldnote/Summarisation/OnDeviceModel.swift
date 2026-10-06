@@ -142,6 +142,38 @@ public enum OnDeviceModel {
         }
     }
 
+    /// Deletes Core AI's prepared (specialised) copy of the model in a bundle.
+    ///
+    /// Core AI caches it by the model file's path, and the cache is purgeable: iOS
+    /// can delete part of it under storage pressure while the index still points at
+    /// it. MiniCPM5 1B then failed every request in 2 s with "nilError", and a fresh
+    /// download (same path) failed the same way in 0.4 s (build 43). Clearing the
+    /// entry makes the next load prepare it again.
+    public static func clearPreparedCopy(in bundle: URL) {
+        guard let model = mainAsset(in: bundle) else { return }
+        do {
+            try AIModelCache.default.deleteEntries(for: model)
+            DebugLog.shared.log("models", "cleared the prepared copy of \(model.lastPathComponent)")
+        } catch {
+            DebugLog.shared.log("models", "couldn't clear the prepared copy of \(model.lastPathComponent): \(error)")
+        }
+    }
+
+    /// The model file a bundle's metadata.json names (`assets.main`).
+    static func mainAsset(in bundle: URL) -> URL? {
+        guard let data = try? Data(contentsOf: bundle.appending(path: "metadata.json")),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let assets = json["assets"] as? [String: Any],
+              let main = assets["main"] as? String else { return nil }
+        return bundle.appending(path: main)
+    }
+
+    /// The bundle folder of a downloaded summary-model pack, if it's installed.
+    public static func bundle(for pack: ModelPack.ID) -> URL? {
+        guard let directory = ModelDownloads.installedDirectory(for: pack) else { return nil }
+        return ModelPack.pack(pack).bundleFolder.map { directory.appendingPathComponent($0, isDirectory: true) } ?? directory
+    }
+
     /// The one place the Core AI model is constructed. Refuses a bundle without its
     /// own tokenizer: the runtime would otherwise fetch one from Hugging Face.
     static func loadLocalModel(at directory: URL, eager: Bool) async throws -> CoreAILanguageModel {

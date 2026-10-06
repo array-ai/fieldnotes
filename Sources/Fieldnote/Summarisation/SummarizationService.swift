@@ -163,7 +163,15 @@ public actor SummarizationService {
             if failedInARow >= 2 {
                 let detail = chunkDegraded.first?.detail ?? "no answer"
                 debug.log("summary", "\(DebugLog.short(meeting.id)): the model failed on \(failedInARow) parts in a row; stopping (\(detail.prefix(120)))")
-                throw NotWritten(detail: "\(plain ? OnDeviceModel.selectedEngine.card.title : "Apple's model") isn't answering (\(detail.prefix(80))). Try another notes model, or delete and download it again.")
+                // Most likely a broken prepared copy: clear it so Try again prepares
+                // the model afresh.
+                if plain, let pack = OnDeviceModel.selectedEngine.modelPack, let bundle = OnDeviceModel.bundle(for: pack) {
+                    OnDeviceModel.releaseSummaryModel()
+                    OnDeviceModel.clearPreparedCopy(in: bundle)
+                }
+                throw NotWritten(detail: plain
+                    ? "\(OnDeviceModel.selectedEngine.card.title) isn't answering (\(detail.prefix(80))). Its prepared copy was cleared: tap Try again to prepare it afresh (a minute or two)."
+                    : "Apple's model isn't answering (\(detail.prefix(80))). Tap Try again later.")
             }
             // Only clean parts are kept for a resume; a degraded one gets another go.
             if chunkDegraded.isEmpty { await savePart(chunk.partKey, chunkNotes) }

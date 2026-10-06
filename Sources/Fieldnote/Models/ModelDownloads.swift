@@ -161,6 +161,11 @@ public final class ModelDownloads {
 
     public func delete(_ id: ModelPack.ID) {
         cancel(id)
+        // Core AI's prepared copy outlives the files and would be found again by a
+        // re-download at the same path; delete it too.
+        if id.rawValue.hasPrefix(ModelPack.ID.minicpm5.rawValue), let bundle = OnDeviceModel.bundle(for: id) {
+            OnDeviceModel.clearPreparedCopy(in: bundle)
+        }
         try? FileManager.default.removeItem(at: Self.directory(for: id))
         try? FileManager.default.removeItem(at: Self.staging(for: id))
         states[id] = .notInstalled
@@ -260,10 +265,10 @@ public final class ModelDownloads {
                 #if os(iOS)
                 DebugLog.shared.log("models", "\(pack.id.rawValue): preparing, \(CrashWatch.memoryLeft) memory left")
                 #endif
-                let model = try await OnDeviceModel.loadLocalModel(
-                    at: pack.bundleFolder.map { final.appendingPathComponent($0, isDirectory: true) } ?? final,
-                    eager: true
-                )
+                let bundle = pack.bundleFolder.map { final.appendingPathComponent($0, isDirectory: true) } ?? final
+                // A fresh download prepares from scratch, never from a stale cache entry.
+                OnDeviceModel.clearPreparedCopy(in: bundle)
+                let model = try await OnDeviceModel.loadLocalModel(at: bundle, eager: true)
                 model.unload()
                 #if os(iOS)
                 DebugLog.shared.log("models", "\(pack.id.rawValue): \(CrashWatch.memoryLeft) memory left after preparing")
