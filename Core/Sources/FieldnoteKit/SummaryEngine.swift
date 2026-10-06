@@ -37,8 +37,11 @@ public enum SummaryEngine: String, Codable, CaseIterable, Sendable {
 
     /// The plain-text notes instructions for this model. Qwen3 thinks aloud before
     /// answering unless told not to, which would spend the answer on reasoning.
-    public var plainInstructions: String {
-        self == .qwen3_4b ? PlainNotes.instructions + "\n/no_think" : PlainNotes.instructions
+    public var plainInstructions: String { withoutThinking(PlainNotes.instructions) }
+
+    /// Instructions for this model, with Qwen3's "don't think aloud" switch added.
+    public func withoutThinking(_ instructions: String) -> String {
+        self == .qwen3_4b ? instructions + "\n/no_think" : instructions
     }
 
     /// Ratings as in `ModelCard`, from a 68-minute meeting on an iPhone 16 (build 41):

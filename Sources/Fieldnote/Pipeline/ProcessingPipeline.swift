@@ -186,7 +186,7 @@ public actor ProcessingPipeline {
             }
             debug.log("pipeline", "\(id): on power, summarising in the background")
         }
-        let summary = try await summariseStage(
+        let (summary, cleaned) = try await summariseStage(
             input,
             segments: diarization.segments,
             store: store,
@@ -198,7 +198,8 @@ public actor ProcessingPipeline {
         debug.log("pipeline", "\(id): done in \(DebugLog.elapsed(since: started))")
 
         return Output(
-            segments: diarization.segments,
+            // With the clean-up's fixes, if it made any.
+            segments: cleaned ?? diarization.segments,
             embeddings: diarization.embeddings,
             summary: summary,
             replacesEditedSegments: checkpoint.redoTranscript == true
@@ -389,12 +390,13 @@ public actor ProcessingPipeline {
         store: ProcessingCheckpointStore,
         checkpoint: inout ProcessingCheckpoint,
         progress: @escaping ProgressHandler
-    ) async throws -> MeetingSummary {
+    ) async throws -> (MeetingSummary, cleaned: [TranscriptSegment]?) {
         if checkpoint.isComplete(.summarising), let saved = await store.loadSummary() {
             debug.log("pipeline", "\(DebugLog.short(input.meetingID)): summary already done, using checkpoint")
             progress(.summarising, 1.0)
-            return saved
+            return (saved, nil)
         }
+        let cleanedTranscript = CleanedTranscript()
         // Reported now, not after the first model call: otherwise the meeting keeps
         // showing the previous stage for the whole first generation.
         progress(.summarising, 0)
@@ -418,7 +420,12 @@ public actor ProcessingPipeline {
                 // it there, which says nothing about the meeting.
                 allowDeferral: deferrals < 1 || !inFront,
                 savedParts: saved,
-                savePart: { key, notes in try? await store.saveSummaryPart(notes, key: key) }
+                savePart: { key, notes in try? await store.saveSummaryPart(notes, key: key) },
+                cleaned: { segments in
+                    // Kept with the checkpoint too, so a resumed run starts from them.
+                    try? await store.saveSegments(segments)
+                    await cleanedTranscript.set(segments)
+                }
             ) { fraction in
                 progress(.summarising, fraction)
             }
@@ -437,7 +444,7 @@ public actor ProcessingPipeline {
         try await store.saveSummary(summary)
         try await store.markComplete(.summarising, in: &checkpoint)
         progress(.summarising, 1.0)
-        return summary
+        return (summary, await cleanedTranscript.segments)
     }
 }
 
@@ -555,3 +562,9 @@ public enum PowerState {
     public static func summary() async -> String { "power unknown" }
 }
 #endif
+
+/// The clean-up's fixed transcript, handed out of the summary run.
+private actor CleanedTranscript {
+    private(set) var segments: [TranscriptSegment]?
+    func set(_ segments: [TranscriptSegment]) { self.segments = segments }
+}

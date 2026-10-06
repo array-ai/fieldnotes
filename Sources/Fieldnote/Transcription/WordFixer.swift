@@ -1,9 +1,6 @@
 import FieldnoteKit
 import FluidAudio
 import Foundation
-#if canImport(UIKit)
-import UIKit
-#endif
 
 /// Puts custom words into a Parakeet transcript ("Grafina" → "Grafana").
 ///
@@ -54,15 +51,17 @@ enum WordFixer {
                 if let output = await session.rescore(text: text, tokenTimings: local, audioSamples: samples),
                    output.wasModified {
                     let revised = output.text.split(separator: " ").map(String.init)
-                    let result = await MainActor.run {
+                    let keys = Set(words.map { WordRevision.key($0.text) })
+                    let real = await SpellingDictionary.realWords(keys, language: language)
+                    let result = {
                         var swaps = 0, refusals = 0
                         let words = WordRevision.apply(revised, to: words) { old, new in
-                            let ok = CustomWords.shouldReplace(old, with: new) { isWord($0, language: language) }
+                            let ok = CustomWords.shouldReplace(old, with: new) { real.contains($0) }
                             if ok { swaps += 1 } else { refusals += 1 }
                             return ok
                         }
                         return (words, swaps, refusals)
-                    }
+                    }()
                     fixed += result.0
                     replaced += result.1
                     kept += result.2
@@ -77,22 +76,6 @@ enum WordFixer {
             debug.log("transcript", "\(id): custom words skipped after \(DebugLog.elapsed(since: started)): \(error)")
             return nil
         }
-    }
-
-    /// Whether the system dictionary knows the word. Without a dictionary for the
-    /// language, every word counts as real, so only respellings go through.
-    @MainActor
-    private static func isWord(_ word: String, language: String) -> Bool {
-        #if canImport(UIKit)
-        guard UITextChecker.availableLanguages.contains(where: { $0.hasPrefix(language) }) else { return true }
-        let range = UITextChecker().rangeOfMisspelledWord(
-            in: word, range: NSRange(location: 0, length: (word as NSString).length),
-            startingAt: 0, wrap: false, language: language
-        )
-        return range.location == NSNotFound
-        #else
-        return true
-        #endif
     }
 
     static func words(from tokenTimings: [TokenTiming]) -> [TranscriptWord] {

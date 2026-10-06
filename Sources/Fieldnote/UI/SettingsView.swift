@@ -522,6 +522,20 @@ struct CustomWordsView: View {
             }
 
             Section {
+                Toggle("Clean up with the notes model", isOn: $settings.cleanUpCustomWords)
+            } footer: {
+                Text(
+                    """
+                    Before writing notes, the notes model reads the lines with a word close \
+                    to one of these and fixes the ones that clearly mean it, judging by \
+                    context: "sync row" in a line about tickets becomes Syncro, "the team" \
+                    stays a team. Works with any transcription model; adds a minute or two \
+                    to a long meeting.
+                    """
+                )
+            }
+
+            Section {
                 fixer
             } header: {
                 Text("Parakeet")

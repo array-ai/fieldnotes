@@ -29,8 +29,8 @@ public enum CustomWords {
     /// `original`. The audio alone isn't enough: "plan" sounds like "VLAN" and "sure"
     /// like "Azure", and build 46 made 234 swaps in one meeting, many of them that.
     /// So a swap goes through only when it's the same letters spelled differently
-    /// ("Data Dog" → "Datadog"), or when none of the words it replaces is a
-    /// real word ("Grafina" → "Grafana"). `isWord` is the system dictionary.
+    /// ("Data Dog" → "Datadog"), or when none of the words it replaces is a real
+    /// word ("Grafina" → "Grafana"). `isWord` is the system dictionary.
     public static func shouldReplace(_ original: [String], with replacement: [String], isWord: (String) -> Bool) -> Bool {
         let letters = { (words: [String]) in words.map(WordRevision.key).joined() }
         if letters(original) == letters(replacement) { return true }
@@ -124,7 +124,7 @@ public enum WordRevision {
     }
 
     /// How words are compared: letters and digits, ignoring case and punctuation.
-    static func key(_ word: String) -> String {
+    public static func key(_ word: String) -> String {
         String(word.lowercased().filter { $0.isLetter || $0.isNumber })
     }
 }

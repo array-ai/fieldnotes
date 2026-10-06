@@ -93,15 +93,17 @@ public actor SummarizationService {
         allowDeferral: Bool = true,
         savedParts: [String: ChunkNotes] = [:],
         savePart: @Sendable (String, ChunkNotes) async -> Void = { _, _ in },
+        cleaned: @Sendable ([TranscriptSegment]) async -> Void = { _ in },
         progress: @Sendable (Double) -> Void = { _ in }
     ) async throws -> MeetingSummary {
         self.allowDeferral = allowDeferral
-        let spoken = segments.filter { $0.isFinalized && !$0.text.trimmed().isEmpty }
+        var segments = segments
+        var spoken = segments.filter { $0.isFinalized && !$0.text.trimmed().isEmpty }
         // "Skip small talk" (Settings, on by default): lines like "Okay." and "Give
         // us a second." are left out of what the model reads. On a 68-minute meeting
         // this cut 10% of the lines.
         let skipSmallTalk = UserDefaults.standard.object(forKey: Self.skipSmallTalkKey) as? Bool ?? true
-        let finalized = skipSmallTalk ? spoken.filter { !NoteQuality.isFiller($0.text) } : spoken
+        var finalized = skipSmallTalk ? spoken.filter { !NoteQuality.isFiller($0.text) } : spoken
         if skipSmallTalk, finalized.count < spoken.count {
             debug.log("summary", "\(DebugLog.short(meeting.id)): skipping \(spoken.count - finalized.count) small-talk line(s) of \(spoken.count)")
         }
@@ -121,6 +123,19 @@ public actor SummarizationService {
 
         // Fails early, with a clear reason, if the on-device model isn't available.
         _ = try OnDeviceModel.session(tier: tier, instructions: instructions)
+
+        // The optional clean-up (Settings → Custom words): fixes custom words in the
+        // transcript itself, so the notes read the right names too.
+        if UserDefaults.standard.bool(forKey: TranscriptCleanup.defaultsKey) {
+            let fixed = await cleanUp(segments, meetingID: meeting.id)
+            if fixed != segments {
+                segments = fixed
+                let ids = Set(finalized.map(\.id))
+                spoken = segments.filter { $0.isFinalized && !$0.text.trimmed().isEmpty }
+                finalized = spoken.filter { ids.contains($0.id) }
+                await cleaned(segments)
+            }
+        }
 
         let budget = await measureBudget()
         answerCap = budget.outputReserve
@@ -222,6 +237,56 @@ public actor SummarizationService {
             degradedChunks: degraded,
             speakerNames: speakerNames
         )
+    }
+
+    // MARK: - Clean-up
+
+    /// Asks the notes model about the lines close to a custom word, 30 at a time, and
+    /// makes the fixes it gives that check out (`TranscriptCleanup.parse`). A part
+    /// that fails is skipped: the clean-up never stops the notes.
+    private func cleanUp(_ segments: [TranscriptSegment], meetingID: UUID) async -> [TranscriptSegment] {
+        let id = DebugLog.short(meetingID)
+        let terms = MSPVocabulary.current
+        let keys = Set(segments.flatMap { $0.text.split(separator: " ").map { WordRevision.key(String($0)) } })
+        let real = await SpellingDictionary.realWords(keys, language: SpellingDictionary.transcriptLanguage)
+        let isWord: (String) -> Bool = { real.contains($0) }
+        let candidates = TranscriptCleanup.candidates(segments, terms: terms, isWord: isWord)
+        guard !candidates.isEmpty else {
+            debug.log("summary", "\(id): clean-up: no lines near a custom word")
+            return segments
+        }
+        let started = ContinuousClock.now
+        let instructions = plain
+            ? OnDeviceModel.selectedEngine.withoutThinking(TranscriptCleanup.instructions)
+            : TranscriptCleanup.instructions
+        var result = segments
+        var applied = 0, failed = 0
+        for batch in stride(from: 0, to: candidates.count, by: 30) {
+            guard !Task.isCancelled else { break }
+            let indices = Array(candidates[batch..<min(batch + 30, candidates.count)])
+            let lines = indices.map { result[$0].text }
+            let prompt = TranscriptCleanup.prompt(lines: lines, terms: TranscriptCleanup.relevantTerms(lines, terms: terms, isWord: isWord))
+            do {
+                let session = try OnDeviceModel.session(tier: tier, instructions: instructions)
+                let response = try await session.respond(
+                    to: prompt, options: GenerationOptions(maximumResponseTokens: 400),
+                    contextOptions: OnDeviceModel.contextOptions
+                )
+                for fix in TranscriptCleanup.parse(response.content, lines: lines, terms: terms) {
+                    let index = indices[fix.line - 1]
+                    if let fixed = TranscriptCleanup.apply(fix, to: result[index]) {
+                        result[index] = fixed
+                        applied += 1
+                    }
+                }
+            } catch {
+                failed += 1
+                debug.log("summary", "\(id): clean-up part \(batch / 30 + 1) failed: \(Failure(error).detail.prefix(160))")
+            }
+        }
+        // Counts only: the words are meeting content.
+        debug.log("summary", "\(id): clean-up: \(candidates.count) line(s) near a custom word, \(applied) fix(es), \(failed) part(s) failed, in \(DebugLog.elapsed(since: started))")
+        return result
     }
 
     // MARK: - Budget

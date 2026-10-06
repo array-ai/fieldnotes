@@ -382,6 +382,12 @@ public final class AppModel {
             didSet { UserDefaults.standard.set(customWords, forKey: CustomWords.defaultsKey) }
         }
 
+        /// The notes model fixes custom words in the transcript before writing notes.
+        /// Off by default: it adds a minute or two to a long meeting.
+        public var cleanUpCustomWords: Bool {
+            didSet { UserDefaults.standard.set(cleanUpCustomWords, forKey: TranscriptCleanup.defaultsKey) }
+        }
+
         /// Shows the log viewer and the redo actions.
         public var debugMode: Bool {
             didSet { UserDefaults.standard.set(debugMode, forKey: "debugMode") }
@@ -408,6 +414,7 @@ public final class AppModel {
             self.keepAwakeWhileProcessing = UserDefaults.standard.object(forKey: "keepAwakeWhileProcessing") as? Bool ?? true
             self.skipSmallTalk = UserDefaults.standard.object(forKey: SummarizationService.skipSmallTalkKey) as? Bool ?? true
             self.customWords = UserDefaults.standard.stringArray(forKey: CustomWords.defaultsKey) ?? []
+            self.cleanUpCustomWords = UserDefaults.standard.bool(forKey: TranscriptCleanup.defaultsKey)
             self.summaryEngine = SummaryEngine(storedValue: UserDefaults.standard.string(forKey: SummaryEngine.defaultsKey))
             self.transcriptionEngine = TranscriptionEngine(
                 storedValue: UserDefaults.standard.string(forKey: TranscriptionEngine.defaultsKey)
