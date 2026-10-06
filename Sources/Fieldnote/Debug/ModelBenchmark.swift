@@ -225,24 +225,27 @@ public final class ModelBenchmark {
 
     // MARK: - Summary
 
+    /// Every summary model on the phone, one after another, on the same excerpt:
+    /// Apple's, then each downloaded MiniCPM5. Not downloaded ones are listed as such.
     private func benchmarkSummary(_ meeting: MeetingSnapshot) async {
-        status = "Summary model…"
-        do {
-            try await OnDeviceModel.prepareSummaryModel()
-        } catch {
-            add("Summary", "Model", "couldn't load: \(error.localizedDescription)")
-            return
-        }
-        defer { OnDeviceModel.releaseSummaryModel() }
-        let local = OnDeviceModel.usesLocalModel
-        add("Summary", "Model", local ? "\(OnDeviceModel.selectedEngine.card.title) (Core AI)" : "Apple's on-device model")
-        add("Summary", "Context window", "\(local ? OnDeviceModel.localContextSize : OnDeviceModel.contextSize(tier: .coreAdvanced)) tokens")
-
         let lines = meeting.segments.filter { !$0.text.trimmed().isEmpty }
         guard !lines.isEmpty else {
             add("Summary", "Excerpt", "no transcript to summarise")
             return
         }
+        for engine in SummaryEngine.allCases {
+            status = "Summary: \(engine.card.title)…"
+            if engine.isLocal {
+                await benchmarkLocalSummary(engine, lines: lines)
+            } else {
+                await benchmarkAppleSummary(lines: lines)
+            }
+        }
+    }
+
+    private func benchmarkAppleSummary(lines: [TranscriptSegment]) async {
+        let name = SummaryEngine.apple.card.title
+        add("Summary", name, "context window \(OnDeviceModel.contextSize(tier: .coreAdvanced)) tokens")
         // One excerpt sized the way real processing sizes it: whatever fits next to
         // the instructions, the output schema and room for the answer.
         let summaryPrompt = SummaryPromptStore.load()
@@ -261,61 +264,67 @@ public final class ModelBenchmark {
             chunk = half
             prompt = PromptTemplates.chunkPrompt(chunk: chunk, chunkIndex: 0, chunkCount: 1, request: summaryPrompt.effectiveRequest)
         }
-        let promptTokens = await OnDeviceModel.tokenCount(prompt: prompt, tier: .coreAdvanced)
+        do {
+            let session = try OnDeviceModel.appleSession(tier: .coreAdvanced, instructions: summaryPrompt.instructions)
+            let started = ContinuousClock.now
+            let response = try await session.respond(to: prompt, generating: DraftChunkNotes.self, contextOptions: OnDeviceModel.contextOptions(local: false))
+            let elapsed = seconds(since: started)
+            let notes = response.content.notes
+            report(name, lines: chunk.segments.count, input: response.usage.input.totalTokenCount,
+                   output: response.usage.output.totalTokenCount, elapsed: elapsed, notes: notes)
+        } catch {
+            add("Summary", name, "failed: \(String(describing: error))")
+        }
+    }
 
-        if local {
-            // The local model writes plain labelled lines, as in real processing.
-            let plainPrompt = PlainNotes.prompt(chunk: chunk, chunkIndex: 0, chunkCount: 1)
-            do {
-                let session = try OnDeviceModel.session(tier: .coreAdvanced, instructions: PlainNotes.instructions)
-                let started = ContinuousClock.now
-                let response = try await session.respond(to: plainPrompt, contextOptions: OnDeviceModel.contextOptions)
-                let elapsed = seconds(since: started)
-                let notes = PlainNotes.parse(response.content, chunk: chunk)
-                let output = response.usage.output.totalTokenCount
-                add(
-                    "Summary",
-                    "One excerpt",
-                    String(format: "%d line(s) · %d tokens in, %d out · %.2f s · %.0f output tokens/s · %d topic(s), %d point(s), %d task(s)",
-                           chunk.segments.count,
-                           response.usage.input.totalTokenCount,
-                           output,
-                           elapsed,
-                           Double(output) / max(elapsed, 0.001),
-                           notes.topics.count,
-                           notes.topics.reduce(0) { $0 + $1.points.count },
-                           notes.actionItems.count)
-                )
-                add("Summary", "Answer (start)", String(response.content.prefix(400)))
-            } catch {
-                add("Summary", "One excerpt", "failed: \(String(describing: error))")
-            }
+    private func benchmarkLocalSummary(_ engine: SummaryEngine, lines: [TranscriptSegment]) async {
+        let name = "\(engine.card.title) (Core AI)"
+        let loadStarted = ContinuousClock.now
+        let loaded: OnDeviceModel.BenchmarkSession?
+        do {
+            loaded = try await OnDeviceModel.benchmarkSession(for: engine, instructions: PlainNotes.instructions)
+        } catch {
+            add("Summary", name, "couldn't load: \(error.localizedDescription)")
             return
         }
-
-        do {
-            let session = try OnDeviceModel.session(tier: .coreAdvanced, instructions: summaryPrompt.instructions)
-            let started = ContinuousClock.now
-            let response = try await session.respond(to: prompt, generating: DraftChunkNotes.self, contextOptions: OnDeviceModel.contextOptions)
-            let elapsed = seconds(since: started)
-            let notes = response.content
-            let input = response.usage.input.totalTokenCount
-            let output = response.usage.output.totalTokenCount
-            add(
-                "Summary",
-                "One excerpt",
-                String(format: "%d line(s) · %d tokens in (prompt %@), %d out · %.2f s · %.0f output tokens/s · %d topic(s)",
-                       chunk.segments.count,
-                       input,
-                       promptTokens.map(String.init) ?? "?",
-                       output,
-                       elapsed,
-                       Double(output) / max(elapsed, 0.001),
-                       notes.topics.count)
-            )
-        } catch {
-            add("Summary", "One excerpt", "failed: \(String(describing: error))")
+        guard let loaded else {
+            add("Summary", name, "not downloaded (Settings → Models)")
+            return
         }
+        defer { loaded.unload() }
+        add("Summary", name, String(format: "loaded in %.2f s, context window %d tokens", seconds(since: loadStarted), OnDeviceModel.localContextSize))
+        // The same budget real processing uses for the local models.
+        let budget = PromptBudget(contextSize: OnDeviceModel.localContextSize, fixedCost: 350, outputReserve: 1_000, isMeasured: false)
+        guard let chunk = TranscriptChunker(budget: budget.chunkBudget, overlap: 0).chunks(from: lines).first else { return }
+        let prompt = PlainNotes.prompt(chunk: chunk, chunkIndex: 0, chunkCount: 1)
+        do {
+            let started = ContinuousClock.now
+            let response = try await loaded.session.respond(
+                to: prompt,
+                options: GenerationOptions(maximumResponseTokens: 600),
+                contextOptions: OnDeviceModel.contextOptions(local: true)
+            )
+            let elapsed = seconds(since: started)
+            let notes = PlainNotes.parse(response.content, chunk: chunk)
+            report(name, lines: chunk.segments.count, input: response.usage.input.totalTokenCount,
+                   output: response.usage.output.totalTokenCount, elapsed: elapsed, notes: notes)
+            add("Summary", "\(name) answer (start)", String(response.content.prefix(400)))
+        } catch {
+            add("Summary", name, "failed: \(String(describing: error))")
+        }
+    }
+
+    private func report(_ name: String, lines: Int, input: Int, output: Int, elapsed: Double, notes: ChunkNotes) {
+        add(
+            "Summary",
+            name,
+            String(format: "%d line(s) · %d tokens in, %d out · %.2f s · %.0f output tokens/s · %d topic(s), %d point(s), %d task(s), %d decision(s)",
+                   lines, input, output, elapsed, Double(output) / max(elapsed, 0.001),
+                   notes.topics.count,
+                   notes.topics.reduce(0) { $0 + $1.points.count },
+                   notes.actionItems.count,
+                   notes.decisions.count)
+        )
     }
 
     // MARK: - Helpers

@@ -163,9 +163,43 @@ public enum OnDeviceModel {
     /// (its chat template's enable_thinking), which would spend the answer budget;
     /// this turns that off.
     public static var contextOptions: ContextOptions {
-        usesLocalModel
+        contextOptions(local: usesLocalModel)
+    }
+
+    public static func contextOptions(local: Bool) -> ContextOptions {
+        local
             ? ContextOptions(includeSchemaInPrompt: true, reasoningLevel: .custom("none"))
             : ContextOptions(includeSchemaInPrompt: true)
+    }
+
+    /// Benchmark only: a session on one downloaded model, whatever is chosen in
+    /// Settings, plus the loaded model to unload afterwards. Nil if it isn't
+    /// downloaded.
+    public static func benchmarkSession(
+        for engine: SummaryEngine,
+        instructions: String
+    ) async throws -> BenchmarkSession? {
+        guard engine.isLocal, let pack = engine.modelPack,
+              let directory = ModelDownloads.installedDirectory(for: pack) else { return nil }
+        let bundle = ModelPack.pack(pack).bundleFolder.map { directory.appendingPathComponent($0, isDirectory: true) } ?? directory
+        let model = try await loadLocalModel(at: bundle, eager: false)
+        return BenchmarkSession(session: LanguageModelSession(model: model, instructions: instructions), model: model)
+    }
+
+    /// A session on a downloaded model, and the means to free it.
+    public struct BenchmarkSession {
+        public let session: LanguageModelSession
+        fileprivate let model: CoreAILanguageModel
+        public func unload() { model.unload() }
+    }
+
+    /// Benchmark only: a session on Apple's model, whatever is chosen in Settings.
+    public static func appleSession(tier: ModelTier, instructions: String) throws -> LanguageModelSession {
+        let model = pinnedModel(for: tier)
+        guard case .available = model.availability else {
+            throw ModelUnavailable(status: DeviceCapability.current())
+        }
+        return LanguageModelSession(model: model, instructions: instructions)
     }
 
     /// MiniCPM5's context from the export (`max_context_length` in its metadata.json).
