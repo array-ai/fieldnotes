@@ -1,6 +1,9 @@
 import FieldnoteShared
 import SwiftData
 import SwiftUI
+#if os(iOS)
+import UIKit
+#endif
 import UserNotifications
 
 @main
@@ -34,6 +37,14 @@ struct FieldnoteApp: App {
         // BGTaskScheduler refuses a handler registered later, with an error that
         // reads like a provisioning problem (spec 4.7).
         model.coordinator.registerHandlers()
+        // Work that paused because the phone locked (its files are sealed while
+        // locked) carries on as soon as it's unlocked.
+        NotificationCenter.default.addObserver(
+            forName: UIApplication.protectedDataDidBecomeAvailableNotification, object: nil, queue: .main
+        ) { _ in
+            DebugLog.shared.log("background", "phone unlocked; resuming paused work")
+            model.coordinator.resumeUnfinishedWork()
+        }
         // The Action button / Control Centre / Siri control runs in this process.
         MeetingRecordingControl.toggle = { try await model.toggleRecordingFromIntent() }
         #endif

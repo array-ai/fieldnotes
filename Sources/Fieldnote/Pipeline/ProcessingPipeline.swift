@@ -105,6 +105,13 @@ public actor ProcessingPipeline {
         estimate: @escaping EstimateHandler,
         transcriptReady: @escaping TranscriptHandler
     ) async throws -> Output {
+        // A locked phone seals the meeting's files: reading them now would fail, and
+        // a stage could save a partial result (a redo kept 209 of 974 lines, build
+        // 43). Wait for the unlock instead; the run resumes then.
+        guard await PowerState.isProtectedDataAvailable() else {
+            debug.log("pipeline", "\(DebugLog.short(input.meetingID)): the phone is locked, so the meeting's files can't be read; waiting for it to be unlocked")
+            throw PhoneLocked()
+        }
         let store = try ProcessingCheckpointStore(meetingID: input.meetingID)
         var checkpoint = await store.load()
 
@@ -434,6 +441,24 @@ public actor ProcessingPipeline {
     }
 }
 
+/// The meeting's files can't be opened because the phone is locked. Not a failure:
+/// processing waits and resumes when the phone is unlocked.
+public struct PhoneLocked: Error, LocalizedError {
+    public init() {}
+    public var errorDescription: String? { "Waiting for the phone to be unlocked." }
+
+    /// True for the errors a locked phone's sealed files give: "you don't have
+    /// permission" (Cocoa 257, POSIX EPERM) and Core Audio's permission error (-54).
+    public static func isCause(_ error: Error) -> Bool {
+        let ns = error as NSError
+        if ns.domain == NSCocoaErrorDomain, ns.code == NSFileReadNoPermissionError { return true }
+        if ns.domain == NSPOSIXErrorDomain, ns.code == Int(EPERM) || ns.code == Int(EACCES) { return true }
+        if ns.code == -54 { return true }
+        if let underlying = ns.userInfo[NSUnderlyingErrorKey] as? Error { return isCause(underlying) }
+        return false
+    }
+}
+
 /// The learned processing speeds for this phone, kept in UserDefaults.
 enum ProcessingEstimates {
     // v2: rates per model. The old per-stage rates mixed models, so start over.
@@ -494,6 +519,12 @@ public enum PowerState {
         await MainActor.run { UIApplication.shared.applicationState == .active }
     }
 
+    /// Whether files under complete protection can be opened: false while the phone
+    /// is locked (meeting files are `completeUnlessOpen`).
+    public static func isProtectedDataAvailable() async -> Bool {
+        await MainActor.run { UIApplication.shared.isProtectedDataAvailable }
+    }
+
     /// "battery 64%, Low Power Mode on, app in front": for the Activity log.
     public static func summary() async -> String {
         await MainActor.run {
@@ -520,6 +551,7 @@ public enum PowerState {
 public enum PowerState {
     public static func isOnPower() async -> Bool { true }
     public static func isAppInFront() async -> Bool { true }
+    public static func isProtectedDataAvailable() async -> Bool { true }
     public static func summary() async -> String { "power unknown" }
 }
 #endif

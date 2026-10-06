@@ -352,6 +352,13 @@ public final class BackgroundProcessingCoordinator: @unchecked Sendable {
                     title: job.title,
                     headline: output.summary.topics?.first?.title
                 )
+            } catch let locked as PhoneLocked {
+                await provider.markWaiting(meetingID: job.meetingID, message: locked.localizedDescription)
+                return
+            } catch let error where PhoneLocked.isCause(error) {
+                debug.log("pipeline", "\(DebugLog.short(job.meetingID)): a file was sealed by the phone locking; waiting for it to be unlocked")
+                await provider.markWaiting(meetingID: job.meetingID, message: PhoneLocked().localizedDescription)
+                return
             } catch let deferred as SummarizationService.Deferred {
                 // The model won't run for us right now (usually: app in the
                 // background). Stop here; the rest would hit the same wall. The app

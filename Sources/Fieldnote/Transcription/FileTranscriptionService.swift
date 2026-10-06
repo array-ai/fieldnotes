@@ -40,6 +40,13 @@ public actor FileTranscriptionService {
             do {
                 file = try AVAudioFile(forReading: chunk.url)
             } catch {
+                // Locked phone: the chunk is fine, just sealed. Stop and wait for the
+                // unlock rather than save a transcript with a hole in it.
+                let unlocked = await PowerState.isProtectedDataAvailable()
+                if PhoneLocked.isCause(error) || !unlocked {
+                    DebugLog.shared.log("transcript", "audio chunk \(chunk.index + 1) of \(chunks.count) is sealed (phone locked); stopping until it's unlocked")
+                    throw PhoneLocked()
+                }
                 DebugLog.shared.log("transcript", "audio chunk \(chunk.index + 1) of \(chunks.count) can't be read; skipping it (\(error.localizedDescription))")
                 progress(Double(position + 1) / Double(pending.count), chunk.index)
                 continue
