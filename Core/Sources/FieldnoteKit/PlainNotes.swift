@@ -13,7 +13,7 @@ import Foundation
 /// DECISION: what was decided [18]
 /// TASK: what to do | who | when [20]
 /// QUESTION: open question [22]
-/// NAME: a name someone was called [3]
+/// NAME: the speaker's own name, from a self-introduction [3]
 /// ```
 ///
 /// and the parser is forgiving: any case, markdown around the labels, bullets of any
@@ -44,7 +44,7 @@ public enum PlainNotes {
             DECISION: <what was decided> [<line numbers>]
             TASK: <what to do> | <who> | <when> [<line numbers>]
             QUESTION: <question left open> [<line numbers>]
-            NAME: <a person's name, as said> [<line number>]
+            NAME: <the speaker's own name, when they introduce themselves> [<line number>]
 
             Use at most \(topics) TOPIC\(topics == 1 ? "" : "s"), each with two to four points. \
             Leave out any line type with nothing to report. Don't copy lines; summarise them.
@@ -110,7 +110,7 @@ public enum PlainNotes {
                 case "name":
                     // A name must be cited where it was said: no guessing by overlap.
                     let lines = cited.filter(chunk.lineNumbers.contains)
-                    guard !body.isEmpty, !lines.isEmpty, !isSpeakerLabel(body) else { continue }
+                    guard !lines.isEmpty, isPlausibleName(body) else { continue }
                     names.append(NoteClaim(text: body, sourceLines: lines))
                 default:
                     continue
@@ -188,6 +188,8 @@ public enum PlainNotes {
                 body.removeSubrange(whole)
             }
         }
+        // Empty citations the model left: "[, , ]", "[]", "[<>]".
+        body = body.replacingOccurrences(of: #"\[[\s,<>]*\]"#, with: "", options: .regularExpression)
         body = body.trimmingCharacters(in: CharacterSet(charactersIn: " .;,:–-")).trimmingCharacters(in: .whitespaces)
         return (body, Array(Set(lines)).sorted())
     }
@@ -235,10 +237,27 @@ public enum PlainNotes {
         )
     }
 
-    /// "Speaker A: we'll ship Friday" → "we'll ship Friday".
+    /// "Speaker A: we'll ship Friday" → "we'll ship Friday"; also the format's own
+    /// labels echoed back ("Key point: …", "Point: …").
     static func dropSpeakerPrefix(_ text: String) -> String {
-        guard let range = text.range(of: #"^speaker\s+[A-Z0-9]+\s*:\s*"#, options: [.regularExpression, .caseInsensitive]) else { return text }
-        return String(text[range.upperBound...])
+        var result = text
+        for pattern in [#"^speaker\s+[A-Z0-9]+\s*:\s*"#, #"^(key\s+)?points?\s*[:\-–]\s*"#, #"^(note|summary)\s*:\s*"#] {
+            if let range = result.range(of: pattern, options: [.regularExpression, .caseInsensitive]) {
+                result = String(result[range.upperBound...])
+            }
+        }
+        return result
+    }
+
+    /// One person's name: up to four words, no lists or separators, not a label
+    /// ("EDR team | E | C", "Sam, Chris" and "Speaker G" aren't).
+    static func isPlausibleName(_ text: String) -> Bool {
+        let name = text.trimmingCharacters(in: .whitespaces)
+        guard !name.isEmpty, name.count <= 40, !isSpeakerLabel(name) else { return false }
+        guard name.rangeOfCharacter(from: CharacterSet(charactersIn: "|,;/[]<>()0123456789")) == nil else { return false }
+        let words = name.split(separator: " ")
+        guard words.count <= 4, words.allSatisfy({ $0.first?.isUppercase == true }) else { return false }
+        return !["team", "everyone", "speaker", "participants", "unknown"].contains { name.lowercased().contains($0) }
     }
 
     /// "Speaker A", "speaker 2": a label, not a name.

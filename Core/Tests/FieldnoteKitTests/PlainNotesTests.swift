@@ -98,6 +98,27 @@ struct PlainNotesTests {
         #expect(notes.speakerNames.isEmpty)
     }
 
+    @Test("Echoed format labels are removed from points")
+    func echoedLabels() {
+        let notes = PlainNotes.parse("TOPIC: Firewall\n- Key point: The firewall rules are due Friday [13]", chunk: chunk)
+        #expect(notes.topics.first?.points.first?.text == "The firewall rules are due Friday")
+    }
+
+    @Test("Empty citations are removed; only plausible names are kept")
+    func emptyCitationsAndNames() {
+        let text = """
+            TOPIC: Antivirus
+            - Evaluating VendorA against VendorD [, , ] [13]
+            NAME: EDR team | E | C [12]
+            NAME: Sam , Chris [12]
+            NAME: Speaker G [, ] [12]
+            NAME: Alex [12]
+            """
+        let notes = PlainNotes.parse(text, chunk: chunk)
+        #expect(notes.topics.first?.points.first?.text == "Evaluating VendorA against VendorD")
+        #expect(notes.speakerNames.map(\.text) == ["Alex"])
+    }
+
     @Test("An overview loses its label and quotes")
     func overview() {
         #expect(PlainNotes.cleanOverview("**Overview:** \"The team moved to the technical phase.\"") == "The team moved to the technical phase.")

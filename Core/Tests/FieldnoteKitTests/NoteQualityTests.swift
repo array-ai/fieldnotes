@@ -52,4 +52,14 @@ struct NoteQualityTests {
         #expect(!NoteQuality.isNew("how does vendorc and vendorb work together?", among: &seen))
         #expect(NoteQuality.isNew("What's the pricing on ITDR?", among: &seen))
     }
+
+    @Test("Filler lines are recognised; lines with content aren't")
+    func filler() {
+        for line in ["Okay.", "Yeah, yeah.", "Morning.", "Give us a second.", "Thank you.", "Okay, cool."] {
+            #expect(NoteQuality.isFiller(line), "\(line)")
+        }
+        for line in ["We'll send the pricing on Friday.", "Okay, so the rollback needs backups?", "VendorC."] {
+            #expect(!NoteQuality.isFiller(line), "\(line)")
+        }
+    }
 }

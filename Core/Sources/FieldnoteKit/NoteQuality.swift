@@ -76,3 +76,24 @@ public enum NoteQuality {
         return trimmed.hasSuffix("...") || trimmed.hasSuffix("…") || trimmed.hasSuffix(",")
     }
 }
+
+extension NoteQuality {
+    /// A line with nothing to summarise: a few words that are all filler ("Okay.",
+    /// "Yeah, yeah.", "Morning.", "Give us a second."). Dropping these before the
+    /// notes model sees the transcript leaves less to copy and shorter prompts.
+    public static func isFiller(_ text: String) -> Bool {
+        let words = self.words(text)
+        guard !words.isEmpty else { return true }
+        guard words.count <= 6 else { return false }
+        return words.allSatisfy { fillerWords.contains($0) }
+    }
+
+    static let fillerWords: Set<String> = [
+        "ok", "okay", "yeah", "yep", "yes", "no", "nope", "um", "uh", "ah", "oh", "hmm", "mm",
+        "right", "sure", "cool", "great", "nice", "good", "fine", "alright", "so", "and", "but",
+        "well", "like", "just", "thanks", "thank", "you", "cheers", "hi", "hello", "hey",
+        "morning", "afternoon", "bye", "see", "ya", "a", "the", "it", "is", "that", "i", "we",
+        "us", "give", "second", "sec", "moment", "one", "sorry", "pardon", "exactly", "true",
+        "correct", "agreed", "indeed", "totally", "absolutely", "got", "makes", "sense",
+    ]
+}
