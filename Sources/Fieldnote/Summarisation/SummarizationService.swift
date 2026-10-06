@@ -286,9 +286,7 @@ public actor SummarizationService {
             if plain {
                 // Plain notes are short; a small model given more room rambles (1,000
                 // tokens for eight lines of transcript, build 40).
-                // Greedy: with default sampling MiniCPM5 2B gave exactly one topic and
-                // three points per part, every part (build 43).
-                let response = try await session.respond(to: prompt, options: GenerationOptions(sampling: .greedy, maximumResponseTokens: min(answerCap, 600)), contextOptions: OnDeviceModel.contextOptions)
+                let response = try await session.respond(to: prompt, options: GenerationOptions(maximumResponseTokens: min(answerCap, 600)), contextOptions: OnDeviceModel.contextOptions)
                 let notes = PlainNotes.parse(response.content, chunk: piece)
                 debug.log(
                     "summary",
@@ -370,7 +368,7 @@ public actor SummarizationService {
     private func respond(to prompt: String, piece: TranscriptChunk) async throws -> ChunkNotes {
         let session = try OnDeviceModel.session(tier: tier, instructions: instructions)
         if plain {
-            let text = try await session.respond(to: prompt, options: GenerationOptions(sampling: .greedy, maximumResponseTokens: min(answerCap, 600)), contextOptions: OnDeviceModel.contextOptions).content
+            let text = try await session.respond(to: prompt, options: GenerationOptions(maximumResponseTokens: min(answerCap, 600)), contextOptions: OnDeviceModel.contextOptions).content
             return PlainNotes.parse(text, chunk: piece)
         }
         return try await session.respond(to: prompt, generating: DraftChunkNotes.self, options: GenerationOptions(maximumResponseTokens: answerCap), contextOptions: OnDeviceModel.contextOptions).content.notes
@@ -484,7 +482,7 @@ public actor SummarizationService {
         do {
             let session = try OnDeviceModel.session(tier: tier, instructions: instructions)
             if plain {
-                let response = try await session.respond(to: prompt, options: GenerationOptions(sampling: .greedy, maximumResponseTokens: 300), contextOptions: OnDeviceModel.contextOptions)
+                let response = try await session.respond(to: prompt, options: GenerationOptions(maximumResponseTokens: 300), contextOptions: OnDeviceModel.contextOptions)
                 return PlainNotes.cleanOverview(response.content)
             }
             let response = try await session.respond(to: prompt, generating: DraftRollup.self, options: GenerationOptions(maximumResponseTokens: 800), contextOptions: OnDeviceModel.contextOptions)

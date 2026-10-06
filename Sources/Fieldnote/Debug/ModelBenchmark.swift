@@ -306,7 +306,7 @@ public final class ModelBenchmark {
             let started = ContinuousClock.now
             let response = try await loaded.session.respond(
                 to: prompt,
-                options: GenerationOptions(sampling: .greedy, maximumResponseTokens: 600),
+                options: GenerationOptions(maximumResponseTokens: 600),
                 contextOptions: OnDeviceModel.contextOptions(local: true)
             )
             let elapsed = seconds(since: started)
