@@ -197,22 +197,41 @@ These checks can't cover the following, which needs a device:
 
 ## Benchmarks
 
-Measured on an iPhone 16 (iPhone17,3, 8 GB, iOS 27.0.1) with the app in front. Run
-your own from Settings → Debug → Benchmark.
+Measured on an iPhone 16 (iPhone17,3, 8 GB, iOS 27.0.1, chip family h17p) with the
+app in front, mostly on a real 68-minute meeting. Run your own from Settings → Debug
+→ Benchmark models; it runs every installed model on the same meeting.
 
 | Stage | Model | Audio | Time | × real time |
 |---|---|---|---|---|
-| Speakers | Nemotron 3, Neural Engine | 5 min / 68 min | 0.73 s / 33 s | 410× / 124× |
-| Speakers | Nemotron 3, CPU fallback | 5 min | 2.15 s | 140× |
-| Speakers | pyannote community-1 | 5 min | 1.39 s | 215× |
-| Transcript | Parakeet TDT-CTC 110M | 18.6 min / 68 min | 5.0 s / 48.8 s | 224× / 84× |
-| Transcript | Apple speech, from the audio files | 18.6 min | 80 s | 14× |
-| Summary | Apple's on-device model | 18.6 min | 290 s | 27–40 tokens/s |
+| Speakers | Nemotron 3, Neural Engine | 5 min / 68 min | 0.74 s / 10 s | 408× / 410× |
+| Speakers | Nemotron 3, CPU fallback | 5 min | 2.4 s | 126× |
+| Speakers | pyannote community-1 | 5 min | 1.3 s | 231× |
+| Transcript | Parakeet TDT-CTC 110M | 68 min | 10.4 s (+5 s load) | 394× |
+| Transcript | Nemotron 3.5 Streaming, from a file | 68 min | 95 s | 43× (live while recording) |
+| Transcript | Apple speech, from the audio files | 68 min / 5 min | 58 s / 3.8 s | 70× / 80× |
+| Notes | Apple's on-device model | 68 min | 917 s (19 parts) | 27–40 tokens/s |
+| Notes | MiniCPM5 1B (Core AI) | 68 min | 96 s (10 parts) | about 40 tokens/s |
+| Notes | MiniCPM5 2B (Core AI) | 68 min | 450 s (10 parts) | about 16 tokens/s |
 
-- Nemotron's Neural Engine model compiles once per install (23–40 s). The CPU model covers that first run.
-- Apple's language model ran at about 10 tokens/s in one long run, three to four times slower; likely a hot or locked phone. In background tasks on battery it is rate-limited.
-- Parakeet v3, v2 English and MiniCPM5 1B are not measured yet. Qwen3 1.7B, offered before, ran out of memory compiling on an iPhone 16 (about 2.4 GB) and was dropped.
-- Processing-time estimates start from these numbers and then learn this phone's speed for each model.
+Notes quality on the same meeting, read by hand:
+
+| Model | Sections | Tasks | Decisions | Open questions | Verdict |
+|---|---|---|---|---|---|
+| Apple | 4 (from 42) | 25, junk owners | 21, many reactions | 40, mostly fragments | detailed but noisy; much is transcript copied |
+| MiniCPM5 1B | 13 | 2 | 5 | — | fast; some parts come back as the transcript itself |
+| MiniCPM5 2B | 11 | 11, real owners | 9, real decisions | 10, real questions | the cleanest notes, fewer points |
+
+These counts are from before `NoteQuality`, which now filters fragments, reactions
+and repeats for every model.
+
+- The increased memory limit raises what the app may use from about 3.1 GB to 6 GB.
+- First-use preparation, once per install: Nemotron 3 speakers 40–150 s (after every
+  app update), Parakeet v2 14 s, v3 24 s, Nemotron 3.5 15 s, MiniCPM5 1B 57 s and 2B
+  7 min, even compiled ahead of time for this chip.
+- Parakeet v3 and v2 English aren't timed yet.
+- Qwen3 1.7B, offered before, ran out of memory compiling on the phone and was dropped.
+- Processing-time estimates start from these numbers and then learn this phone's
+  speed for each model.
 
 ## How it works
 

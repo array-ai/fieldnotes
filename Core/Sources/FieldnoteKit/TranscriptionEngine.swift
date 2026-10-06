@@ -73,7 +73,9 @@ public enum TranscriptionEngine: String, Codable, CaseIterable, Sendable {
 /// - Speech: word error rates from NVIDIA's model cards and FluidAudio's CoreML
 ///   benchmarks (LibriSpeech test-clean: v2 ≈1.7%, v3 ≈2.3%, TDT-CTC 110M ≈2.5–3%).
 ///   Apple publishes no error rate for its on-device model; its accuracy is an
-///   estimate. Speed for Apple's model is from the benchmark on an iPhone 16 Pro (71×).
+///   estimate. Speeds from an iPhone 16 on a 68-minute meeting: Apple 70× from files,
+///   Parakeet TDT-CTC 110M about 380×, Nemotron 3.5 Streaming 43× from a file (it
+///   normally runs live while recording).
 /// - Speakers: Nemotron 3 ≈9.5% DER on AMI (FluidInference's conversion); pyannote
 ///   community-1 is older and less accurate. Speeds are from the iPhone 16 Pro
 ///   benchmark (Nemotron 410×, community-1 215× real time).

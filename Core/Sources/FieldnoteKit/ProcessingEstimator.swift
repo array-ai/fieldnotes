@@ -47,30 +47,30 @@ public struct ProcessingEstimator: Codable, Sendable, Equatable {
     }
 
     /// Starting guesses before this phone has run a model, in seconds per minute of
-    /// audio. Measured on an iPhone 16 (iPhone17,3), iOS 27.0.1, app in front:
+    /// audio. Measured on an iPhone 16 (iPhone17,3), iOS 27.0.1, app in front, on a
+    /// 68-minute meeting unless noted (builds 37–41):
     ///
-    /// - Apple speech, from the audio files: 18.6 min in 80 s (4.3 s/min).
-    /// - Parakeet TDT-CTC 110M: 68 min in 49 s and 18.6 min in 5 s (0.3–0.7 s/min).
-    ///   Parakeet v3 and v2 (0.6B) aren't measured yet; ~3× the 110M model.
-    ///   Nemotron 3.5 Streaming runs while recording; from a file it's unmeasured.
-    /// - Nemotron on the Neural Engine: 68 min in 33 s (0.5 s/min). Its one-off
-    ///   compile (25–40 s on first use) is not counted: it happens once per install.
-    /// - pyannote community-1: 5 min in 1.4 s.
-    /// - Apple's language model: 18.6 min summarised in 290 s (15.6 s/min) at
-    ///   ~35 tokens/s; on a hot or locked phone it ran at ~10 tokens/s (~30 s/min).
-    ///   MiniCPM5 1B isn't measured yet.
+    /// - Apple speech, from the audio files: 68 min in 58 s (0.9 s/min).
+    /// - Parakeet TDT-CTC 110M: 68 min in 10–11 s plus 5 s to load (0.16 s/min).
+    ///   Parakeet v3 and v2 (0.6B) aren't measured yet; about 3× the 110M model.
+    /// - Nemotron 3.5 Streaming, from a file (imports, redo): 68 min in 95 s (1.4 s/min).
+    /// - Nemotron 3 speakers on the Neural Engine: 68 min in 10 s (0.15 s/min). Its
+    ///   compile after each install or update (40–150 s) is not counted.
+    /// - pyannote community-1: 5 min in 1.3 s (0.26 s/min).
+    /// - Notes, Apple's model: 68 min in 917 s (13.5 s/min), 27–40 tokens/s.
+    /// - Notes, MiniCPM5 1B: 68 min in 96 s (1.4 s/min), about 40 tokens/s.
+    /// - Notes, MiniCPM5 2B: 68 min in 450 s (6.6 s/min), about 16 tokens/s.
     public static func defaultRate(_ stage: ProcessingStage, model: String?) -> Rate {
         switch (stage, model) {
-        case (.transcribing, "parakeetCtc110m"): Rate(fixed: 5, perMinute: 0.8)
-        case (.transcribing, "parakeet"), (.transcribing, "parakeetV2"): Rate(fixed: 8, perMinute: 2)
-        // Only when the live transcript is missing (imports, redo); unmeasured.
-        case (.transcribing, "nemotronStreaming"): Rate(fixed: 10, perMinute: 1.5)
-        case (.transcribing, _): Rate(fixed: 3, perMinute: 4.5)
-        case (.diarizing, "pyannoteCommunity1"): Rate(fixed: 3, perMinute: 0.6)
-        case (.diarizing, _): Rate(fixed: 3, perMinute: 0.6)
-        case (.summarising, "minicpm5"): Rate(fixed: 15, perMinute: 12)
-        case (.summarising, "minicpm5_2b"): Rate(fixed: 20, perMinute: 20)
-        case (.summarising, _): Rate(fixed: 10, perMinute: 18)
+        case (.transcribing, "parakeetCtc110m"): Rate(fixed: 5, perMinute: 0.2)
+        case (.transcribing, "parakeet"), (.transcribing, "parakeetV2"): Rate(fixed: 8, perMinute: 0.6)
+        case (.transcribing, "nemotronStreaming"): Rate(fixed: 10, perMinute: 1.4)
+        case (.transcribing, _): Rate(fixed: 3, perMinute: 1)
+        case (.diarizing, "pyannoteCommunity1"): Rate(fixed: 3, perMinute: 0.3)
+        case (.diarizing, _): Rate(fixed: 3, perMinute: 0.2)
+        case (.summarising, "minicpm5"): Rate(fixed: 10, perMinute: 1.5)
+        case (.summarising, "minicpm5_2b"): Rate(fixed: 20, perMinute: 7)
+        case (.summarising, _): Rate(fixed: 10, perMinute: 14)
         }
     }
 
