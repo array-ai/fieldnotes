@@ -45,7 +45,7 @@ struct DraftPoint {
 
     // No "details": Apple's model filled them with words copied from the point
     // (a few words repeated from the point itself) and they cost output tokens.
-    @Guide(description: "One to three line numbers.")
+    @Guide(description: "One to three line numbers.", .maximumCount(3))
     var sourceLines: [Int]
 }
 
@@ -54,7 +54,7 @@ struct DraftDecision {
     @Guide(description: "One sentence.")
     var statement: String
 
-    @Guide(description: "One to three line numbers.")
+    @Guide(description: "One to three line numbers.", .maximumCount(3))
     var sourceLines: [Int]
 }
 
@@ -69,7 +69,7 @@ struct DraftActionItem {
     @Guide(description: "When, as said. Empty if none.")
     var dueDate: String
 
-    @Guide(description: "One to three line numbers.")
+    @Guide(description: "One to three line numbers.", .maximumCount(3))
     var sourceLines: [Int]
 }
 
@@ -78,7 +78,7 @@ struct DraftClaim {
     @Guide(description: "One sentence.")
     var text: String
 
-    @Guide(description: "One to three line numbers.")
+    @Guide(description: "One to three line numbers.", .maximumCount(3))
     var sourceLines: [Int]
 }
 
@@ -142,7 +142,8 @@ extension DraftChunkNotes {
     }
 
     /// The first three cited lines. One answer cited 270 in a row, all the way to
-    /// the token cap (build 45).
+    /// the token cap (builds 45 and 46, despite the guide's wording); `.maximumCount`
+    /// now stops that while generating, and this stays as a backstop.
     static func lines(_ lines: [Int]) -> [Int] { Array(lines.prefix(3)) }
 
     /// The transcript labels unnamed speakers by letter; an owner written as just
