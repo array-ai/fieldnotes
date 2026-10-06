@@ -60,8 +60,6 @@ public actor ChunkedAudioWriter {
         self.currentStart = chunks.reduce(0) { $0 + $1.duration }
     }
 
-    public var totalDuration: TimeInterval { currentStart + currentDuration }
-
     public func write(_ audio: CapturedAudio) throws {
         guard let buffer = audio.makeBuffer() else { throw WriterError.unsupportedFormat }
         let converted = try converter.convert(buffer)

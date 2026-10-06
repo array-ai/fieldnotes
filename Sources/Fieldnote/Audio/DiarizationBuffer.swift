@@ -73,11 +73,6 @@ public actor DiarizationBuffer {
         }
     }
 
-    public func discard() {
-        try? close()
-        try? FileManager.default.removeItem(at: url)
-        frameCount = 0
-    }
 }
 
 /// 16 kHz mono samples, read a slice at a time: from memory, or from a meeting's

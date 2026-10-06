@@ -460,8 +460,6 @@ public final class RecordingController {
         state == .recording ? accumulated + Date().timeIntervalSince(startDate) : accumulated
     }
 
-    public var elapsedNow: TimeInterval { currentElapsed }
-
     private func recordFailure(_ error: Error) {
         log.error("Recording write failed: \(error.localizedDescription, privacy: .public)")
         failed(error.localizedDescription)

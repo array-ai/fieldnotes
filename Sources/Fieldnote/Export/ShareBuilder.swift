@@ -149,33 +149,6 @@ public actor ShareBuilder {
         return urls
     }
 
-    /// Whole-folder export to one file, skipping anything still processing (spec 6.2).
-    public func makeFolderExport(
-        name: String,
-        meetings: [MeetingSnapshot],
-        sections: MarkdownRenderer.Sections,
-        format: ShareFormat
-    ) throws -> URL {
-        let directory = try exportDirectory(for: nil)
-        let filename = ExportFilename.name(
-            date: Date(),
-            folder: nil,
-            title: name,
-            fileExtension: format.fileExtension
-        )
-        let url = directory.appendingPathComponent(filename)
-        let markdown = renderer.renderFolder(name: name, meetings: meetings, sections: sections)
-        switch format {
-        case .pdf:
-            try PDFRenderer().render(markdown: markdown, to: url)
-        case .plainText:
-            try write(PlainTextRenderer.from(markdown: markdown), to: url)
-        default:
-            try write(markdown, to: url)
-        }
-        return url
-    }
-
     // MARK: - Plumbing
 
     private func markdown(for meeting: MeetingSnapshot, payload: SharePayload) -> String {

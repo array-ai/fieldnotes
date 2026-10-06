@@ -118,22 +118,6 @@ public struct MarkdownRenderer: Sendable {
         """
     }
 
-    /// One file per meeting, concatenated for a folder export (spec 6.2).
-    public func renderFolder(name: String, meetings: [MeetingSnapshot], sections: Sections = .summary) -> String {
-        let ready = meetings.filter { $0.state == .complete }
-        var out = ["# \(name)", ""]
-        if ready.count != meetings.count {
-            out.append("_\(meetings.count - ready.count) meeting(s) still processing were skipped._")
-            out.append("")
-        }
-        for meeting in ready {
-            out.append(render(meeting, sections: sections))
-            out.append("---")
-            out.append("")
-        }
-        return out.joined(separator: "\n")
-    }
-
     // MARK: - Pieces
 
     private func header(_ meeting: MeetingSnapshot) -> String {

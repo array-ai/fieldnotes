@@ -65,17 +65,6 @@ struct ExportTests {
         #expect(!markdown.contains("S1:"))
     }
 
-    @Test("A folder export skips meetings that are still processing and says so")
-    func folderExportSkipsUnfinished() {
-        var pending = meeting()
-        pending.state = .summarising
-        let markdown = MarkdownRenderer().renderFolder(
-            name: "Harbour Motors",
-            meetings: [meeting(), pending]
-        )
-        #expect(markdown.contains("1 meeting(s) still processing were skipped."))
-    }
-
     @Test("WebVTT and SRT carry speaker names and well-formed timecodes")
     func subtitleFormats() {
         let vtt = SubtitleRenderer.webVTT(segments: segments, speakerNames: ["S1": "Client", "S2": "Dave"])

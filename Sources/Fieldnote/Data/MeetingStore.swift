@@ -334,17 +334,6 @@ public actor MeetingStore {
         try modelContext.save()
     }
 
-    public func setFolder(_ folderID: UUID?, for meetingID: UUID) throws {
-        guard let meeting = try meeting(with: meetingID) else { return }
-        if let folderID {
-            let descriptor = FetchDescriptor<Folder>(predicate: #Predicate { $0.id == folderID })
-            meeting.folder = try modelContext.fetch(descriptor).first
-        } else {
-            meeting.folder = nil
-        }
-        try modelContext.save()
-    }
-
     public func delete(meetingID: UUID) throws {
         try deleteRecord(meetingID: meetingID)
         Self.deleteFiles(meetingID: meetingID)

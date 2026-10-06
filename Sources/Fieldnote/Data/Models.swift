@@ -156,10 +156,6 @@ public final class Speaker {
 
     public var name: String { displayName ?? SpeakerLabel.display(label) }
 
-    public var embeddingVector: [Float]? {
-        guard let embedding else { return nil }
-        return embedding.withUnsafeBytes { Array($0.bindMemory(to: Float.self)) }
-    }
 }
 
 @Model

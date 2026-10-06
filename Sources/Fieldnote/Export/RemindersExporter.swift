@@ -17,10 +17,6 @@ public actor RemindersExporter {
         try await store.requestFullAccessToReminders()
     }
 
-    public func requestCalendarAccess() async throws -> Bool {
-        try await store.requestFullAccessToEvents()
-    }
-
     /// Every Reminders list, by name. Picks up lists made since the store was
     /// opened, including ones still syncing from iCloud.
     public func availableLists() -> [(id: String, title: String)] {
