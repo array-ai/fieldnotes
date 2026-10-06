@@ -7,5 +7,6 @@ import WidgetKit
 struct FieldnoteWidgetBundle: WidgetBundle {
     var body: some Widget {
         RecordingLiveActivity()
+        RecordMeetingControl()
     }
 }

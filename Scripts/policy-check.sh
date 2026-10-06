@@ -51,9 +51,15 @@ for needle in ": LanguageModel " ": LanguageModel," ": LanguageModel {"; do
 done
 
 echo
-echo "== Constraint 8 / spec 4.8: no App Intents, no semantic indexing"
-for needle in "import AppIntents" "IndexedEntity" "AssistantEntity" "AssistantIntent" \
-              "indexingKey" "AppShortcutsProvider" "ViewAnnotation" ": AppIntent" "EntityQuery"; do
+echo "== Constraint 8 / spec 4.8: no App Intents beyond the record button, no semantic indexing"
+# One exception: the "Record a Meeting" intent behind the Action button, Control
+# Centre control and Siri phrase. It takes no parameters and returns no meeting
+# content, and only these files may import App Intents.
+RECORD_INTENT_FILES="RecordMeetingIntent.swift\|RecordMeetingControl.swift\|RecordMeetingShortcut.swift"
+check_absent "import AppIntents" "App Intents only for the record button" "$RECORD_INTENT_FILES"
+check_absent "AppShortcutsProvider" "the only app shortcut is the record button" "RecordMeetingShortcut.swift"
+for needle in "IndexedEntity" "AssistantEntity" "AssistantIntent" \
+              "indexingKey" "ViewAnnotation" ": AppIntent" "EntityQuery" "@Parameter" "AppEntity"; do
   check_absent "$needle" "no $needle"
 done
 

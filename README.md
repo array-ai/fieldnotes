@@ -11,7 +11,8 @@ two things you choose: optional model downloads, and Apple Maps place names.
 
 ## What it does
 
-- **Records** with a Live Activity on the lock screen. Audio is written to disk in
+- **Records** with a Live Activity on the lock screen; a "Record Meeting" control starts
+  and stops a recording from the Action button, Control Centre or Siri. Audio is written to disk in
   chunks as it goes, so a crash or a kill loses seconds, not the meeting.
 - **Transcribes** live with Apple's `SpeechAnalyzer`. Optionally, one of NVIDIA's
   Parakeet models rewrites the transcript after you stop, for better accuracy:

@@ -123,6 +123,11 @@ struct MeetingListView: View {
         }
         .sharePresentation(share)
         .sheet(isPresented: $showingRecorder) { RecorderView() }
+        // A recording started from the Action button or a control: show it.
+        .onChange(of: model.recorder.isActive) { _, active in
+            if active { showingRecorder = true }
+        }
+        .onAppear { if model.recorder.isActive { showingRecorder = true } }
         .sheet(isPresented: $showingSettings) { SettingsView() }
     }
 

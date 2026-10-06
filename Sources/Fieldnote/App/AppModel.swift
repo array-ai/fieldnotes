@@ -1,4 +1,5 @@
 import FieldnoteKit
+import FieldnoteShared
 import Foundation
 import Observation
 import SwiftData
@@ -38,6 +39,26 @@ public final class AppModel {
         #if os(iOS)
         self.coordinator = BackgroundProcessingCoordinator(provider: store)
         #endif
+    }
+
+    /// What `RecordMeetingIntent` (Action button, Control Centre, Siri) does: stop the
+    /// recording in progress, or start a new one with a default title. Starting needs
+    /// the consent note to have been seen once, in the app.
+    func toggleRecordingFromIntent() async throws -> String {
+        if recorder.isActive {
+            DebugLog.shared.log("user", "stopped a recording from the Action button or a control")
+            await stopRecording()
+            // No title: Siri may speak or show this, and it's meeting content.
+            return "Recording stopped and saved. Fieldnote is writing the notes."
+        }
+        #if os(iOS)
+        guard settings.consentAcknowledged else { throw MeetingRecordingControl.Failure.needsFirstRecording }
+        #endif
+        let title = MeetingTitleGenerator.defaultTitle(type: .general)
+        let coordinate = settings.locationEnabled ? await locationProvider.currentCoordinate() : nil
+        DebugLog.shared.log("user", "started a recording from the Action button or a control")
+        try await startRecording(title: title, coordinate: coordinate)
+        return "Recording a new meeting."
     }
 
     public func onLaunch() async {

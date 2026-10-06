@@ -89,24 +89,34 @@ struct PolicyTests {
         }
     }
 
-    /// Constraint 8 / spec 4.8: no App Intents in the target at all, and nothing that
-    /// could contribute app content to the Spotlight semantic index.
+    /// Constraint 8 / spec 4.8: no App Intents beyond the record button, and nothing
+    /// that could contribute app content to the Spotlight semantic index.
     ///
     /// Siri is now a cloud Gemini model with cloud routing. Indexing a transcript
     /// entity is a data-exfiltration path with a friendly name. Fieldnote accepts
-    /// being invisible to Siri's content search.
-    @Test("No App Intents or semantic indexing")
+    /// being invisible to Siri's content search. The one exception is "Record a
+    /// Meeting" (Action button, Control Centre, Siri phrase): no parameters, no
+    /// entities, and it returns no meeting content.
+    @Test("No App Intents beyond the record button, and no semantic indexing")
     func noAppIntents() {
+        let recordButton = ["RecordMeetingIntent.swift", "RecordMeetingControl.swift", "RecordMeetingShortcut.swift"]
+        let importers = PolicySourceScanner.filesContaining("import AppIntents")
+            .filter { file in !recordButton.contains { file.hasSuffix($0) } }
+        #expect(importers.isEmpty, "import AppIntents found in: \(importers.joined(separator: ", "))")
+        let shortcuts = PolicySourceScanner.filesContaining("AppShortcutsProvider")
+            .filter { !$0.hasSuffix("RecordMeetingShortcut.swift") }
+        #expect(shortcuts.isEmpty, "AppShortcutsProvider found in: \(shortcuts.joined(separator: ", "))")
+
         let forbidden = [
-            "import AppIntents",
             "IndexedEntity",
             "AssistantEntity",
             "AssistantIntent",
             "indexingKey",
-            "AppShortcutsProvider",
             "ViewAnnotation",
             ": AppIntent",
-            "EntityQuery"
+            "EntityQuery",
+            "@Parameter",
+            "AppEntity"
         ]
         for marker in forbidden {
             let offenders = PolicySourceScanner.filesContaining(marker)

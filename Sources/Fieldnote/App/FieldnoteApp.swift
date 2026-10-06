@@ -1,3 +1,4 @@
+import FieldnoteShared
 import SwiftData
 import SwiftUI
 import UserNotifications
@@ -33,6 +34,8 @@ struct FieldnoteApp: App {
         // BGTaskScheduler refuses a handler registered later, with an error that
         // reads like a provisioning problem (spec 4.7).
         model.coordinator.registerHandlers()
+        // The Action button / Control Centre / Siri control runs in this process.
+        MeetingRecordingControl.toggle = { try await model.toggleRecordingFromIntent() }
         #endif
     }
 
@@ -72,3 +75,4 @@ struct RootView: View {
         }
     }
 }
+
