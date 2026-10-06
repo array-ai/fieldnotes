@@ -220,12 +220,12 @@ talk" on for the MiniCPM5 runs):
 |---|---|---|---|---|---|---|---|
 | Apple | 42 | 4 (from 42) | 143 | 25, junk owners | 21, many reactions | 40, mostly fragments | detailed but noisy; much is transcript copied |
 | MiniCPM5 1B | 44 | 17 | 91 | 2 | 4 | 0 | lots of text, but repeats, quotes the transcript and invents decisions |
-| MiniCPM5 2B | 43 | 10 | 30 | 9 | 9 | 5 | accurate and readable; rigid, three points per section |
+| MiniCPM5 2B | 43–44 | 10 | 30 | 9 | 9 | 5 | accurate and readable; rigid, three points per section |
 
 Each run predates some of the clean-up now in the app (`NoteQuality`: fragments,
 reactions, quoted lines and repeats are dropped; labelled bullets are sorted into
-tasks and decisions), so later runs should be cleaner. Build 44 also decodes greedily,
-which the 2B hasn't been measured with yet.
+tasks and decisions), so later runs should be cleaner. Greedy decoding (build 44) gave
+the 2B exactly the same notes as build 43.
 
 - The increased memory limit raises what the app may use from about 3.1 GB to 6 GB.
 - First-use preparation, once per install: Nemotron 3 speakers 40–180 s (after every

@@ -46,8 +46,9 @@ public enum PlainNotes {
             QUESTION: <question left open> [<line numbers>]
             NAME: <the speaker's own name, when they introduce themselves> [<line number>]
 
-            Use at most \(topics) TOPIC\(topics == 1 ? "" : "s"), each with two to four points. \
-            Leave out any line type with nothing to report. Don't copy lines; summarise them.
+            Write one TOPIC for each subject this part covers, at most \(topics), each with \
+            every key point it has: up to six. Leave out any line type with nothing to report. \
+            Don't copy lines; summarise them.
             """
     }
 
