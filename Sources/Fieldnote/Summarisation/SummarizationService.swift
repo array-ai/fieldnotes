@@ -125,6 +125,9 @@ public actor SummarizationService {
         debug.log("summary", "\(DebugLog.short(meeting.id)): \(finalized.count) lines in \(chunks.count) chunk(s)")
 
         var notes: [ChunkNotes] = []
+        // Parts in a row where the model produced nothing and failed: two means it
+        // isn't working, and the rest would fail the same way.
+        var failedInARow = 0
         var degraded: [DegradedChunk] = []
         notes.reserveCapacity(chunks.count)
         progress(0.02)
@@ -144,6 +147,13 @@ public actor SummarizationService {
             )
             notes.append(chunkNotes)
             degraded.append(contentsOf: chunkDegraded)
+            let produced = !chunkNotes.topics.isEmpty || !chunkNotes.actionItems.isEmpty || !chunkNotes.decisions.isEmpty
+            failedInARow = (!produced && !chunkDegraded.isEmpty) ? failedInARow + 1 : 0
+            if failedInARow >= 2 {
+                let detail = chunkDegraded.first?.detail ?? "no answer"
+                debug.log("summary", "\(DebugLog.short(meeting.id)): the model failed on \(failedInARow) parts in a row; stopping (\(detail.prefix(120)))")
+                throw NotWritten(detail: "\(plain ? OnDeviceModel.selectedEngine.card.title : "Apple's model") isn't answering (\(detail.prefix(80))). Try another notes model, or delete and download it again.")
+            }
             // Only clean parts are kept for a resume; a degraded one gets another go.
             if chunkDegraded.isEmpty { await savePart(chunk.partKey, chunkNotes) }
             debug.log(
@@ -310,7 +320,10 @@ public actor SummarizationService {
             case .timeout, .modelError:
                 // An answer cut off at the length cap fails as a model error. Half the
                 // excerpt means a shorter answer, so split before giving up.
-                if failure.reason == .modelError, !failure.isTemporary,
+                // Splitting helps only a structured answer cut off at the length cap.
+                // A plain-text answer is never cut off that way, so a failure there is
+                // the model itself; splitting just repeats it 16 times (build 42).
+                if !plain, failure.reason == .modelError, !failure.isTemporary,
                    depth < maxSplitDepth, piece.segments.count >= 8, let halves = piece.halves() {
                     debug.log("summary", "chunk \(piece.index + 1): answer may have hit the \(answerCap)-token cap; splitting \(piece.segments.count) lines in two")
                     return try await splitAndMerge(halves, of: total, budget: budget, depth: depth, degraded: &degraded)
