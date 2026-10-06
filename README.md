@@ -203,9 +203,9 @@ app in front, mostly on a real 68-minute meeting. Run your own from Settings →
 
 | Stage | Model | Audio | Time | × real time |
 |---|---|---|---|---|
-| Speakers | Nemotron 3, Neural Engine | 5 min / 68 min | 0.74 s / 10 s | 408× / 410× |
-| Speakers | Nemotron 3, CPU fallback | 5 min | 2.4 s | 126× |
-| Speakers | pyannote community-1 | 5 min | 1.3 s | 231× |
+| Speakers | Nemotron 3, Neural Engine | 15 min / 68 min | 2.1 s / 10 s | 431× / 410× |
+| Speakers | Nemotron 3, CPU fallback | 15 min | 6.8 s | 133× |
+| Speakers | pyannote community-1 | 15 min | 4.2 s | 214× |
 | Transcript | Parakeet TDT-CTC 110M | 68 min | 10.4 s (+5 s load) | 394× (169× when hot) |
 | Transcript | Parakeet TDT v3 | 68 min | 48 s, including load | 86× |
 | Transcript | Parakeet TDT v2 English | 68 min | 47 s, including load | 87× |
@@ -236,9 +236,15 @@ the time. Greedy decoding (build 44) changed nothing.
   app update), Parakeet v2 14 s, v3 24 s, Nemotron 3.5 15 s, MiniCPM5 1B 44–57 s and
   2B 7 min, even compiled ahead of time for this chip.
 - "Skip small talk" leaves out about 10% of a meeting's lines (97 of 974, 54 of 317).
-- The full benchmark (build 45) left the phone's thermal state at "serious": runs late in
-  it were throttled (Parakeet 110M took 24 s instead of 10 s; the notes models' one-excerpt
-  speeds fell to 8–12 tokens/s from 14–40).
+- The benchmark gives every speech model the same first 15 minutes and every notes model
+  the same excerpt. Before build 46 it ran the whole 68 minutes through each Parakeet and
+  Nemotron and heated the phone to "serious", throttling the runs late in it; build 46's
+  stayed "nominal".
+- On 15 minutes, loading takes most of a Parakeet run (v3 23 s, v2 26 s, 110M 10 s,
+  Nemotron 3.5 37 s, all including load), so the 68-minute rows above are the better guide
+  to speed. Apple speech: 15 minutes in 12.6 s (71×).
+- On one 62-line excerpt (build 46): Apple's model 23 s (727 tokens out), MiniCPM5 1B
+  12 s (220), 2B 23 s (232).
 - Qwen3 1.7B, offered before, ran out of memory compiling on the phone and was dropped.
 - Processing-time estimates start from these numbers and then learn this phone's
   speed for each model.
