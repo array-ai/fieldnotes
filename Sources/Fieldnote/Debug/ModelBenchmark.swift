@@ -25,8 +25,10 @@ public final class ModelBenchmark {
     public private(set) var isRunning = false
     public private(set) var status = ""
 
-    /// Capped so a three-hour meeting doesn't turn the benchmark into a three-hour job.
-    private let maxAudioSeconds = 300.0
+    /// Every speech model gets the same first 15 minutes: long enough for a steady
+    /// rate including load, short enough that the phone doesn't heat up and throttle
+    /// the models run last (the whole 68-minute meeting four times did, build 45).
+    private let maxAudioSeconds = 900.0
     private let debug = DebugLog.shared
 
     public init() {}
@@ -81,9 +83,7 @@ public final class ModelBenchmark {
         status = "Reading audio…"
         let samples: [Float]
         do {
-            let buffer = try DiarizationBuffer(meetingID: meeting.id)
-            let all = try await buffer.samples()
-            samples = Array(all.prefix(Int(maxAudioSeconds * 16_000)))
+            samples = try AudioSamples(meetingID: meeting.id).slice(0..<Int(maxAudioSeconds * 16_000))
         } catch {
             add("Speakers", "Audio", "couldn't read: \(error.localizedDescription)")
             return
@@ -147,20 +147,29 @@ public final class ModelBenchmark {
     private func benchmarkTranscription(_ meeting: MeetingSnapshot, locale: Locale) async {
         status = "Transcription…"
         let chunks = ChunkedAudioWriter.existingChunks(in: FieldnoteStorage.audioChunkDirectory(for: meeting.id))
-        guard let first = chunks.first, first.duration > 0 else {
+        // Whole chunks, up to the same length the other models get.
+        var count = 0, total = 0.0
+        while count < chunks.count, count == 0 || total + chunks[count].duration <= maxAudioSeconds + 1 {
+            total += chunks[count].duration
+            count += 1
+        }
+        let picked = Array(chunks.prefix(count))
+        let audioSeconds = picked.reduce(0) { $0 + $1.duration }
+        guard audioSeconds > 0 else {
             add("Transcription", "Audio", "no audio chunks stored for this meeting")
             return
         }
+        add("Transcription", "Audio", String(format: "first %.1f s, the same for every model", min(meeting.duration, maxAudioSeconds)))
         let service = FileTranscriptionService(locale: locale)
         let started = ContinuousClock.now
         do {
-            let segments = try await service.transcribe(chunks: [first])
+            let segments = try await service.transcribe(chunks: picked)
             let elapsed = seconds(since: started)
             add(
                 "Transcription",
                 "Apple speech model",
-                String(format: "first %.1f s of audio in %.2f s (%.0f× real time) · %d line(s)",
-                       first.duration, elapsed, first.duration / max(elapsed, 0.001), segments.count)
+                String(format: "%.1f s of audio in %.2f s (%.0f× real time) · %d line(s)",
+                       audioSeconds, elapsed, audioSeconds / max(elapsed, 0.001), segments.count)
             )
         } catch {
             add("Transcription", "Apple speech model", "failed: \(error.localizedDescription)")
@@ -184,14 +193,18 @@ public final class ModelBenchmark {
                 let lines = try await ParakeetTranscriber.transcribe(
                     engine: engine,
                     meetingID: meeting.id,
-                    localeIdentifier: locale.identifier
+                    localeIdentifier: locale.identifier,
+                    maxSeconds: maxAudioSeconds,
+                    // Speech model only: the word checker isn't part of its speed.
+                    fixWords: false
                 ) { _ in }
                 let elapsed = seconds(since: started)
+                let audioSeconds = min(meeting.duration, maxAudioSeconds)
                 add(
                     "Transcription",
                     name,
-                    String(format: "whole meeting, %.1f s of audio in %.2f s (%.0f× real time, including load) · %d line(s)",
-                           meeting.duration, elapsed, meeting.duration / max(elapsed, 0.001), lines.count)
+                    String(format: "%.1f s of audio in %.2f s (%.0f× real time, including load) · %d line(s)",
+                           audioSeconds, elapsed, audioSeconds / max(elapsed, 0.001), lines.count)
                 )
             } catch {
                 add("Transcription", name, "failed: \(error.localizedDescription)")
@@ -214,14 +227,16 @@ public final class ModelBenchmark {
         do {
             let lines = try await NemotronStreamingTranscriber.transcribe(
                 meetingID: meeting.id,
-                localeIdentifier: locale.identifier
+                localeIdentifier: locale.identifier,
+                maxSeconds: maxAudioSeconds
             ) { _ in }
             let elapsed = seconds(since: started)
+            let audioSeconds = min(meeting.duration, maxAudioSeconds)
             add(
                 "Transcription",
                 name,
-                String(format: "whole meeting, %.1f s of audio in %.2f s (%.0f× real time, including load) · %d line(s)",
-                       meeting.duration, elapsed, meeting.duration / max(elapsed, 0.001), lines.count)
+                String(format: "%.1f s of audio in %.2f s (%.0f× real time, including load) · %d line(s)",
+                       audioSeconds, elapsed, audioSeconds / max(elapsed, 0.001), lines.count)
             )
         } catch {
             add("Transcription", name, "failed: \(error.localizedDescription)")
@@ -238,22 +253,25 @@ public final class ModelBenchmark {
             add("Summary", "Excerpt", "no transcript to summarise")
             return
         }
+        // The same text for every model, sized for the smallest window (Apple's):
+        // a real part of a meeting, so speeds and results compare like for like.
+        let summaryPrompt = SummaryPromptStore.load()
+        guard let chunk = await excerpt(lines, prompt: summaryPrompt) else { return }
+        add("Summary", "Excerpt", "\(chunk.segments.count) line(s), the same for every model")
         for engine in SummaryEngine.allCases {
             status = "Summary: \(engine.card.title)…"
             if engine.isLocal {
-                await benchmarkLocalSummary(engine, lines: lines)
+                await benchmarkLocalSummary(engine, chunk: chunk)
             } else {
-                await benchmarkAppleSummary(lines: lines)
+                await benchmarkAppleSummary(chunk: chunk, summaryPrompt: summaryPrompt)
             }
         }
     }
 
-    private func benchmarkAppleSummary(lines: [TranscriptSegment]) async {
-        let name = SummaryEngine.apple.card.title
-        add("Summary", name, "context window \(OnDeviceModel.contextSize(tier: .coreAdvanced)) tokens")
-        // One excerpt sized the way real processing sizes it: whatever fits next to
-        // the instructions, the output schema and room for the answer.
-        let summaryPrompt = SummaryPromptStore.load()
+    /// The first part of the meeting the way real processing sizes it for Apple's
+    /// model: whatever fits next to the instructions, the output schema and room for
+    /// the answer.
+    private func excerpt(_ lines: [TranscriptSegment], prompt summaryPrompt: SummaryPrompt) async -> TranscriptChunk? {
         let fixed = (await OnDeviceModel.tokenCount(instructions: summaryPrompt.instructions, tier: .coreAdvanced) ?? 400)
             + (await OnDeviceModel.tokenCount(schema: DraftChunkNotes.generationSchema, tier: .coreAdvanced) ?? 800)
         let budget = PromptBudget(
@@ -262,13 +280,20 @@ public final class ModelBenchmark {
             outputReserve: 1_400,
             isMeasured: true
         )
-        guard var chunk = TranscriptChunker(budget: budget.chunkBudget, overlap: 0).chunks(from: lines).first else { return }
+        guard var chunk = TranscriptChunker(budget: budget.chunkBudget, overlap: 0).chunks(from: lines).first else { return nil }
         var prompt = PromptTemplates.chunkPrompt(chunk: chunk, chunkIndex: 0, chunkCount: 1, request: summaryPrompt.effectiveRequest)
         while let tokens = await OnDeviceModel.tokenCount(prompt: prompt, tier: .coreAdvanced),
               !budget.fits(promptTokens: tokens), let (half, _) = chunk.halves() {
             chunk = half
             prompt = PromptTemplates.chunkPrompt(chunk: chunk, chunkIndex: 0, chunkCount: 1, request: summaryPrompt.effectiveRequest)
         }
+        return chunk
+    }
+
+    private func benchmarkAppleSummary(chunk: TranscriptChunk, summaryPrompt: SummaryPrompt) async {
+        let name = SummaryEngine.apple.card.title
+        add("Summary", name, "context window \(OnDeviceModel.contextSize(tier: .coreAdvanced)) tokens")
+        let prompt = PromptTemplates.chunkPrompt(chunk: chunk, chunkIndex: 0, chunkCount: 1, request: summaryPrompt.effectiveRequest)
         do {
             let session = try OnDeviceModel.appleSession(tier: .coreAdvanced, instructions: summaryPrompt.instructions)
             let started = ContinuousClock.now
@@ -282,7 +307,7 @@ public final class ModelBenchmark {
         }
     }
 
-    private func benchmarkLocalSummary(_ engine: SummaryEngine, lines: [TranscriptSegment]) async {
+    private func benchmarkLocalSummary(_ engine: SummaryEngine, chunk: TranscriptChunk) async {
         let name = "\(engine.card.title) (Core AI)"
         let loadStarted = ContinuousClock.now
         let loaded: OnDeviceModel.BenchmarkSession?
@@ -298,9 +323,6 @@ public final class ModelBenchmark {
         }
         defer { loaded.unload() }
         add("Summary", name, String(format: "loaded in %.2f s, context window %d tokens", seconds(since: loadStarted), OnDeviceModel.localContextSize))
-        // The same budget real processing uses for the local models.
-        let budget = PromptBudget(contextSize: OnDeviceModel.localContextSize, fixedCost: 350, outputReserve: 1_000, isMeasured: false)
-        guard let chunk = TranscriptChunker(budget: budget.chunkBudget, overlap: 0).chunks(from: lines).first else { return }
         let prompt = PlainNotes.prompt(chunk: chunk, chunkIndex: 0, chunkCount: 1)
         do {
             let started = ContinuousClock.now
