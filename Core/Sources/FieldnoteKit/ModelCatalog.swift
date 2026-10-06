@@ -13,6 +13,8 @@ public struct ModelPack: Sendable, Identifiable, Equatable {
         case parakeetV3
         case parakeetV2
         case parakeetTdtCtc110m
+        // Not a transcription model: checks custom words against the audio.
+        case parakeetCtcWords
         case nemotronStreaming
         case minicpm5
         // MiniCPM5 compiled ahead of time for one Core AI chip family each (our

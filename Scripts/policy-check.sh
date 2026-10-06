@@ -76,7 +76,8 @@ echo
 echo "== Constraint 1: no model downloads (FluidAudio's network-backed loaders)"
 for needle in "loadFromHuggingFace" "ModelHub" "DownloadUtils" "prepareModels(" "downloadIfNeeded" \
               "DiarizerModels.download" "DiarizerModels.load(from" "OfflineDiarizerModels.load(" \
-              "AsrModels.load(" "AsrModels.downloadAndLoad" "downloadAndLoad("; do
+              "AsrModels.load(" "AsrModels.downloadAndLoad" "downloadAndLoad(" \
+              "CtcModels.download" "CtcModels.load(" "CtcTokenizer.load()"; do
   check_absent "$needle" "no $needle"
 done
 

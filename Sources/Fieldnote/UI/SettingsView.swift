@@ -46,6 +46,11 @@ struct SettingsView: View {
                     } label: {
                         LabeledContent("Model", value: settings.transcriptionEngine.card.title)
                     }
+                    NavigationLink {
+                        CustomWordsView()
+                    } label: {
+                        LabeledContent("Custom words", value: settings.customWords.isEmpty ? "None" : "\(settings.customWords.count)")
+                    }
                 } header: {
                     Text("Transcription")
                 } footer: {
@@ -484,6 +489,79 @@ struct ModelsView: View {
                 }
             }
         )
+    }
+}
+
+/// The user's own words, and the download that puts them into Parakeet transcripts.
+struct CustomWordsView: View {
+    @Environment(AppModel.self) private var model
+    @State private var newWord = ""
+    private var downloads: ModelDownloads { .shared }
+    private let pack = ModelPack.ID.parakeetCtcWords
+
+    private func add() {
+        model.settings.customWords = CustomWords.merged(user: model.settings.customWords + [newWord], builtIn: [])
+        newWord = ""
+    }
+
+    var body: some View {
+        @Bindable var settings = model.settings
+        Form {
+            Section {
+                HStack {
+                    TextField("Add a word or name", text: $newWord)
+                        .autocorrectionDisabled()
+                        .onSubmit(add)
+                    Button("Add", action: add)
+                        .disabled(newWord.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+                ForEach(settings.customWords, id: \.self) { Text($0) }
+                    .onDelete { settings.customWords.remove(atOffsets: $0) }
+            } footer: {
+                Text("Spell them as the transcript should: products, people, places. They add to the built-in list below and apply to the next transcript, or a redone one.")
+            }
+
+            Section {
+                fixer
+            } header: {
+                Text("Parakeet")
+            } footer: {
+                Text(
+                    """
+                    Parakeet can't be told words in advance. With this download, a small \
+                    model listens again after Parakeet and swaps a misheard word only when \
+                    the audio supports yours. Apple's model gets the words directly.
+                    """
+                )
+            }
+
+            Section("Built in") {
+                Text(MSPVocabulary.contextualStrings.joined(separator: ", "))
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .navigationTitle("Custom words")
+    }
+
+    @ViewBuilder
+    private var fixer: some View {
+        let size = ModelPack.pack(pack).totalBytes.byteCountDescription
+        switch downloads.state(pack) {
+        case .notInstalled:
+            Button("Download word checker (\(size))", systemImage: "arrow.down.circle") { downloads.download(pack) }
+        case .failed(let message):
+            Button("Download word checker (\(size))", systemImage: "arrow.down.circle") { downloads.download(pack) }
+            Text(message).font(.caption).foregroundStyle(.red)
+        case .downloading(let fraction):
+            ProgressView(value: fraction)
+            Button("Cancel", role: .cancel) { downloads.cancel(pack) }
+        case .preparing:
+            LabeledContent("Preparing for this phone") { ProgressView().controlSize(.small) }
+        case .installed:
+            LabeledContent("Word checker", value: "Downloaded, \(size)")
+            Button("Delete", systemImage: "trash", role: .destructive) { downloads.delete(pack) }
+        }
     }
 }
 

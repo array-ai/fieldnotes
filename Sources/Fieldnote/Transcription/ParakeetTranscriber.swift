@@ -47,7 +47,7 @@ public enum ParakeetTranscriber {
         case .parakeetV3: .v3
         case .parakeetV2: .v2
         case .parakeetTdtCtc110m: .tdtCtc110m
-        case .pyannoteCommunity1, .nemotronStreaming,
+        case .parakeetCtcWords, .pyannoteCommunity1, .nemotronStreaming,
              .minicpm5, .minicpm5H17g, .minicpm5H17p, .minicpm5H18p, .minicpm5_2b, .minicpm5_2bH17p: nil
         }
     }
@@ -56,6 +56,8 @@ public enum ParakeetTranscriber {
         engine: TranscriptionEngine,
         meetingID: UUID,
         localeIdentifier: String,
+        maxSeconds: Double? = nil,
+        fixWords: Bool = true,
         progress: @Sendable (Double) -> Void
     ) async throws -> [TranscriptSegment] {
         guard let pack = engine.modelPack, let version = version(for: pack),
@@ -69,7 +71,7 @@ public enum ParakeetTranscriber {
         debug.log("transcript", "\(id): \(engine.rawValue) loaded in \(DebugLog.elapsed(since: loadStarted))")
         progress(0.1)
 
-        let wav = try writeWAV(meetingID: meetingID)
+        let wav = try writeWAV(meetingID: meetingID, maxSeconds: maxSeconds)
         defer { try? FileManager.default.removeItem(at: wav.url) }
         guard wav.seconds > 0.5 else { throw Failure.noAudio }
         progress(0.2)
@@ -82,24 +84,30 @@ public enum ParakeetTranscriber {
         // Only the multilingual model takes a language hint.
         let language = version == .v3 ? Language(rawValue: String(localeIdentifier.prefix(2)).lowercased()) : nil
         let result = try await manager.transcribe(wav.url, decoderState: &state, language: language)
-        let words = buildWordTimings(from: result.tokenTimings ?? []).map {
-            TranscriptWord(text: $0.word + " ", start: $0.startTime, end: $0.endTime)
-        }
-        let lines = WordLines.lines(from: words)
+        let tokenTimings = result.tokenTimings ?? []
+        let words = WordFixer.words(from: tokenTimings)
         let elapsed = runStarted.duration(to: .now)
         let seconds = Double(elapsed.components.seconds) + Double(elapsed.components.attoseconds) / 1e18
         debug.log(
             "transcript",
-            String(format: "%@: %@ transcribed %.0f s in %.1f s (%.0f× real time), %d words, %d lines",
-                   id, engine.rawValue, wav.seconds, seconds, wav.seconds / max(seconds, 0.001), words.count, lines.count)
+            String(format: "%@: %@ transcribed %.0f s in %.1f s (%.0f× real time), %d words",
+                   id, engine.rawValue, wav.seconds, seconds, wav.seconds / max(seconds, 0.001), words.count)
         )
+        // Parakeet's models go before the word fixer's load.
+        await manager.cleanup()
+        progress(0.9)
+
+        let fixed = fixWords ? await WordFixer.fix(tokenTimings, meetingID: meetingID) ?? words : words
+        let lines = WordLines.lines(from: fixed)
+        debug.log("transcript", "\(id): \(lines.count) lines")
         progress(1)
         return lines
     }
 
     /// The speaker buffer (raw Float32, 16 kHz mono) as a WAV FluidAudio can read
     /// from disk, written in slices so a long meeting never sits in memory whole.
-    private static func writeWAV(meetingID: UUID) throws -> (url: URL, seconds: Double) {
+    /// `maxSeconds` keeps only the start (the benchmark).
+    private static func writeWAV(meetingID: UUID, maxSeconds: Double? = nil) throws -> (url: URL, seconds: Double) {
         let source = FieldnoteStorage.meetingDirectory(for: meetingID).appendingPathComponent("diarization.f32")
         guard let input = FileHandle(forReadingAtPath: source.path) else { throw Failure.noAudio }
         defer { try? input.close() }
@@ -110,11 +118,14 @@ public enum ParakeetTranscriber {
         let output = try AVAudioFile(forWriting: url, settings: format.settings, commonFormat: .pcmFormatFloat32, interleaved: false)
 
         let slice = 16_000 * 30
+        let limit = maxSeconds.map { Int($0 * 16_000) } ?? .max
         var frames = 0
         // Each slice is freed before the next: without the pool every read stayed in
         // memory until the end, the whole meeting after all.
         while try autoreleasepool(invoking: {
-            guard let data = try input.read(upToCount: slice * MemoryLayout<Float>.size), !data.isEmpty else { return false }
+            let wanted = min(slice, limit - frames)
+            guard wanted > 0,
+                  let data = try input.read(upToCount: wanted * MemoryLayout<Float>.size), !data.isEmpty else { return false }
             let count = data.count / MemoryLayout<Float>.size
             guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(count)),
                   let channel = buffer.floatChannelData?[0] else { return false }

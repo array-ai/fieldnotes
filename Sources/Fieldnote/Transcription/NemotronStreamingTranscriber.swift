@@ -136,6 +136,7 @@ actor NemotronStreamingTranscriber {
     static func transcribe(
         meetingID: UUID,
         localeIdentifier: String,
+        maxSeconds: Double? = nil,
         progress: @Sendable (Double) -> Void
     ) async throws -> [TranscriptSegment] {
         guard let directory = modelDirectory() else { throw ParakeetTranscriber.Failure.notDownloaded }
@@ -150,21 +151,23 @@ actor NemotronStreamingTranscriber {
 
         let samples = try AudioSamples(meetingID: meetingID)
         guard samples.count > 8_000 else { throw ParakeetTranscriber.Failure.noAudio }
+        // `maxSeconds` keeps only the start (the benchmark).
+        let total = min(samples.count, maxSeconds.map { Int($0 * 16_000) } ?? .max)
         let runStarted = ContinuousClock.now
         // Ten seconds at a time, for progress and cancellation.
         let step = 160_000
         var offset = 0
-        while offset < samples.count {
+        while offset < total {
             try Task.checkCancellation()
-            let end = min(offset + step, samples.count)
+            let end = min(offset + step, total)
             _ = try await manager.process(samples: try samples.slice(offset..<end))
             offset = end
-            progress(0.1 + 0.9 * Double(offset) / Double(samples.count))
+            progress(0.1 + 0.9 * Double(offset) / Double(total))
         }
         let result = try await manager.finishWithTokenTimings()
         await manager.cleanup()
         let lines = lines(from: result.timings)
-        let seconds = Double(samples.count) / 16_000
+        let seconds = Double(total) / 16_000
         let elapsed = runStarted.duration(to: .now)
         let run = Double(elapsed.components.seconds) + Double(elapsed.components.attoseconds) / 1e18
         DebugLog.shared.log(

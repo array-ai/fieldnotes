@@ -53,6 +53,16 @@ PACKS = [
                   "parakeet_vocab.json"],
     },
     {
+        "id": "parakeetCtcWords",
+        "name": "Parakeet CTC 110M, for custom words (NVIDIA)",
+        "repo": "FluidInference/parakeet-ctc-110m-coreml",
+        "revision": "accdafd8cf8a2ff1cabe3c11e54416b405d409aa",
+        "license": "CC-BY-4.0",
+        # FluidAudio's CTC keyword spotter (CtcModels.loadDirect + the BPE tokenizer):
+        # checks the audio before a misheard word becomes a custom one.
+        "paths": ["MelSpectrogram.mlmodelc", "AudioEncoder.mlmodelc", "vocab.json", "tokenizer.json"],
+    },
+    {
         "id": "nemotronStreaming",
         "name": "Nemotron 3.5 Streaming (NVIDIA)",
         "repo": "FluidInference/Nemotron-3.5-ASR-Streaming-Multilingual-0.6b-CoreML",

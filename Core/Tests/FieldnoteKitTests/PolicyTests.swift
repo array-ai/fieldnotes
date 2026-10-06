@@ -160,7 +160,10 @@ struct PolicyTests {
             "OfflineDiarizerModels.load(",
             "AsrModels.load(",
             "AsrModels.downloadAndLoad",
-            "downloadAndLoad("
+            "downloadAndLoad(",
+            "CtcModels.download",
+            "CtcModels.load(",
+            "CtcTokenizer.load()"
         ]
         for marker in forbidden {
             let offenders = PolicySourceScanner.filesContaining(marker)

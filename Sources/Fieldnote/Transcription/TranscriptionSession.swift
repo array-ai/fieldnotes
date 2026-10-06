@@ -38,7 +38,7 @@ public actor TranscriptionSession {
     ///   3 of a recording still produces times relative to the start of the meeting.
     public init(
         locale: Locale = Locale(identifier: "en_AU"),
-        contextualStrings: [String] = MSPVocabulary.contextualStrings,
+        contextualStrings: [String] = MSPVocabulary.current,
         timeOffset: TimeInterval = 0
     ) {
         self.locale = locale
@@ -207,14 +207,9 @@ public actor TranscriptionSession {
 
     // MARK: - Custom vocabulary
 
-    /// Unresolved in iOS 27 (spec 4.3): `contextualStrings` is documented against
-    /// `DictationTranscriber`, and reports of its effect on the long-form
-    /// `SpeechTranscriber` path range from weak to none.
-    ///
-    /// It is a few lines, so it is wired up and measured rather than argued about.
-    /// If the benchmark shows nothing, the terms stay mangled in v1 and the user
-    /// fixes them by hand; the correction layer that would fix it properly is v2
-    /// (spec 11.1). Do not build half of that here.
+    /// The built-in and the user's custom words. `contextualStrings` is documented
+    /// against `DictationTranscriber`; on the long-form `SpeechTranscriber` path its
+    /// effect is weak at best. Parakeet transcripts get the word fixer instead.
     private func applyContextualStrings(to analyzer: SpeechAnalyzer) {
         guard !contextualStrings.isEmpty else { return }
         let context = AnalysisContext()

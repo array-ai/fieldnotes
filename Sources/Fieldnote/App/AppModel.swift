@@ -376,6 +376,12 @@ public final class AppModel {
             didSet { UserDefaults.standard.set(skipSmallTalk, forKey: SummarizationService.skipSmallTalkKey) }
         }
 
+        /// Spellings the transcript should use, on top of the built-in list. See
+        /// `CustomWords`.
+        public var customWords: [String] {
+            didSet { UserDefaults.standard.set(customWords, forKey: CustomWords.defaultsKey) }
+        }
+
         /// Shows the log viewer and the redo actions.
         public var debugMode: Bool {
             didSet { UserDefaults.standard.set(debugMode, forKey: "debugMode") }
@@ -401,6 +407,7 @@ public final class AppModel {
             self.summariseWhileCharging = UserDefaults.standard.bool(forKey: SummaryInBackground.defaultsKey)
             self.keepAwakeWhileProcessing = UserDefaults.standard.object(forKey: "keepAwakeWhileProcessing") as? Bool ?? true
             self.skipSmallTalk = UserDefaults.standard.object(forKey: SummarizationService.skipSmallTalkKey) as? Bool ?? true
+            self.customWords = UserDefaults.standard.stringArray(forKey: CustomWords.defaultsKey) ?? []
             self.summaryEngine = SummaryEngine(storedValue: UserDefaults.standard.string(forKey: SummaryEngine.defaultsKey))
             self.transcriptionEngine = TranscriptionEngine(
                 storedValue: UserDefaults.standard.string(forKey: TranscriptionEngine.defaultsKey)

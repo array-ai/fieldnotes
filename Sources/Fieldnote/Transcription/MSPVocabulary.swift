@@ -1,12 +1,16 @@
+import FieldnoteKit
 import Foundation
 
-/// The MSP stack, fed to `AnalysisContext.contextualStrings` so its effect on the
-/// long-form path can be measured against a fixed recording (spec 4.3).
-///
-/// This is a benchmark input, not a correction layer. If contextual strings turn out
-/// to do nothing on `SpeechTranscriber`, this list stays as the seed for the v2 term
-/// list (spec 11.1) and nothing else changes.
+/// The MSP stack: the built-in custom words. The user's own list (Settings →
+/// Transcription → Custom words) extends it; see `CustomWords`.
 public enum MSPVocabulary {
+    /// The built-in words and the user's, as Apple's model and the word fixer get them.
+    public static var current: [String] {
+        CustomWords.merged(user: UserDefaults.standard.stringArray(forKey: CustomWords.defaultsKey) ?? [],
+                           builtIn: contextualStrings)
+    }
+
+
     public static let contextualStrings: [String] = [
         // Network
         "Ubiquiti", "UniFi", "UniFi Dream Machine", "UDM Pro", "VLAN", "SSID", "PoE",

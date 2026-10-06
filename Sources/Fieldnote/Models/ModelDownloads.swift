@@ -228,6 +228,7 @@ public final class ModelDownloads {
         // Preparing loads the model into memory: one heavy job at a time.
         let prepares = ParakeetTranscriber.version(for: pack.id) != nil
             || pack.id == .nemotronStreaming
+            || pack.id == .parakeetCtcWords
             || pack.id.rawValue.hasPrefix(ModelPack.ID.minicpm5.rawValue)
         if prepares {
             report(.preparing)
@@ -242,6 +243,12 @@ public final class ModelDownloads {
                 let compileStarted = ContinuousClock.now
                 _ = try AsrModels.loadLocal(from: final, version: version)
                 DebugLog.shared.log("models", "\(pack.id.rawValue): first compile took \(DebugLog.elapsed(since: compileStarted))")
+            }
+            if pack.id == .parakeetCtcWords {
+                report(.preparing)
+                let compileStarted = ContinuousClock.now
+                _ = try await CtcModels.loadDirect(from: final, variant: .ctc110m)
+                DebugLog.shared.log("models", "parakeetCtcWords: first compile took \(DebugLog.elapsed(since: compileStarted))")
             }
             if pack.id == .nemotronStreaming {
                 report(.preparing)
