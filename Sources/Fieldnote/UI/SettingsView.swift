@@ -152,7 +152,7 @@ struct SettingsView: View {
                 Section {
                     Label("No accounts, no server, no network unless you choose it", systemImage: "network.slash")
                     Label("Audio, transcripts and summaries stay on this device", systemImage: "iphone")
-                    Label("Nothing is added to Spotlight or Siri", systemImage: "magnifyingglass")
+                    Label("No meeting content in Spotlight or Siri", systemImage: "magnifyingglass")
                 } header: {
                     Text("Privacy")
                 } footer: {
@@ -161,9 +161,18 @@ struct SettingsView: View {
                         Fieldnote goes online only for model downloads you tap and Apple \
                         Maps place names if you turn them on. Meeting content leaves only \
                         when you drive the share sheet yourself, and then it is the \
-                        destination app's business, not Fieldnote's.
+                        destination app's business, not Fieldnote's. The only thing Siri \
+                        and the Action button can do is start or stop a recording.
                         """
                     )
+                }
+
+                // The last line: version, build and commit, as in the Activity log.
+                Section {
+                } footer: {
+                    Text("Fieldnote \(DebugLog.appVersion)")
+                        .frame(maxWidth: .infinity)
+                        .textSelection(.enabled)
                 }
             }
             .navigationTitle("Settings")
