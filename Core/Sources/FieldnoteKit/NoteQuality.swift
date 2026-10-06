@@ -23,6 +23,9 @@ public enum NoteQuality {
     public static func isDecision(_ text: String) -> Bool {
         let words = self.words(text)
         guard words.count >= 2, !isCutOff(text), !text.trimmed().hasSuffix("?") else { return false }
+        // "No specific decisions were made": the absence of one, not a decision.
+        if text.range(of: #"^no (specific |real |clear )?decisions? (was |were )?(made|taken|reached)\.?$"#,
+                      options: [.regularExpression, .caseInsensitive]) != nil { return false }
         return !["i", "i'm", "i'd", "i've", "yeah", "yes", "okay", "ok", "so", "um", "uh"].contains(words[0])
     }
 

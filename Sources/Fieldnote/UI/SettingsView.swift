@@ -83,6 +83,7 @@ struct SettingsView: View {
                     Toggle("Notify when notes are ready", isOn: $settings.notifyWhenProcessed)
                     Toggle("Finish notes while charging", isOn: $settings.summariseWhileCharging)
                     Toggle("Keep screen on while writing notes", isOn: $settings.keepAwakeWhileProcessing)
+                    Toggle("Skip small talk in notes", isOn: $settings.skipSmallTalk)
                 } header: {
                     Text("Processing")
                 } footer: {

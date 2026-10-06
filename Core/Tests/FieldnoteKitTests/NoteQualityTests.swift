@@ -34,6 +34,8 @@ struct NoteQualityTests {
         #expect(!NoteQuality.isDecision("I agree as well."))
         #expect(NoteQuality.isDecision("Ship it"))
         #expect(!NoteQuality.isDecision("Which is a bit,"))
+        #expect(!NoteQuality.isDecision("No specific decisions were made"))
+        #expect(NoteQuality.isDecision("No final decision made; continue research and think it over"))
     }
 
     @Test("Placeholder owners become no owner")

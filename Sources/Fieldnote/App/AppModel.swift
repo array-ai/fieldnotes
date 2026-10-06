@@ -370,6 +370,12 @@ public final class AppModel {
             didSet { UserDefaults.standard.set(keepAwakeWhileProcessing, forKey: "keepAwakeWhileProcessing") }
         }
 
+        /// Leave lines like "Okay." and "Give us a second." out of what the notes
+        /// model reads. On by default.
+        public var skipSmallTalk: Bool {
+            didSet { UserDefaults.standard.set(skipSmallTalk, forKey: SummarizationService.skipSmallTalkKey) }
+        }
+
         /// Shows the log viewer and the redo actions.
         public var debugMode: Bool {
             didSet { UserDefaults.standard.set(debugMode, forKey: "debugMode") }
@@ -394,6 +400,7 @@ public final class AppModel {
             self.debugMode = UserDefaults.standard.bool(forKey: "debugMode")
             self.summariseWhileCharging = UserDefaults.standard.bool(forKey: SummaryInBackground.defaultsKey)
             self.keepAwakeWhileProcessing = UserDefaults.standard.object(forKey: "keepAwakeWhileProcessing") as? Bool ?? true
+            self.skipSmallTalk = UserDefaults.standard.object(forKey: SummarizationService.skipSmallTalkKey) as? Bool ?? true
             self.summaryEngine = SummaryEngine(storedValue: UserDefaults.standard.string(forKey: SummaryEngine.defaultsKey))
             self.transcriptionEngine = TranscriptionEngine(
                 storedValue: UserDefaults.standard.string(forKey: TranscriptionEngine.defaultsKey)
