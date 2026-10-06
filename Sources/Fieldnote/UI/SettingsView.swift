@@ -75,22 +75,6 @@ struct SettingsView: View {
                 }
 
                 Section {
-                    Toggle("Send tasks to Reminders", isOn: $settings.remindersEnabled)
-                    if settings.remindersEnabled {
-                        Picker("List", selection: $settings.remindersListID) {
-                            Text("Default").tag(String?.none)
-                            ForEach(reminderLists, id: \.id) { list in
-                                Text(list.title).tag(String?.some(list.id))
-                            }
-                        }
-                    }
-                } header: {
-                    Text("Tasks")
-                } footer: {
-                    Text("Reminders stay on this device and in your own iCloud, if you use it. Fieldnote never sends them anywhere.")
-                }
-
-                Section {
                     NavigationLink {
                         ModelsView(kind: .summary)
                     } label: {
@@ -112,6 +96,22 @@ struct SettingsView: View {
                         the meeting title and first topic, which can appear on the lock screen.
                         """
                     )
+                }
+
+                Section {
+                    Toggle("Send tasks to Reminders", isOn: $settings.remindersEnabled)
+                    if settings.remindersEnabled {
+                        Picker("List", selection: $settings.remindersListID) {
+                            Text("Default").tag(String?.none)
+                            ForEach(reminderLists, id: \.id) { list in
+                                Text(list.title).tag(String?.some(list.id))
+                            }
+                        }
+                    }
+                } header: {
+                    Text("Tasks")
+                } footer: {
+                    Text("Reminders stay on this device and in your own iCloud, if you use it. Fieldnote never sends them anywhere.")
                 }
 
                 Section {
