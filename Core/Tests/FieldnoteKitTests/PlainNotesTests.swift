@@ -119,6 +119,20 @@ struct PlainNotesTests {
         #expect(notes.speakerNames.map(\.text) == ["Alex"])
     }
 
+    @Test("Bare speaker letters become Speaker labels")
+    func speakerLetters() {
+        let text = """
+            TOPIC: Migration
+            - F asks about migrating the agents [13]
+            - A new console was shown [11]
+            TASK: Show the exclusion list | E | Friday [14]
+            """
+        let notes = PlainNotes.parse(text, chunk: chunk)
+        #expect(notes.topics.first?.points.map(\.text) == ["Speaker F asks about migrating the agents", "A new console was shown"])
+        #expect(notes.actionItems.first?.owner == "Speaker E")
+        #expect(notes.topics.first?.summary == "")
+    }
+
     @Test("An overview loses its label and quotes")
     func overview() {
         #expect(PlainNotes.cleanOverview("**Overview:** \"The team moved to the technical phase.\"") == "The team moved to the technical phase.")

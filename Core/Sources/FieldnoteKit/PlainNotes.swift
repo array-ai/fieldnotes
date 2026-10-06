@@ -92,21 +92,21 @@ public enum PlainNotes {
                     topics.append(NoteTopic(title: title))
                 case "decision":
                     guard let lines = cite(cited, body, chunk), !body.isEmpty else { continue }
-                    decisions.append(NoteDecision(statement: body, sourceLines: lines))
+                    decisions.append(NoteDecision(statement: speakerLetters(body), sourceLines: lines))
                 case "task", "action":
                     let parts = body.split(separator: "|", omittingEmptySubsequences: false)
                         .map { $0.trimmingCharacters(in: .whitespaces) }
                     let task = parts.first ?? ""
                     guard !task.isEmpty, let lines = cite(cited, task, chunk) else { continue }
                     actions.append(NoteActionItem(
-                        task: task,
-                        owner: parts.count > 1 ? blankIfNone(parts[1]) : "",
+                        task: speakerLetters(task),
+                        owner: parts.count > 1 ? speakerLetters(blankIfNone(parts[1])) : "",
                         dueDate: parts.count > 2 ? blankIfNone(parts[2]) : "",
                         sourceLines: lines
                     ))
                 case "question":
                     guard let lines = cite(cited, body, chunk), !body.isEmpty else { continue }
-                    questions.append(NoteClaim(text: body, sourceLines: lines))
+                    questions.append(NoteClaim(text: speakerLetters(body), sourceLines: lines))
                 case "name":
                     // A name must be cited where it was said: no guessing by overlap.
                     let lines = cited.filter(chunk.lineNumbers.contains)
@@ -117,7 +117,7 @@ public enum PlainNotes {
                 }
             } else if let pointText = bullet(line) {
                 let (body, cited) = citations(in: pointText)
-                let point = dropSpeakerPrefix(body)
+                let point = speakerLetters(dropSpeakerPrefix(body))
                 guard point.count > 2, let lines = cite(cited, point, chunk) else { continue }
                 if topics.isEmpty { topics.append(NoteTopic(title: "Discussion")) }
                 guard !topics[topics.count - 1].points.contains(where: { $0.text == point }) else { continue }
@@ -127,12 +127,9 @@ public enum PlainNotes {
 
         // A topic with no points has nothing to show; its headline alone isn't a note.
         topics.removeAll { $0.points.isEmpty }
-        for index in topics.indices where topics[index].summary.isEmpty {
-            topics[index].summary = topics[index].points.first?.text ?? ""
-        }
         return ChunkNotes(
             topics: topics,
-            points: topics.map { "\($0.title): \($0.summary)" },
+            points: topics.map { topic in "\(topic.title): \(topic.points.first?.text ?? "")" },
             decisions: decisions,
             actionItems: actions,
             openQuestions: questions,
@@ -247,6 +244,22 @@ public enum PlainNotes {
             }
         }
         return result
+    }
+
+    /// "E" as an owner, "F asks about…": the model shortened "Speaker F". Put the
+    /// label back, so the names given to speakers replace it like anywhere else.
+    static func speakerLetters(_ text: String) -> String {
+        let trimmed = text.trimmingCharacters(in: .whitespaces)
+        if trimmed.range(of: #"^[A-Z]{1,2}$"#, options: .regularExpression) != nil {
+            return "Speaker \(trimmed)"
+        }
+        let verbs = "asks|asked|explains|explained|confirms|confirmed|says|said|suggests|suggested|shows|showed|"
+            + "mentions|mentioned|agrees|agreed|proposes|proposed|notes|noted|states|stated|wants|will|would|"
+            + "offers|offered|describes|described|presents|presented|raises|raised|requests|requested|shares|shared|"
+            + "demonstrates|demonstrated|recommends|recommended|questions|questioned|clarifies|clarified|and"
+        guard let range = trimmed.range(of: "^([A-Z]{1,2}) (\(verbs))\\b", options: .regularExpression) else { return trimmed }
+        let letter = trimmed[range].split(separator: " ").first.map(String.init) ?? ""
+        return "Speaker \(letter)" + trimmed[trimmed.index(trimmed.startIndex, offsetBy: letter.count)...]
     }
 
     /// One person's name: up to four words, no lists or separators, not a label

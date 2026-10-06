@@ -287,7 +287,10 @@ public actor SummarizationService {
             if plain {
                 // Plain notes are short; a small model given more room rambles (1,000
                 // tokens for eight lines of transcript, build 40).
-                let response = try await session.respond(to: prompt, options: GenerationOptions(maximumResponseTokens: min(answerCap, 600)), contextOptions: OnDeviceModel.contextOptions)
+                // Greedy, as on the laptop: the phone's default sampling gave exactly
+                // one topic and three points per part every time; greedy decoding gave
+                // 1–3 topics and 2–6 points (MiniCPM5 2B, same meeting).
+                let response = try await session.respond(to: prompt, options: GenerationOptions(sampling: .greedy, maximumResponseTokens: min(answerCap, 600)), contextOptions: OnDeviceModel.contextOptions)
                 let notes = PlainNotes.parse(response.content, chunk: piece)
                 debug.log(
                     "summary",
@@ -369,7 +372,7 @@ public actor SummarizationService {
     private func respond(to prompt: String, piece: TranscriptChunk) async throws -> ChunkNotes {
         let session = try OnDeviceModel.session(tier: tier, instructions: instructions)
         if plain {
-            let text = try await session.respond(to: prompt, options: GenerationOptions(maximumResponseTokens: answerCap), contextOptions: OnDeviceModel.contextOptions).content
+            let text = try await session.respond(to: prompt, options: GenerationOptions(sampling: .greedy, maximumResponseTokens: min(answerCap, 600)), contextOptions: OnDeviceModel.contextOptions).content
             return PlainNotes.parse(text, chunk: piece)
         }
         return try await session.respond(to: prompt, generating: DraftChunkNotes.self, options: GenerationOptions(maximumResponseTokens: answerCap), contextOptions: OnDeviceModel.contextOptions).content.notes
@@ -421,7 +424,10 @@ public actor SummarizationService {
             // No structured outline from the local model: join topics by title, and
             // ask only for the overview, in plain text.
             let merged = TopicMerger.mergeByTitle(candidates, time: time)
-            let overview = await rollup(points: merged.map { "\($0.title): \($0.summary)" }, meeting: meeting, budget: budget)
+            let overview = await rollup(
+                points: merged.map { "\($0.title): \($0.summary.isEmpty ? ($0.points.first?.text ?? "") : $0.summary)" },
+                meeting: meeting, budget: budget
+            )
             return (overview, merged)
         }
 
@@ -480,7 +486,7 @@ public actor SummarizationService {
         do {
             let session = try OnDeviceModel.session(tier: tier, instructions: instructions)
             if plain {
-                let response = try await session.respond(to: prompt, options: GenerationOptions(maximumResponseTokens: 300), contextOptions: OnDeviceModel.contextOptions)
+                let response = try await session.respond(to: prompt, options: GenerationOptions(sampling: .greedy, maximumResponseTokens: 300), contextOptions: OnDeviceModel.contextOptions)
                 return PlainNotes.cleanOverview(response.content)
             }
             let response = try await session.respond(to: prompt, generating: DraftRollup.self, options: GenerationOptions(maximumResponseTokens: 800), contextOptions: OnDeviceModel.contextOptions)
