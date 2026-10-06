@@ -133,6 +133,23 @@ struct PlainNotesTests {
         #expect(notes.topics.first?.summary == "")
     }
 
+    @Test("Labelled bullets go to their own lists; answers are dropped")
+    func labelledBullets() {
+        let text = """
+            TOPIC: Firewall
+            - The firewall rules are due Friday [13]
+            - Decision: Send the firewall rules this week [13]
+            - Task: Send the firewall rules | Alex | Friday [14]
+            - Question: Who reviews the rules? [13]
+            - Answer: Alex will [14]
+            """
+        let notes = PlainNotes.parse(text, chunk: chunk)
+        #expect(notes.topics.first?.points.map(\.text) == ["The firewall rules are due Friday"])
+        #expect(notes.decisions.count == 1)
+        #expect(notes.actionItems.first?.owner == "Alex")
+        #expect(notes.openQuestions.count == 1)
+    }
+
     @Test("An overview loses its label and quotes")
     func overview() {
         #expect(PlainNotes.cleanOverview("**Overview:** \"The team moved to the technical phase.\"") == "The team moved to the technical phase.")

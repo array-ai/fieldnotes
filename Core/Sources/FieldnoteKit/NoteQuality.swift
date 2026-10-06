@@ -57,6 +57,17 @@ public enum NoteQuality {
         return true
     }
 
+    /// A note that is just the line it cites, near word for word ("Yeah, I do
+    /// agree", "my one password and now it's gone"): MiniCPM5 1B filled a whole
+    /// section with these (build 44).
+    public static func isQuote(_ text: String, of line: String) -> Bool {
+        let note = words(text), source = Set(words(line))
+        guard !note.isEmpty, !source.isEmpty else { return false }
+        let inLine = Double(note.filter(source.contains).count) / Double(note.count)
+        let coverage = Double(Set(note).intersection(source).count) / Double(source.count)
+        return inLine >= 0.9 && coverage >= 0.7
+    }
+
     // MARK: -
 
     static let questionWords: Set<String> = [

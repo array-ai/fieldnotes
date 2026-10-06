@@ -42,6 +42,7 @@ public struct SummaryGrounder: Sendable {
 
     public func ground(_ notes: [ChunkNotes], chunks: [TranscriptChunk]) -> Outcome {
         var outcome = Outcome()
+        var seenPoints: [Set<String>] = []
         var seenDecisions: [Set<String>] = []
         var seenActions: [Set<String>] = []
         var seenQuestions: [Set<String>] = []
@@ -55,6 +56,14 @@ public struct SummaryGrounder: Sendable {
                     guard !text.isEmpty else { continue }
                     guard let citations = resolve(point.sourceLines, in: chunk) else {
                         outcome.discardedClaims += 1
+                        continue
+                    }
+                    // A transcript line repeated isn't a note; nor is a point the
+                    // meeting already has.
+                    let cited = chunk.segments.first { $0.id == citations.primary }?.text ?? ""
+                    guard !NoteQuality.isQuote(text, of: cited),
+                          NoteQuality.isNew(text, among: &seenPoints) else {
+                        outcome.droppedAsNoise += 1
                         continue
                     }
                     points.append(

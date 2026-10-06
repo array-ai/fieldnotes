@@ -64,4 +64,13 @@ struct NoteQualityTests {
             #expect(!NoteQuality.isFiller(line), "\(line)")
         }
     }
+
+    @Test("A point that repeats its cited line word for word is a quote, a paraphrase isn't")
+    func quotes() {
+        #expect(NoteQuality.isQuote("Yeah, I do agree", of: "Yeah, I do agree."))
+        #expect(NoteQuality.isQuote("my one password and now it's gone", of: "my one password and now it's gone"))
+        #expect(!NoteQuality.isQuote("Rollback doesn't use backups; the agent keeps copies",
+                                     of: "Actually, the rollback changes is not rely on any backups."))
+        #expect(!NoteQuality.isQuote("Pricing goes to another meeting", of: "Let's discuss the pricing details in another meeting, okay?"))
+    }
 }

@@ -83,7 +83,10 @@ public enum PlainNotes {
             let line = stripMarkup(rawLine)
             guard !line.isEmpty else { continue }
 
-            if let (label, rest) = labelled(line) {
+            // "- Decision: …" under a topic is a decision, not a point (MiniCPM5 1B
+            // wrote its decisions and tasks that way, build 44).
+            let content = bullet(line) ?? line
+            if let (label, rest) = labelled(content) {
                 let (body, cited) = citations(in: rest)
                 switch label {
                 case "topic":
@@ -115,7 +118,7 @@ public enum PlainNotes {
                 default:
                     continue
                 }
-            } else if let pointText = bullet(line) {
+            } else if let pointText = bullet(line), !isAnswerLine(pointText) {
                 let (body, cited) = citations(in: pointText)
                 let point = speakerLetters(dropSpeakerPrefix(body))
                 guard point.count > 2, let lines = cite(cited, point, chunk) else { continue }
@@ -135,6 +138,11 @@ public enum PlainNotes {
             openQuestions: questions,
             speakerNames: names
         )
+    }
+
+    /// "Answer: …" bullets: the model answering its own question, not a note.
+    static func isAnswerLine(_ text: String) -> Bool {
+        text.range(of: #"^\**\s*answer\s*\**\s*[:\-–]"#, options: [.regularExpression, .caseInsensitive]) != nil
     }
 
     /// "**TOPIC:** x", "### Task - x", "1. QUESTION: x" → ("topic", "x").
