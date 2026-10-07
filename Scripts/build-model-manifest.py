@@ -119,6 +119,14 @@ PACKS = [
         "license": "Apache-2.0",
         "paths": ["minicpm5-2b/ios-h17p"],
     },
+    {
+        "id": "minicpm5_2bH18p",
+        "name": "MiniCPM5 2B (Core AI, compiled for h18p)",
+        "repo": "publicarray/fieldnote-models",
+        "revision": "10be9226653e1baccdec7726e313154efd64efe3",
+        "license": "Apache-2.0",
+        "paths": ["minicpm5-2b/ios-h18p"],
+    },
 ] + [
     {
         "id": "qwen3_5_2b",
@@ -132,11 +140,19 @@ PACKS = [
     },
     {
         "id": "qwen3_5_2bH17p",
-        "name": "Qwen3.5 2B (Core AI, compiled for h17p, GPU)",
+        "name": "Qwen3.5 2B (Core AI, compiled for h17p)",
         "repo": "publicarray/fieldnote-models",
-        "revision": "ddeea6add42f224f6032238649e7f48eb92192b5",
+        "revision": "10be9226653e1baccdec7726e313154efd64efe3",
         "license": "Apache-2.0",
-        "paths": ["qwen3.5-2b-gpu/ios-h17p"],
+        "paths": ["qwen3.5-2b/ios-h17p"],
+    },
+    {
+        "id": "qwen3_5_2bH18p",
+        "name": "Qwen3.5 2B (Core AI, compiled for h18p)",
+        "repo": "publicarray/fieldnote-models",
+        "revision": "10be9226653e1baccdec7726e313154efd64efe3",
+        "license": "Apache-2.0",
+        "paths": ["qwen3.5-2b/ios-h18p"],
     },
     {
         "id": "lfm2_5",
@@ -152,11 +168,19 @@ PACKS = [
     },
     {
         "id": "lfm2_5H17p",
-        "name": "LFM2.5 1.2B (Core AI, compiled for h17p, GPU)",
+        "name": "LFM2.5 1.2B (Core AI, compiled for h17p)",
         "repo": "publicarray/fieldnote-models",
-        "revision": "95da0578df44a09b6881d7168642facab9276fad",
+        "revision": "10be9226653e1baccdec7726e313154efd64efe3",
         "license": "LFM-1.0",
-        "paths": ["lfm2.5-1.2b-gpu/ios-h17p"],
+        "paths": ["lfm2.5-1.2b/ios-h17p"],
+    },
+    {
+        "id": "lfm2_5H18p",
+        "name": "LFM2.5 1.2B (Core AI, compiled for h18p)",
+        "repo": "publicarray/fieldnote-models",
+        "revision": "10be9226653e1baccdec7726e313154efd64efe3",
+        "license": "LFM-1.0",
+        "paths": ["lfm2.5-1.2b/ios-h18p"],
     },
     {
         "id": "pyannoteCommunity1",

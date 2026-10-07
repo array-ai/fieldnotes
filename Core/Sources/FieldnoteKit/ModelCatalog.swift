@@ -26,13 +26,17 @@ public struct ModelPack: Sendable, Identifiable, Equatable {
         // MiniCPM5 2B: the portable model, and the build compiled for h17p.
         case minicpm5_2b
         case minicpm5_2bH17p
+        case minicpm5_2bH18p
         // Qwen3.5 2B, mlboydaisuke's Core AI export, GPU-pipelined. (Qwen3 4B, offered
         // in builds 47–49, ran an iPhone 16 out of memory while preparing.)
         case qwen3_5_2b
         case qwen3_5_2bH17p
-        // LFM2.5 1.2B (Liquid AI), mlboydaisuke's Core AI export, GPU-pipelined.
+        case qwen3_5_2bH18p
+        // LFM2.5 1.2B (Liquid AI), mlboydaisuke's Core AI export. Builds for a chip
+        // are compiled for the Neural Engine.
         case lfm2_5
         case lfm2_5H17p
+        case lfm2_5H18p
         case pyannoteCommunity1
 
         /// A notes model run through Core AI (prepared on the phone after download).
