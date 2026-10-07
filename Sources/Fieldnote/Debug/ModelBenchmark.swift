@@ -312,7 +312,7 @@ public final class ModelBenchmark {
         let loadStarted = ContinuousClock.now
         let loaded: OnDeviceModel.BenchmarkSession?
         do {
-            loaded = try await OnDeviceModel.benchmarkSession(for: engine, instructions: engine.plainInstructions)
+            loaded = try await OnDeviceModel.benchmarkSession(for: engine, instructions: PlainNotes.instructions)
         } catch {
             add("Summary", name, "couldn't load: \(error.localizedDescription)")
             return

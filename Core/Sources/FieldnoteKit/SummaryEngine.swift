@@ -10,7 +10,7 @@ public enum SummaryEngine: String, Codable, CaseIterable, Sendable {
     case apple
     case minicpm5
     case minicpm5_2b
-    case qwen3_4b
+    case qwen3_5_2b
     case lfm2_5
 
     public static let defaultsKey = "summaryEngine"
@@ -31,21 +31,13 @@ public enum SummaryEngine: String, Codable, CaseIterable, Sendable {
             ModelPack.ID.minicpm5.compiled(for: UserDefaults.standard.string(forKey: Self.deviceArchitectureKey)) ?? .minicpm5
         case .minicpm5_2b:
             ModelPack.ID.minicpm5_2b.compiled(for: UserDefaults.standard.string(forKey: Self.deviceArchitectureKey)) ?? .minicpm5_2b
-        case .qwen3_4b:
-            ModelPack.ID.qwen3_4b.compiled(for: UserDefaults.standard.string(forKey: Self.deviceArchitectureKey)) ?? .qwen3_4b
+        case .qwen3_5_2b:
+            ModelPack.ID.qwen3_5_2b.compiled(for: UserDefaults.standard.string(forKey: Self.deviceArchitectureKey)) ?? .qwen3_5_2b
         case .lfm2_5:
             ModelPack.ID.lfm2_5.compiled(for: UserDefaults.standard.string(forKey: Self.deviceArchitectureKey)) ?? .lfm2_5
         }
     }
 
-    /// The plain-text notes instructions for this model. Qwen3 thinks aloud before
-    /// answering unless told not to, which would spend the answer on reasoning.
-    public var plainInstructions: String { withoutThinking(PlainNotes.instructions) }
-
-    /// Instructions for this model, with Qwen3's "don't think aloud" switch added.
-    public func withoutThinking(_ instructions: String) -> String {
-        self == .qwen3_4b ? instructions + "\n/no_think" : instructions
-    }
 
     /// Ratings as in `ModelCard`, from a 68-minute meeting on an iPhone 16 (build 41):
     /// - Apple: 15 min; detailed, but much of it was transcript fragments (40 "open
@@ -71,12 +63,14 @@ public enum SummaryEngine: String, Codable, CaseIterable, Sendable {
                 title: "MiniCPM5 2B",
                 summary: "Recommended. The clearest notes in our tests: real questions, decisions and owners, and five times faster than Apple's model on long meetings.",
                 accuracy: 0.8, speed: 0.75, languages: "English and Chinese best", runs: "In the app, or while charging")
-        case .qwen3_4b:
-            // Not yet measured on the phone: ratings are placeholders until it is.
+        case .qwen3_5_2b:
+            // DeviceMark (iPhone 17 Pro): IFEval 0.69, MMLU-Pro 0.51, 29 tokens/s. Qwen3
+            // 4B, offered before, ran the iPhone 16 out of memory while preparing.
+            // Not yet measured on this phone: ratings are placeholders until it is.
             ModelCard(
-                title: "Qwen3 4B",
-                summary: "Alibaba's open model, twice the size of MiniCPM5 2B, on Apple's Core AI. Not yet tested on this phone; expect slower notes.",
-                accuracy: 0.8, speed: 0.5, languages: "Many languages", runs: "In the app, or while charging")
+                title: "Qwen3.5 2B",
+                summary: "Alibaba's small model: more general knowledge than LFM2.5, slower and a bigger download. Not yet tested on this phone.",
+                accuracy: 0.7, speed: 0.6, languages: "Many languages", runs: "In the app, or while charging")
         case .lfm2_5:
             // DeviceMark (iPhone 17 Pro, 4,096-token cap): the best on-device model for
             // following instructions (IFEval 0.88; Apple's built-in 0.82), 45.5 tokens/s.

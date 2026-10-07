@@ -121,26 +121,14 @@ PACKS = [
     },
 ] + [
     {
-        "id": "qwen3_4b",
-        "name": "Qwen3 4B (Core AI)",
-        "repo": "mlboydaisuke/qwen3-4b-CoreAI-official",
-        "revision": "f3d6746370fbb73ee57f2de9ebe111eb628287f1",
+        "id": "qwen3_5_2b",
+        "name": "Qwen3.5 2B (Core AI)",
+        "repo": "mlboydaisuke/qwen3.5-2B-CoreAI",
+        "revision": "14e77014db5ae2f3de94825165f5ae58bededd7d",
         "license": "Apache-2.0",
-        # Apple's coreai-models export recipe, unmodified: iOS static, 4,096-token
-        # context, mixed 4/8-bit palettized. The phone compiles it, unless a build
-        # compiled for its chip is listed.
-        "paths": ["ios"],
-    },
-    {
-        "id": "qwen3_4bH17p",
-        "name": "Qwen3 4B (Core AI, compiled for h17p, GPU)",
-        "repo": "publicarray/fieldnote-models",
-        # Compiled for the GPU only (--preferred-compute gpu): the default build's
-        # Neural Engine parts took the phone from 5.9 GB free to 1.2 GB while
-        # preparing, and iOS closed the app after half an hour (builds 47 and 48).
-        "revision": "e0e43c063f6d008e62961809d050fc611c8bf1d4",
-        "license": "Apache-2.0",
-        "paths": ["qwen3-4b-gpu/ios-h17p"],
+        # The ship config (int8 weights, int8 per-block-32 head), 4,096-token
+        # context, GPU-pipelined. Its chat template doesn't think aloud unless asked.
+        "paths": ["gpu-pipelined-b2/qwen3_5_2b_decode_int8hu_block32_sym"],
     },
     {
         "id": "lfm2_5",

@@ -72,7 +72,7 @@ public struct ProcessingEstimator: Codable, Sendable, Equatable {
         case (.summarising, "minicpm5"): Rate(fixed: 10, perMinute: 1.5)
         case (.summarising, "minicpm5_2b"): Rate(fixed: 15, perMinute: 2.5)
         // A guess until measured: twice the 2B's size, so roughly twice its time.
-        case (.summarising, "qwen3_4b"): Rate(fixed: 20, perMinute: 5)
+        case (.summarising, "qwen3_5_2b"): Rate(fixed: 15, perMinute: 2.5)
         // A guess until measured: about the 1B's size, and faster per token.
         case (.summarising, "lfm2_5"): Rate(fixed: 10, perMinute: 1.5)
         case (.summarising, _): Rate(fixed: 10, perMinute: 14)

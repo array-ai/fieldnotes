@@ -26,9 +26,9 @@ public struct ModelPack: Sendable, Identifiable, Equatable {
         // MiniCPM5 2B: the portable model, and the build compiled for h17p.
         case minicpm5_2b
         case minicpm5_2bH17p
-        // Qwen3 4B, Apple's own export recipe (mlboydaisuke/qwen3-4b-CoreAI-official).
-        case qwen3_4b
-        case qwen3_4bH17p
+        // Qwen3.5 2B, mlboydaisuke's Core AI export, GPU-pipelined. (Qwen3 4B, offered
+        // in builds 47–49, ran an iPhone 16 out of memory while preparing.)
+        case qwen3_5_2b
         // LFM2.5 1.2B (Liquid AI), mlboydaisuke's Core AI export, GPU-pipelined.
         case lfm2_5
         case lfm2_5H17p
@@ -36,7 +36,7 @@ public struct ModelPack: Sendable, Identifiable, Equatable {
 
         /// A notes model run through Core AI (prepared on the phone after download).
         public var isLanguageModel: Bool {
-            rawValue.hasPrefix(ID.minicpm5.rawValue) || rawValue.hasPrefix(ID.qwen3_4b.rawValue)
+            rawValue.hasPrefix(ID.minicpm5.rawValue) || rawValue.hasPrefix(ID.qwen3_5_2b.rawValue)
                 || rawValue.hasPrefix(ID.lfm2_5.rawValue)
         }
 
