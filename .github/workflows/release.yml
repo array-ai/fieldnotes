@@ -72,7 +72,7 @@ jobs:
           # place make Xcode write the packages' App Intents into Metadata.appintents.
           # Where xtool puts its generated package moves between versions: find it.
           echo "--- workspace"; cat xtool/Fieldnote.xcworkspace/contents.xcworkspacedata
-          BUILDER=$( { grep -rl --include=Package.swift 'Fieldnote-App' xtool . 2>/dev/null || true; } | grep -v '/checkouts/' | head -1)
+          BUILDER=$( { grep -rl --include=Package.swift 'Fieldnote-App' xtool . 2>/dev/null || true; } | grep -v '/checkouts/' | head -1 || true)
           if [ -z "$BUILDER" ]; then
             echo "xtool's generated package not found"
             find xtool/.xtool-tmp -maxdepth 3 -not -path '*/xcuserdata*' | head -40
