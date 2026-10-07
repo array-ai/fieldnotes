@@ -24,6 +24,11 @@ on:
         type: choice
         options: [minicpm5-1b, minicpm5-2b, qwen3-4b]
         default: minicpm5-1b
+      preferred_compute:
+        description: "Compute unit to compile for: none (Core AI decides, Neural Engine where it can), gpu or neural-engine. A gpu build goes in its own folder (<model>-gpu)"
+        type: choice
+        options: [none, gpu, neural-engine]
+        default: none
       architectures:
         description: "Chip families to compile for, space separated (the app's debug log names its own). 'h17*' style patterns pick from the valid names. Empty: all, which is very slow"
         type: string
@@ -37,7 +42,8 @@ env:
   SRC_REV: ${{ inputs.model == 'qwen3-4b' && 'f3d6746370fbb73ee57f2de9ebe111eb628287f1' || inputs.model == 'minicpm5-2b' && '39db5ff9480e5d80e423889e3bacb7f9e9b9e40f' || 'f38d143ec50cb2e54d8388479b919e3b9283943b' }}
   # The portable iOS model's folder in the source repo.
   SRC_PATH: ${{ inputs.model == 'qwen3-4b' && 'ios' || 'ios-static' }}
-  UPLOAD_PATH: ${{ inputs.model == 'qwen3-4b' && 'qwen3-4b' || inputs.model == 'minicpm5-2b' && 'minicpm5-2b' || '.' }}
+  UPLOAD_PATH: ${{ inputs.model == 'qwen3-4b' && 'qwen3-4b' || inputs.model == 'minicpm5-2b' && 'minicpm5-2b' || '.' }}${{ inputs.preferred_compute == 'gpu' && '-gpu' || '' }}
+  PREFERRED_COMPUTE: ${{ inputs.preferred_compute }}
 
 jobs:
   compile:
@@ -118,11 +124,13 @@ jobs:
               for arch in $(cat archs.txt); do
                 echo "=== $name for $arch"
                 xcrun coreai-build compile "$model" --platform iOS --min-deployment-version 27.0 \
+                  --preferred-compute "$PREFERRED_COMPUTE" \
                   --architecture "$arch" --output "out/$name" || { echo "failed: $name $arch"; failed=1; }
               done
             else
               echo "=== $name, all architectures (none listed)"
               xcrun coreai-build compile "$model" --platform iOS --min-deployment-version 27.0 \
+                --preferred-compute "$PREFERRED_COMPUTE" \
                 --output "out/$name" || { echo "failed: $name"; failed=1; }
             fi
           done
@@ -145,11 +153,11 @@ jobs:
             cp -R "$static/tokenizer" "$dest/"
             mv "$compiled" "$dest/"
             python3 - "$static/metadata.json" "$dest/metadata.json" "$file" "$arch" <<'PY'
-          import json, sys
+          import json, os, sys
           src, dst, main, arch = sys.argv[1:]
           meta = json.load(open(src))
           meta["assets"]["main"] = main
-          meta.setdefault("compilation", {})["targets"] = [f"{arch} (coreai-build compile --platform iOS --min-deployment-version 27.0)"]
+          meta.setdefault("compilation", {})["targets"] = [f"{arch} (coreai-build compile --platform iOS --min-deployment-version 27.0 --preferred-compute {os.environ['PREFERRED_COMPUTE']})"]
           json.dump(meta, open(dst, "w"), indent=2)
           PY
           done
