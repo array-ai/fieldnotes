@@ -70,15 +70,22 @@ jobs:
           ./Scripts/generate-xcode-project.sh
           # xtool's app and extension targets are empty C stubs; Swift roots in their
           # place make Xcode write the packages' App Intents into Metadata.appintents.
+          # Where xtool puts its generated package moves between versions: find it.
+          BUILDER=$(grep -rl --include=Package.swift '"Fieldnote-App"' xtool | head -1)
+          [ -n "$BUILDER" ] || { echo "xtool's generated package not found"; find xtool -maxdepth 4 | head -40; exit 1; }
+          BUILDER_DIR=$(dirname "$BUILDER")
+          echo "xtool's package: $BUILDER_DIR"
           for target in Fieldnote-App:App FieldnoteWidgets-Extension:Widgets; do
-            dir="xtool/.xtool-tmp/Sources/${target%%:*}"
+            dir="$BUILDER_DIR/Sources/${target%%:*}"
+            [ -d "$dir" ] || { echo "no $dir"; find "$BUILDER_DIR" -maxdepth 3; exit 1; }
             rm -f "$dir"/stub.c
             cp "Config/AppIntentsRoots/${target##*:}.swift" "$dir/"
           done
           # Declarations only: compiled as a library file, so the app's own @main
           # (in the Fieldnote package) stays the entry point.
-          python3 - <<'PY'
-          path = "xtool/.xtool-tmp/Package.swift"
+          BUILDER="$BUILDER" python3 - <<'PY'
+          import os
+          path = os.environ["BUILDER"]
           s = open(path).read()
           s = s.replace("    linkerSettings: [", '    swiftSettings: [.unsafeFlags(["-parse-as-library"])],\n    linkerSettings: [')
           assert s.count("-parse-as-library") == 2, "expected two executable targets"
