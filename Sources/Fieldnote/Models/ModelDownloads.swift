@@ -66,7 +66,7 @@ public final class ModelDownloads {
     }
 
     /// Deletes downloads of models the app no longer offers (Qwen3 1.7B: 1.4 GB),
-    /// finished or part-way.
+    /// finished or part-way, and portable models this phone has a compiled build of.
     nonisolated private static func removeRetiredPacks() {
         let manager = FileManager.default
         let known = Set(ModelPack.ID.allCases.map(\.rawValue))
@@ -76,6 +76,20 @@ public final class ModelDownloads {
             guard !known.contains(id) else { continue }
             try? manager.removeItem(at: folder)
             DebugLog.shared.log("models", "\(id): no longer offered; removed its files")
+        }
+
+        // The portable copy of a model this phone never loads, because a build
+        // compiled for its chip is offered (Qwen3 4B: 2.5 GB left behind, build 48).
+        let architecture = OnDeviceModel.deviceArchitecture
+        for id in ModelPack.ID.allCases where id.isLanguageModel && id.compiled(for: architecture) != nil {
+            let folder = directory(for: id)
+            let staging = staging(for: id)
+            guard manager.fileExists(atPath: folder.path) || manager.fileExists(atPath: staging.path) else { continue }
+            let bundle = ModelPack.pack(id).bundleFolder.map { folder.appendingPathComponent($0, isDirectory: true) } ?? folder
+            OnDeviceModel.clearPreparedCopy(in: bundle)
+            try? manager.removeItem(at: folder)
+            try? manager.removeItem(at: staging)
+            DebugLog.shared.log("models", "\(id.rawValue): this phone uses the build compiled for \(architecture); removed the portable download")
         }
     }
 
