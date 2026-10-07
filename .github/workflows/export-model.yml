@@ -1,0 +1,115 @@
+name: Export a notes model to Core AI
+
+# Manual only. Converts a Hugging Face language model to a portable iOS Core AI
+# bundle (metadata.json, tokenizer/, <name>.aimodel) with Apple's coreai-models
+# export recipe, and uploads it to our Hugging Face repo. "Compile summary models
+# ahead of time" then compiles it for a chip.
+#
+# Made for Qwen3-4B-Instruct-2507, which nobody had published for Core AI. The
+# conversion holds the full-precision weights (8 GB for a 4B model) in memory; the
+# runner has less, so it may be slow (swap) or fail. The step summary records the
+# runner's memory either way.
+on:
+  workflow_dispatch:
+    inputs:
+      upload:
+        description: "Upload the bundle to Hugging Face"
+        type: boolean
+        default: false
+      hf_repo:
+        description: "Hugging Face model repo to upload to"
+        type: string
+        default: publicarray/fieldnote-models
+      upload_path:
+        description: "Folder in that repo"
+        type: string
+        default: qwen3-4b-2507/ios
+
+env:
+  # Pinned sources.
+  SOURCE_MODEL: Qwen/Qwen3-4B-Instruct-2507
+  SOURCE_REVISION: cdbee75f17c01a7cc42f958dc650907174af0554
+  COREAI_MODELS_REVISION: 1953c4f90ba0214c1abc7bebcb9be5107e329a46
+  # The recipe Apple uses for Qwen3 4B on iOS: mixed 4/8-bit palettized weights.
+  COMPRESSION_CONFIG: models/qwen3/qwen3_4b_mixed_4bit_8bit.yaml
+  OUTPUT_NAME: qwen3_4b_2507_mixed_4bit_8bit_static
+
+jobs:
+  export:
+    name: Export
+    runs-on: xcode-27
+    timeout-minutes: 300
+    steps:
+      - name: Runner
+        run: |
+          echo "memory: $(( $(sysctl -n hw.memsize) / 1073741824 )) GB, $(sysctl -n hw.ncpu) CPUs, disk free: $(df -h . | tail -1 | awk '{print $4}')" | tee -a "$GITHUB_STEP_SUMMARY"
+          sw_vers
+          xcodebuild -version
+
+      - name: Check out Apple's export recipes
+        uses: actions/checkout@v5
+        with:
+          repository: apple/coreai-models
+          ref: ${{ env.COREAI_MODELS_REVISION }}
+          path: coreai-models
+
+      - name: Install uv and the Hugging Face CLI
+        run: |
+          set -euo pipefail
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          python3 -m venv "$RUNNER_TEMP/hf"
+          "$RUNNER_TEMP/hf/bin/pip" install --quiet -U "huggingface_hub[hf_xet]"
+          echo "$RUNNER_TEMP/hf/bin" >> "$GITHUB_PATH"
+
+      # Downloaded at the pinned revision and exported from the local copy, so the
+      # export can't pick up a newer upload.
+      - name: Download the model
+        run: |
+          set -euo pipefail
+          hf download "$SOURCE_MODEL" --revision "$SOURCE_REVISION" --local-dir "$RUNNER_TEMP/source"
+          du -sh "$RUNNER_TEMP/source"
+
+      - name: Export
+        working-directory: coreai-models
+        run: |
+          set -euo pipefail
+          ( while sleep 120; do echo "--- $(date +%T)"; vm_stat | head -6; sysctl vm.swapusage; done ) &
+          watcher=$!
+          uv run coreai.llm.export "$RUNNER_TEMP/source" \
+            --platform iOS \
+            --compression-config "$COMPRESSION_CONFIG" \
+            --max-context-length 4096 \
+            --compute-precision float16 \
+            --experimental \
+            --output-dir "$GITHUB_WORKSPACE/out" \
+            --output-name "$OUTPUT_NAME" \
+            --overwrite
+          kill $watcher || true
+          find "$GITHUB_WORKSPACE/out" -maxdepth 3 | head -40
+
+      # The bundle as the app and the compile workflow expect it: one folder with
+      # metadata.json, tokenizer/ and the .aimodel.
+      - name: Bundle
+        run: |
+          set -euo pipefail
+          meta=$(find out -name metadata.json -maxdepth 3 | while read -r m; do [ -d "$(dirname "$m")/tokenizer" ] && echo "$m"; done | head -1)
+          [ -n "$meta" ] || { echo "no bundle with metadata.json and tokenizer/ in out"; exit 1; }
+          mkdir -p bundle
+          cp -R "$(dirname "$meta")"/. bundle/
+          cp "$RUNNER_TEMP/source/LICENSE" bundle/LICENSE
+          cat bundle/metadata.json
+          echo "## Bundle" >> "$GITHUB_STEP_SUMMARY"
+          echo "\`$UPLOAD_PATH\`: $(du -sh bundle | cut -f1), $(find bundle -type f | wc -l | tr -d ' ') files" | tee -a "$GITHUB_STEP_SUMMARY"
+        env:
+          UPLOAD_PATH: ${{ inputs.upload_path }}
+
+      - name: Upload to Hugging Face
+        if: inputs.upload
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_REPO: ${{ inputs.hf_repo }}
+          UPLOAD_PATH: ${{ inputs.upload_path }}
+        run: |
+          set -euo pipefail
+          hf upload "$HF_REPO" bundle "$UPLOAD_PATH" --commit-message "Core AI export of $SOURCE_MODEL@${SOURCE_REVISION:0:7} (run $GITHUB_RUN_NUMBER)" | tee -a "$GITHUB_STEP_SUMMARY"

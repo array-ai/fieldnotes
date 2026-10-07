@@ -22,8 +22,12 @@ on:
       model:
         description: "Which model to compile"
         type: choice
-        options: [minicpm5-1b, minicpm5-2b, qwen3-4b]
+        options: [minicpm5-1b, minicpm5-2b, qwen3-4b, qwen3-4b-2507]
         default: minicpm5-1b
+      source_revision:
+        description: "qwen3-4b-2507 only: the fieldnote-models revision holding the export (from the export workflow's upload)"
+        type: string
+        default: ""
       preferred_compute:
         description: "Compute unit to compile for: none (Core AI decides, Neural Engine where it can), gpu or neural-engine. A gpu build goes in its own folder (<model>-gpu)"
         type: choice
@@ -38,11 +42,11 @@ env:
   # Pinned sources, the same revisions the app's catalogue pins.
   # Pinned sources. The 1B's bundles sit at the repo root (the app pins them
   # there); every other model's go in a folder named after it.
-  SRC_REPO: ${{ inputs.model == 'qwen3-4b' && 'mlboydaisuke/qwen3-4b-CoreAI-official' || inputs.model == 'minicpm5-2b' && 'mlboydaisuke/MiniCPM5-2B-CoreAI' || 'mlboydaisuke/MiniCPM5-1B-CoreAI' }}
-  SRC_REV: ${{ inputs.model == 'qwen3-4b' && 'f3d6746370fbb73ee57f2de9ebe111eb628287f1' || inputs.model == 'minicpm5-2b' && '39db5ff9480e5d80e423889e3bacb7f9e9b9e40f' || 'f38d143ec50cb2e54d8388479b919e3b9283943b' }}
+  SRC_REPO: ${{ inputs.model == 'qwen3-4b-2507' && 'publicarray/fieldnote-models' || inputs.model == 'qwen3-4b' && 'mlboydaisuke/qwen3-4b-CoreAI-official' || inputs.model == 'minicpm5-2b' && 'mlboydaisuke/MiniCPM5-2B-CoreAI' || 'mlboydaisuke/MiniCPM5-1B-CoreAI' }}
+  SRC_REV: ${{ inputs.model == 'qwen3-4b-2507' && inputs.source_revision || inputs.model == 'qwen3-4b' && 'f3d6746370fbb73ee57f2de9ebe111eb628287f1' || inputs.model == 'minicpm5-2b' && '39db5ff9480e5d80e423889e3bacb7f9e9b9e40f' || 'f38d143ec50cb2e54d8388479b919e3b9283943b' }}
   # The portable iOS model's folder in the source repo.
-  SRC_PATH: ${{ inputs.model == 'qwen3-4b' && 'ios' || 'ios-static' }}
-  UPLOAD_PATH: ${{ inputs.model == 'qwen3-4b' && 'qwen3-4b' || inputs.model == 'minicpm5-2b' && 'minicpm5-2b' || '.' }}${{ inputs.preferred_compute == 'gpu' && '-gpu' || '' }}
+  SRC_PATH: ${{ inputs.model == 'qwen3-4b-2507' && 'qwen3-4b-2507/ios' || inputs.model == 'qwen3-4b' && 'ios' || 'ios-static' }}
+  UPLOAD_PATH: ${{ inputs.model == 'qwen3-4b-2507' && 'qwen3-4b-2507' || inputs.model == 'qwen3-4b' && 'qwen3-4b' || inputs.model == 'minicpm5-2b' && 'minicpm5-2b' || '.' }}${{ inputs.preferred_compute == 'gpu' && '-gpu' || '' }}
   PREFERRED_COMPUTE: ${{ inputs.preferred_compute }}
 
 jobs:
@@ -73,7 +77,7 @@ jobs:
         run: |
           set -euo pipefail
           hf download "$SRC_REPO" --revision "$SRC_REV" --include "$SRC_PATH/*" --local-dir src/model
-          find src -name "*.aimodel" -maxdepth 3
+          find src -name "*.aimodel" -maxdepth 5
 
       # As documented: one .aimodelc per device architecture, named
       # <model>.<arch>.aimodelc, where <arch> is AIModel.deviceArchitectureName.
@@ -88,7 +92,7 @@ jobs:
           ARCHS: ${{ inputs.architectures }}
         run: |
           set -uo pipefail
-          model=$(find src -name "*.aimodel" -maxdepth 3 | head -1)
+          model=$(find src -name "*.aimodel" -maxdepth 5 | head -1)
           : > valid.txt
           for gen in 13 14 15 16 17 18 19 20; do
             for suffix in "" p g s m c d x a b e; do
@@ -117,7 +121,7 @@ jobs:
           set -uo pipefail
           mkdir -p out
           failed=0
-          for model in $(find src -name "*.aimodel" -maxdepth 3 -exec du -sk {} + | sort -n | cut -f2); do
+          for model in $(find src -name "*.aimodel" -maxdepth 5 -exec du -sk {} + | sort -n | cut -f2); do
             name=$(basename "$model" .aimodel)
             mkdir -p "out/$name"
             if [ -s archs.txt ]; then
@@ -144,7 +148,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p bundles
-          static=$(dirname "$(find src -name "*.aimodel" -maxdepth 3 | head -1)")
+          static=$(dirname "$(find src -name "*.aimodel" -maxdepth 5 | head -1)")
           for compiled in $(find out -name "*.aimodelc" -maxdepth 2); do
             file=$(basename "$compiled")
             arch=$(echo "$file" | sed -E 's/.*\.([^.]+)\.aimodelc$/\1/')
@@ -183,7 +187,11 @@ jobs:
             exit 1
           fi
           # The model's licence goes up with it.
-          if [ "$SRC_PATH" = "ios" ]; then
+          if [ "$SRC_PATH" = "qwen3-4b-2507/ios" ]; then
+            # The export carries Qwen's licence beside the model.
+            hf download "$SRC_REPO" "$SRC_PATH/LICENSE" --revision "$SRC_REV" --local-dir licence
+            mv "licence/$SRC_PATH/LICENSE" licence/LICENSE
+          elif [ "$SRC_PATH" = "ios" ]; then
             # The Qwen export carries no licence file: Qwen's own, from the base model.
             hf download Qwen/Qwen3-4B LICENSE --revision 1cfa9a7208912126459214e8b04321603b3df60c --local-dir licence
           else
