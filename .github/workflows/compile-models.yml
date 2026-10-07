@@ -191,6 +191,9 @@ jobs:
             # The export carries Qwen's licence beside the model.
             hf download "$SRC_REPO" "$SRC_PATH/LICENSE" --revision "$SRC_REV" --local-dir licence
             mv "licence/$SRC_PATH/LICENSE" licence/LICENSE
+          elif [ "$SRC_REPO" = "mlboydaisuke/qwen3.5-2B-CoreAI" ]; then
+            # No licence file in the export: Qwen's own, from the base model.
+            hf download Qwen/Qwen3.5-2B LICENSE --revision 15852e8c16360a2fea060d615a32b45270f8a8fc --local-dir licence
           elif [ "$SRC_PATH" = "ios" ]; then
             # The Qwen export carries no licence file: Qwen's own, from the base model.
             hf download Qwen/Qwen3-4B LICENSE --revision 1cfa9a7208912126459214e8b04321603b3df60c --local-dir licence
