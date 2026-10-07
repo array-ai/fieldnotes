@@ -1,0 +1,35 @@
+name: Delete model folders
+
+# Manual only. Removes folders from our Hugging Face model repo, as a new commit
+# (pinned older revisions stay downloadable, so released builds keep working).
+on:
+  workflow_dispatch:
+    inputs:
+      paths:
+        description: "Folders to delete, space separated (e.g. lfm2.5-1.2b-gpu)"
+        type: string
+        required: true
+
+jobs:
+  delete:
+    name: Delete
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete from publicarray/fieldnote-models
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          PATHS: ${{ inputs.paths }}
+        run: |
+          set -euo pipefail
+          pip install --quiet -U huggingface_hub
+          python3 - <<'PY'
+          import os
+          from huggingface_hub import HfApi
+          api = HfApi(token=os.environ["HF_TOKEN"])
+          for path in os.environ["PATHS"].split():
+              path = path.strip("/")
+              assert path and path not in (".", "..") and "/" not in path, f"refusing to delete {path!r}"
+              info = api.delete_folder(path_in_repo=path, repo_id="publicarray/fieldnote-models",
+                                       commit_message=f"Remove {path}")
+              print(f"deleted {path}: {info.commit_url}")
+          PY
