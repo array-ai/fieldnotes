@@ -22,7 +22,7 @@ on:
       model:
         description: "Which model to compile"
         type: choice
-        options: [minicpm5-1b, minicpm5-2b, qwen3-4b, qwen3-4b-2507]
+        options: [minicpm5-1b, minicpm5-2b, qwen3-4b, qwen3-4b-2507, lfm2.5-1.2b]
         default: minicpm5-1b
       source_revision:
         description: "qwen3-4b-2507 only: the fieldnote-models revision holding the export (from the export workflow's upload)"
@@ -42,11 +42,11 @@ env:
   # Pinned sources, the same revisions the app's catalogue pins.
   # Pinned sources. The 1B's bundles sit at the repo root (the app pins them
   # there); every other model's go in a folder named after it.
-  SRC_REPO: ${{ inputs.model == 'qwen3-4b-2507' && 'publicarray/fieldnote-models' || inputs.model == 'qwen3-4b' && 'mlboydaisuke/qwen3-4b-CoreAI-official' || inputs.model == 'minicpm5-2b' && 'mlboydaisuke/MiniCPM5-2B-CoreAI' || 'mlboydaisuke/MiniCPM5-1B-CoreAI' }}
-  SRC_REV: ${{ inputs.model == 'qwen3-4b-2507' && inputs.source_revision || inputs.model == 'qwen3-4b' && 'f3d6746370fbb73ee57f2de9ebe111eb628287f1' || inputs.model == 'minicpm5-2b' && '39db5ff9480e5d80e423889e3bacb7f9e9b9e40f' || 'f38d143ec50cb2e54d8388479b919e3b9283943b' }}
+  SRC_REPO: ${{ inputs.model == 'lfm2.5-1.2b' && 'mlboydaisuke/LFM2.5-1.2B-CoreAI' || inputs.model == 'qwen3-4b-2507' && 'publicarray/fieldnote-models' || inputs.model == 'qwen3-4b' && 'mlboydaisuke/qwen3-4b-CoreAI-official' || inputs.model == 'minicpm5-2b' && 'mlboydaisuke/MiniCPM5-2B-CoreAI' || 'mlboydaisuke/MiniCPM5-1B-CoreAI' }}
+  SRC_REV: ${{ inputs.model == 'lfm2.5-1.2b' && '3e3241cbcf368a663768dcc4e5785c4f0a02bae4' || inputs.model == 'qwen3-4b-2507' && inputs.source_revision || inputs.model == 'qwen3-4b' && 'f3d6746370fbb73ee57f2de9ebe111eb628287f1' || inputs.model == 'minicpm5-2b' && '39db5ff9480e5d80e423889e3bacb7f9e9b9e40f' || 'f38d143ec50cb2e54d8388479b919e3b9283943b' }}
   # The portable iOS model's folder in the source repo.
-  SRC_PATH: ${{ inputs.model == 'qwen3-4b-2507' && 'qwen3-4b-2507/ios' || inputs.model == 'qwen3-4b' && 'ios' || 'ios-static' }}
-  UPLOAD_PATH: ${{ inputs.model == 'qwen3-4b-2507' && 'qwen3-4b-2507' || inputs.model == 'qwen3-4b' && 'qwen3-4b' || inputs.model == 'minicpm5-2b' && 'minicpm5-2b' || '.' }}${{ inputs.preferred_compute == 'gpu' && '-gpu' || '' }}
+  SRC_PATH: ${{ inputs.model == 'lfm2.5-1.2b' && 'gpu-pipelined-b2/lfm2_5_1_2b_instruct_decode_int8hu_block32_sym' || inputs.model == 'qwen3-4b-2507' && 'qwen3-4b-2507/ios' || inputs.model == 'qwen3-4b' && 'ios' || 'ios-static' }}
+  UPLOAD_PATH: ${{ inputs.model == 'lfm2.5-1.2b' && 'lfm2.5-1.2b' || inputs.model == 'qwen3-4b-2507' && 'qwen3-4b-2507' || inputs.model == 'qwen3-4b' && 'qwen3-4b' || inputs.model == 'minicpm5-2b' && 'minicpm5-2b' || '.' }}${{ inputs.preferred_compute == 'gpu' && '-gpu' || '' }}
   PREFERRED_COMPUTE: ${{ inputs.preferred_compute }}
 
 jobs:

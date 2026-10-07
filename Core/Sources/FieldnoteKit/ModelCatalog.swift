@@ -29,11 +29,14 @@ public struct ModelPack: Sendable, Identifiable, Equatable {
         // Qwen3 4B, Apple's own export recipe (mlboydaisuke/qwen3-4b-CoreAI-official).
         case qwen3_4b
         case qwen3_4bH17p
+        // LFM2.5 1.2B (Liquid AI), mlboydaisuke's Core AI export, GPU-pipelined.
+        case lfm2_5
         case pyannoteCommunity1
 
         /// A notes model run through Core AI (prepared on the phone after download).
         public var isLanguageModel: Bool {
             rawValue.hasPrefix(ID.minicpm5.rawValue) || rawValue.hasPrefix(ID.qwen3_4b.rawValue)
+                || rawValue.hasPrefix(ID.lfm2_5.rawValue)
         }
 
         /// The build of this model compiled for a Core AI chip family

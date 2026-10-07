@@ -424,6 +424,23 @@ extension ModelPack {
             ]
         ),
         ModelPack(
+            id: .lfm2_5,
+            name: "LFM2.5 1.2B (Core AI)",
+            repo: "mlboydaisuke/LFM2.5-1.2B-CoreAI",
+            revision: "3e3241cbcf368a663768dcc4e5785c4f0a02bae4",
+            license: "LFM-1.0",
+            files: [
+                ModelFile(path: "gpu-pipelined-b2/lfm2_5_1_2b_instruct_decode_int8hu_block32_sym/lfm2_5_1_2b_instruct_decode_int8hu_block32_sym.aimodel/main.hash", size: 32, sha256: "2b9b754d07d628280180295b2352531c56bb2ac3d2c80666f0be5a556d202754"),
+                ModelFile(path: "gpu-pipelined-b2/lfm2_5_1_2b_instruct_decode_int8hu_block32_sym/lfm2_5_1_2b_instruct_decode_int8hu_block32_sym.aimodel/main.mlirb", size: 1697098759, sha256: "5dcf729d0f3d1debf2ee6a3576488728684fc413d33f904ddeca1c6b095f1b63"),
+                ModelFile(path: "gpu-pipelined-b2/lfm2_5_1_2b_instruct_decode_int8hu_block32_sym/lfm2_5_1_2b_instruct_decode_int8hu_block32_sym.aimodel/metadata.json", size: 105, sha256: "3c7c61a81ed8bc39a1dd0b97568c15e91e9833664ac53e3c2043699dbe633194"),
+                ModelFile(path: "gpu-pipelined-b2/lfm2_5_1_2b_instruct_decode_int8hu_block32_sym/metadata.json", size: 639, sha256: "244648c8009f7e5d343adcfa603a5e5ee2250341c6ed01175efa3903d88eddfc"),
+                ModelFile(path: "gpu-pipelined-b2/lfm2_5_1_2b_instruct_decode_int8hu_block32_sym/tokenizer/chat_template.jinja", size: 1783, sha256: "f05bf4b967dc993bdc7a2fe6e43759ee218eb0eb340d68b063e1c4f8ad148176"),
+                ModelFile(path: "gpu-pipelined-b2/lfm2_5_1_2b_instruct_decode_int8hu_block32_sym/tokenizer/special_tokens_map.json", size: 434, sha256: "742aefe2b7dec496e8caffdba03a75d0c1a9925d53bd3f3e0d388c96b591b6f4"),
+                ModelFile(path: "gpu-pipelined-b2/lfm2_5_1_2b_instruct_decode_int8hu_block32_sym/tokenizer/tokenizer.json", size: 4733389, sha256: "df1d8d5ec5d091b460562ffd545e4a5e91d17d4a0db7ebe733be34ed374377bd"),
+                ModelFile(path: "gpu-pipelined-b2/lfm2_5_1_2b_instruct_decode_int8hu_block32_sym/tokenizer/tokenizer_config.json", size: 92225, sha256: "2a52ec012d3df831ba434b081bef3726a6ee22501f062ad8353c557a0cfa0d01"),
+            ]
+        ),
+        ModelPack(
             id: .pyannoteCommunity1,
             name: "pyannote community-1",
             repo: "FluidInference/speaker-diarization-coreml",

@@ -143,6 +143,18 @@ PACKS = [
         "paths": ["qwen3-4b-gpu/ios-h17p"],
     },
     {
+        "id": "lfm2_5",
+        "name": "LFM2.5 1.2B (Core AI)",
+        "repo": "mlboydaisuke/LFM2.5-1.2B-CoreAI",
+        "revision": "3e3241cbcf368a663768dcc4e5785c4f0a02bae4",
+        # LFM Open License v1.0: free for use below USD 10M annual revenue.
+        "license": "LFM-1.0",
+        # The ship config (int8 weights, int8 per-block-32 head), 4,096-token
+        # context, GPU-pipelined. The phone compiles it, unless a build compiled for
+        # its chip is listed.
+        "paths": ["gpu-pipelined-b2/lfm2_5_1_2b_instruct_decode_int8hu_block32_sym"],
+    },
+    {
         "id": "pyannoteCommunity1",
         "name": "pyannote community-1",
         "repo": "FluidInference/speaker-diarization-coreml",

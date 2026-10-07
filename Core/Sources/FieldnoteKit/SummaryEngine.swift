@@ -11,6 +11,7 @@ public enum SummaryEngine: String, Codable, CaseIterable, Sendable {
     case minicpm5
     case minicpm5_2b
     case qwen3_4b
+    case lfm2_5
 
     public static let defaultsKey = "summaryEngine"
     /// This phone's Core AI chip family, stored by the app at launch (Core AI
@@ -32,6 +33,8 @@ public enum SummaryEngine: String, Codable, CaseIterable, Sendable {
             ModelPack.ID.minicpm5_2b.compiled(for: UserDefaults.standard.string(forKey: Self.deviceArchitectureKey)) ?? .minicpm5_2b
         case .qwen3_4b:
             ModelPack.ID.qwen3_4b.compiled(for: UserDefaults.standard.string(forKey: Self.deviceArchitectureKey)) ?? .qwen3_4b
+        case .lfm2_5:
+            ModelPack.ID.lfm2_5.compiled(for: UserDefaults.standard.string(forKey: Self.deviceArchitectureKey)) ?? .lfm2_5
         }
     }
 
@@ -74,6 +77,14 @@ public enum SummaryEngine: String, Codable, CaseIterable, Sendable {
                 title: "Qwen3 4B",
                 summary: "Alibaba's open model, twice the size of MiniCPM5 2B, on Apple's Core AI. Not yet tested on this phone; expect slower notes.",
                 accuracy: 0.8, speed: 0.5, languages: "Many languages", runs: "In the app, or while charging")
+        case .lfm2_5:
+            // DeviceMark (iPhone 17 Pro, 4,096-token cap): the best on-device model for
+            // following instructions (IFEval 0.88; Apple's built-in 0.82), 45.5 tokens/s.
+            // Not yet measured on this phone: ratings are placeholders until it is.
+            ModelCard(
+                title: "LFM2.5 1.2B",
+                summary: "Liquid AI's small model, the best at following instructions of the on-device models DeviceMark tested, Apple's included. Fast; not yet tested on this phone.",
+                accuracy: 0.75, speed: 0.9, languages: "English best; several others", runs: "In the app, or while charging")
         }
     }
 
