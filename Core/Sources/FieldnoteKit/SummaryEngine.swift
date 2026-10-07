@@ -25,16 +25,16 @@ public enum SummaryEngine: String, Codable, CaseIterable, Sendable {
     public var modelPack: ModelPack.ID? {
         switch self {
         case .apple: nil
-        // The build compiled for this phone if there is one; else the portable model,
-        // which the phone compiles itself.
+        // The build compiled for this phone if there is one and it works; else the
+        // portable model, which the phone compiles itself (`CompiledFallback`).
         case .minicpm5:
-            ModelPack.ID.minicpm5.compiled(for: UserDefaults.standard.string(forKey: Self.deviceArchitectureKey)) ?? .minicpm5
+            CompiledFallback.pack(for: .minicpm5, architecture: UserDefaults.standard.string(forKey: Self.deviceArchitectureKey))
         case .minicpm5_2b:
-            ModelPack.ID.minicpm5_2b.compiled(for: UserDefaults.standard.string(forKey: Self.deviceArchitectureKey)) ?? .minicpm5_2b
+            CompiledFallback.pack(for: .minicpm5_2b, architecture: UserDefaults.standard.string(forKey: Self.deviceArchitectureKey))
         case .qwen3_5_2b:
-            ModelPack.ID.qwen3_5_2b.compiled(for: UserDefaults.standard.string(forKey: Self.deviceArchitectureKey)) ?? .qwen3_5_2b
+            CompiledFallback.pack(for: .qwen3_5_2b, architecture: UserDefaults.standard.string(forKey: Self.deviceArchitectureKey))
         case .lfm2_5:
-            ModelPack.ID.lfm2_5.compiled(for: UserDefaults.standard.string(forKey: Self.deviceArchitectureKey)) ?? .lfm2_5
+            CompiledFallback.pack(for: .lfm2_5, architecture: UserDefaults.standard.string(forKey: Self.deviceArchitectureKey))
         }
     }
 

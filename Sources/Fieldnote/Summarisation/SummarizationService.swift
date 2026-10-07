@@ -179,13 +179,21 @@ public actor SummarizationService {
                 debug.log("summary", "\(DebugLog.short(meeting.id)): the model failed on \(failedInARow) parts in a row; stopping (\(detail.prefix(120)))")
                 // Most likely a broken prepared copy: clear it so Try again prepares
                 // the model afresh.
+                var gaveUp = false
                 if plain, let pack = OnDeviceModel.selectedEngine.modelPack, let bundle = OnDeviceModel.bundle(for: pack) {
                     OnDeviceModel.releaseSummaryModel()
                     OnDeviceModel.clearPreparedCopy(in: bundle)
+                    // A build compiled for this chip failing twice: use the portable one.
+                    gaveUp = CompiledFallback.recordFailure(pack)
+                    if gaveUp {
+                        debug.log("summary", "\(DebugLog.short(meeting.id)): \(pack.rawValue) failed twice; the portable model will be used instead")
+                    }
                 }
-                throw NotWritten(detail: plain
-                    ? "\(OnDeviceModel.selectedEngine.card.title) isn't answering (\(detail.prefix(80))). Its prepared copy was cleared: tap Try again to prepare it afresh (a minute or two)."
-                    : "Apple's model isn't answering (\(detail.prefix(80))). Tap Try again later.")
+                throw NotWritten(detail: !plain
+                    ? "Apple's model isn't answering (\(detail.prefix(80))). Tap Try again later."
+                    : gaveUp
+                    ? "\(OnDeviceModel.selectedEngine.card.title) isn't answering (\(detail.prefix(80))). Its build for this iPhone keeps failing, so download it again in Settings → Processing: this phone will prepare its own copy."
+                    : "\(OnDeviceModel.selectedEngine.card.title) isn't answering (\(detail.prefix(80))). Its prepared copy was cleared: tap Try again to prepare it afresh (a minute or two).")
             }
             // Only clean parts are kept for a resume; a degraded one gets another go.
             if chunkDegraded.isEmpty { await savePart(chunk.partKey, chunkNotes) }
@@ -197,6 +205,7 @@ public actor SummarizationService {
             progress(0.9 * Double(chunk.index + 1) / Double(chunks.count))
         }
 
+        if plain, let pack = OnDeviceModel.selectedEngine.modelPack { CompiledFallback.recordSuccess(pack) }
         let grounder = SummaryGrounder(meetingDate: meeting.date)
         let grounded = grounder.ground(notes, chunks: chunks)
         if grounded.discardedClaims > 0 {

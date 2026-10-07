@@ -54,6 +54,9 @@ public final class ModelDownloads {
                 // always iOS closing it for memory (build 37: Qwen3 1.7B took 2.4 GB).
                 states[id] = .failed("Fieldnote closed while preparing this model, most likely out of memory. The download is kept; tap Download to try again.")
                 DebugLog.shared.log("models", "\(id.rawValue): the app closed while preparing it (most likely out of memory)")
+                if CompiledFallback.recordFailure(id) {
+                    DebugLog.shared.log("models", "\(id.rawValue): failed twice; the portable model will be used instead")
+                }
             } else if FileManager.default.fileExists(atPath: Self.staging(for: id).path)
                         || Self.closedWhilePreparing(id) {
                 // Started before the app was last closed (downloading, or preparing
@@ -78,10 +81,16 @@ public final class ModelDownloads {
             DebugLog.shared.log("models", "\(id): no longer offered; removed its files")
         }
 
-        // The portable copy of a model this phone never loads, because a build
-        // compiled for its chip is offered (Qwen3 4B: 2.5 GB left behind, build 48).
+        // The copy of a model this phone won't load: the portable one when a working
+        // build compiled for its chip is offered (Qwen3 4B: 2.5 GB left behind, build
+        // 48), or a compiled build the app gave up on (`CompiledFallback`).
         let architecture = OnDeviceModel.deviceArchitecture
-        for id in ModelPack.ID.allCases where id.isLanguageModel && id.compiled(for: architecture) != nil {
+        let unused = ModelPack.ID.allCases.filter { id in
+            guard id.isLanguageModel else { return false }
+            if id.portable != nil { return CompiledFallback.gaveUp(on: id) }
+            return CompiledFallback.pack(for: id, architecture: architecture) != id
+        }
+        for id in unused {
             let folder = directory(for: id)
             let staging = staging(for: id)
             guard manager.fileExists(atPath: folder.path) || manager.fileExists(atPath: staging.path) else { continue }
@@ -89,7 +98,7 @@ public final class ModelDownloads {
             OnDeviceModel.clearPreparedCopy(in: bundle)
             try? manager.removeItem(at: folder)
             try? manager.removeItem(at: staging)
-            DebugLog.shared.log("models", "\(id.rawValue): this phone uses the build compiled for \(architecture); removed the portable download")
+            DebugLog.shared.log("models", "\(id.rawValue): not used on this phone (\(architecture)); removed its download")
         }
     }
 
@@ -298,9 +307,13 @@ public final class ModelDownloads {
             }
         } catch {
             if prepares { await HeavyModelWork.shared.release() }
+            if pack.id.isLanguageModel, CompiledFallback.recordFailure(pack.id) {
+                DebugLog.shared.log("models", "\(pack.id.rawValue): failed to prepare twice; the portable model will be used instead")
+            }
             throw error
         }
         if prepares { await HeavyModelWork.shared.release() }
+        if pack.id.isLanguageModel { CompiledFallback.recordSuccess(pack.id) }
         try pack.revision.write(to: Self.markerURL(for: pack.id), atomically: true, encoding: .utf8)
         DebugLog.shared.log("models", "\(pack.id.rawValue): \(pack.files.count) files verified in \(DebugLog.elapsed(since: started))")
     }
