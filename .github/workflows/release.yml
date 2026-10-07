@@ -71,8 +71,9 @@ jobs:
           # xtool's app and extension targets are empty C stubs; Swift roots in their
           # place make Xcode write the packages' App Intents into Metadata.appintents.
           # Where xtool puts its generated package moves between versions: find it.
-          BUILDER=$(grep -rl --include=Package.swift '"Fieldnote-App"' xtool | head -1)
-          [ -n "$BUILDER" ] || { echo "xtool's generated package not found"; find xtool -maxdepth 4 | head -40; exit 1; }
+          echo "--- workspace"; cat xtool/Fieldnote.xcworkspace/contents.xcworkspacedata
+          BUILDER=$( { grep -rl --include=Package.swift 'Fieldnote-App' xtool . 2>/dev/null || true; } | grep -v '/checkouts/' | head -1)
+          [ -n "$BUILDER" ] || { echo "xtool's generated package not found"; find . -name Package.swift -not -path '*/checkouts/*' 2>/dev/null | head -20; find xtool -maxdepth 4 | head -40; exit 1; }
           BUILDER_DIR=$(dirname "$BUILDER")
           echo "xtool's package: $BUILDER_DIR"
           for target in Fieldnote-App:App FieldnoteWidgets-Extension:Widgets; do
