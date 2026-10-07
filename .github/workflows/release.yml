@@ -68,36 +68,22 @@ jobs:
           set -euo pipefail
           brew install xtool-org/tap/xtool
           ./Scripts/generate-xcode-project.sh
-          # xtool's app and extension targets are empty C stubs; Swift roots in their
-          # place make Xcode write the packages' App Intents into Metadata.appintents.
-          # Where xtool puts its generated package moves between versions: find it.
-          echo "--- workspace"; cat xtool/Fieldnote.xcworkspace/contents.xcworkspacedata
-          BUILDER=$( { grep -rl --include=Package.swift 'Fieldnote-App' xtool . 2>/dev/null || true; } | grep -v '/checkouts/' | head -1 || true)
-          if [ -z "$BUILDER" ]; then
-            echo "xtool's generated package not found"
-            find xtool/.xtool-tmp -maxdepth 3 -not -path '*/xcuserdata*' | head -40
-            P=xtool/.xtool-tmp/Fieldnote.xcodeproj/project.pbxproj
-            grep -n -E "isa = PBXNativeTarget|productName|stub|\.swift|\.c |sourceTree|PBXFileSystemSynchronized|buildPhases|SWIFT_|packageProductDependencies|XCSwiftPackageProductDependency" "$P" | head -120
-            exit 1
-          fi
-          BUILDER_DIR=$(dirname "$BUILDER")
-          echo "xtool's package: $BUILDER_DIR"
-          for target in Fieldnote-App:App FieldnoteWidgets-Extension:Widgets; do
-            dir="$BUILDER_DIR/Sources/${target%%:*}"
-            [ -d "$dir" ] || { echo "no $dir"; find "$BUILDER_DIR" -maxdepth 3; exit 1; }
-            rm -f "$dir"/stub.c
-            cp "Config/AppIntentsRoots/${target##*:}.swift" "$dir/"
-          done
-          # Declarations only: compiled as a library file, so the app's own @main
-          # (in the Fieldnote package) stays the entry point.
-          BUILDER="$BUILDER" python3 - <<'PY'
-          import os
-          path = os.environ["BUILDER"]
-          s = open(path).read()
-          s = s.replace("    linkerSettings: [", '    swiftSettings: [.unsafeFlags(["-parse-as-library"])],\n    linkerSettings: [')
-          assert s.count("-parse-as-library") == 2, "expected two executable targets"
-          open(path, "w").write(s)
-          PY
+          # xtool's app and extension targets each compile one empty C file. A Swift
+          # root in its place (Config/AppIntentsRoots) makes Xcode write the
+          # packages' App Intents into Metadata.appintents; without it the Action
+          # button and Control Centre control do nothing. Declarations only, and
+          # not main.swift, so the app's own @main stays the entry point.
+          X=xtool/.xtool-tmp
+          PBX="$X/Fieldnote.xcodeproj/project.pbxproj"
+          [ -f "$X/Fieldnote/empty.c" ] && [ -f "$X/FieldnoteWidgets/empty.c" ] && [ -f "$PBX" ] \
+            || { echo "xtool's project layout changed"; find "$X" -maxdepth 2 | head -30; exit 1; }
+          rm "$X/Fieldnote/empty.c" "$X/FieldnoteWidgets/empty.c"
+          cp Config/AppIntentsRoots/App.swift "$X/Fieldnote/AppIntentsRoot.swift"
+          cp Config/AppIntentsRoots/Widgets.swift "$X/FieldnoteWidgets/AppIntentsRoot.swift"
+          sed -i '' -e 's#lastKnownFileType = sourcecode.c.c; path = empty.c;#lastKnownFileType = sourcecode.swift; path = AppIntentsRoot.swift;#' \
+            -e 's#/\* empty.c \*/#/* AppIntentsRoot.swift */#g' -e 's#/\* empty.c in Sources \*/#/* AppIntentsRoot.swift in Sources */#g' "$PBX"
+          grep -q "empty.c" "$PBX" && { echo "empty.c still in the project"; grep -n "empty.c" "$PBX"; exit 1; }
+          grep -c "AppIntentsRoot.swift" "$PBX"
           # The app target is xtool's "Fieldnote-App"; "Fieldnote" is the SwiftPM library.
           xcodebuild -list -workspace xtool/Fieldnote.xcworkspace
           xcodebuild build \

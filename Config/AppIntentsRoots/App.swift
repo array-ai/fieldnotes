@@ -1,4 +1,4 @@
-// Replaces xtool's empty stub.c in the app target (release workflow), so Xcode
+// Replaces xtool's empty C file in the app target (release workflow), so Xcode
 // extracts the App Intents of the packages the app is built from. The app target
 // has no code of its own; without a root like this, Metadata.appintents is never
 // written and iOS can't run the record intent.
