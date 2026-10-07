@@ -29,6 +29,7 @@ public struct ModelPack: Sendable, Identifiable, Equatable {
         // Qwen3.5 2B, mlboydaisuke's Core AI export, GPU-pipelined. (Qwen3 4B, offered
         // in builds 47–49, ran an iPhone 16 out of memory while preparing.)
         case qwen3_5_2b
+        case qwen3_5_2bH17p
         // LFM2.5 1.2B (Liquid AI), mlboydaisuke's Core AI export, GPU-pipelined.
         case lfm2_5
         case lfm2_5H17p

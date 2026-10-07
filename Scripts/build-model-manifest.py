@@ -131,6 +131,14 @@ PACKS = [
         "paths": ["gpu-pipelined-b2/qwen3_5_2b_decode_int8hu_block32_sym"],
     },
     {
+        "id": "qwen3_5_2bH17p",
+        "name": "Qwen3.5 2B (Core AI, compiled for h17p, GPU)",
+        "repo": "publicarray/fieldnote-models",
+        "revision": "ddeea6add42f224f6032238649e7f48eb92192b5",
+        "license": "Apache-2.0",
+        "paths": ["qwen3.5-2b-gpu/ios-h17p"],
+    },
+    {
         "id": "lfm2_5",
         "name": "LFM2.5 1.2B (Core AI)",
         "repo": "mlboydaisuke/LFM2.5-1.2B-CoreAI",

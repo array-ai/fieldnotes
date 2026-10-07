@@ -400,6 +400,31 @@ extension ModelPack {
             ]
         ),
         ModelPack(
+            id: .qwen3_5_2bH17p,
+            name: "Qwen3.5 2B (Core AI, compiled for h17p, GPU)",
+            repo: "publicarray/fieldnote-models",
+            revision: "ddeea6add42f224f6032238649e7f48eb92192b5",
+            license: "Apache-2.0",
+            files: [
+                ModelFile(path: "qwen3.5-2b-gpu/ios-h17p/metadata.json", size: 708, sha256: "80547ddb4f4070a5ed396a998d32932ef1d7ff62abc9745de6a1933e8926d5d3"),
+                ModelFile(path: "qwen3.5-2b-gpu/ios-h17p/qwen3_5_2b_decode_int8hu_block32_sym.h17p.aimodelc/main-h17p-delegates/MPSGraph/mpsExecutable.mpsgraphpackage/manifest.plist", size: 56685, sha256: "748fa040b34ad5e7c6f3875618579d2e18960a8e0b230233489b9569e6f23739"),
+                ModelFile(path: "qwen3.5-2b-gpu/ios-h17p/qwen3_5_2b_decode_int8hu_block32_sym.h17p.aimodelc/main-h17p-delegates/MPSGraph/mpsExecutable.mpsgraphpackage/original_model_0.mpsgraph", size: 620660, sha256: "7599dd9dc0483bcff25fd22383b9f82dd42723f7aecae380eea533406b0e3e19"),
+                ModelFile(path: "qwen3.5-2b-gpu/ios-h17p/qwen3_5_2b_decode_int8hu_block32_sym.h17p.aimodelc/main-h17p-delegates/MPSGraph/mpsExecutable.mpsgraphpackage/reflection.fb", size: 560, sha256: "f78d2fce2397f641a4bdecf3b4235b59b4e9c7b8942a9ca308f65e8c8239e408"),
+                ModelFile(path: "qwen3.5-2b-gpu/ios-h17p/qwen3_5_2b_decode_int8hu_block32_sym.h17p.aimodelc/main-h17p-delegates/MPSGraph/mpsExecutable.mpsgraphpackage/resources.bin", size: 3017068876, sha256: "1f915b426d86b3228a33f0aefe5d47d02c2f879804a61e8b3c3fa980aa2a7b00"),
+                ModelFile(path: "qwen3.5-2b-gpu/ios-h17p/qwen3_5_2b_decode_int8hu_block32_sym.h17p.aimodelc/main-h17p.mlirb", size: 3091, sha256: "36477c50e33a4868b942b80d90fbc811ad2aa483f3d28ade4fd5fcd867624fe3"),
+                ModelFile(path: "qwen3.5-2b-gpu/ios-h17p/qwen3_5_2b_decode_int8hu_block32_sym.h17p.aimodelc/main.hash", size: 32, sha256: "2581c5fabeba1a75b639155cdd4873b38d98a18f42df6b4deedcf866128aa1ca"),
+                ModelFile(path: "qwen3.5-2b-gpu/ios-h17p/qwen3_5_2b_decode_int8hu_block32_sym.h17p.aimodelc/metadata.json", size: 193, sha256: "e53c2e745ff830a7d6ceb00b529a37e36f53a501c9543146bf15d248b8a0f102"),
+                ModelFile(path: "qwen3.5-2b-gpu/ios-h17p/qwen3_5_2b_decode_int8hu_block32_sym.h17p.aimodelc/stats.json", size: 1950, sha256: "f1e42bfc326ec681368f250e80112111e36ead8fdd04ae3eda801cbf8a5212b2"),
+                ModelFile(path: "qwen3.5-2b-gpu/ios-h17p/tokenizer/added_tokens.json", size: 904, sha256: "e5f9bfb644ead13bd36dd6cfc41553a93b7c264c0a2e1ac67d033aa8250c8538"),
+                ModelFile(path: "qwen3.5-2b-gpu/ios-h17p/tokenizer/chat_template.jinja", size: 7755, sha256: "273d8e0e683b885071fb17e08d71e5f2a5ddfb5309756181681de4f5a1822d80"),
+                ModelFile(path: "qwen3.5-2b-gpu/ios-h17p/tokenizer/merges.txt", size: 3353273, sha256: "3bd640ba6d8da8f5844f3548b7e2184fc664dd670e1447e425a48dbaaad1ef43"),
+                ModelFile(path: "qwen3.5-2b-gpu/ios-h17p/tokenizer/special_tokens_map.json", size: 875, sha256: "ce0d9ff22f10349bc6609d40dee870b5e77f70fc8cde5d6140cb9aa0396b213c"),
+                ModelFile(path: "qwen3.5-2b-gpu/ios-h17p/tokenizer/tokenizer.json", size: 19989343, sha256: "87a7830d63fcf43bf241c3c5242e96e62dd3fdc29224ca26fed8ea333db72de4"),
+                ModelFile(path: "qwen3.5-2b-gpu/ios-h17p/tokenizer/tokenizer_config.json", size: 7380, sha256: "e3ca3754699d8dfb963a85d64d419645291594796197bb170870f208953e4241"),
+                ModelFile(path: "qwen3.5-2b-gpu/ios-h17p/tokenizer/vocab.json", size: 5234494, sha256: "4ab0d5c096294054b66444a116a20baf6e29998fc1fae410ffe4b6fadbc56b5c"),
+            ]
+        ),
+        ModelPack(
             id: .lfm2_5,
             name: "LFM2.5 1.2B (Core AI)",
             repo: "mlboydaisuke/LFM2.5-1.2B-CoreAI",
