@@ -59,7 +59,8 @@ RECORD_INTENT_FILES="RecordMeetingIntent.swift\|RecordMeetingControl.swift\|Reco
 check_absent "import AppIntents" "App Intents only for the record button" "$RECORD_INTENT_FILES"
 check_absent "AppShortcutsProvider" "the only app shortcut is the record button" "RecordMeetingShortcut.swift"
 for needle in "IndexedEntity" "AssistantEntity" "AssistantIntent" \
-              "indexingKey" "ViewAnnotation" ": AppIntent" "EntityQuery" "@Parameter" "AppEntity"; do
+              "indexingKey" "ViewAnnotation" ": AppIntent " ": AppIntent," ": AppIntent {" \
+              "EntityQuery" "@Parameter" "AppEntity"; do
   check_absent "$needle" "no $needle"
 done
 

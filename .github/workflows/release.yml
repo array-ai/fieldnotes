@@ -68,6 +68,22 @@ jobs:
           set -euo pipefail
           brew install xtool-org/tap/xtool
           ./Scripts/generate-xcode-project.sh
+          # xtool's app and extension targets are empty C stubs; Swift roots in their
+          # place make Xcode write the packages' App Intents into Metadata.appintents.
+          for target in Fieldnote-App:App FieldnoteWidgets-Extension:Widgets; do
+            dir="xtool/.xtool-tmp/Sources/${target%%:*}"
+            rm -f "$dir"/stub.c
+            cp "Config/AppIntentsRoots/${target##*:}.swift" "$dir/"
+          done
+          # Declarations only: compiled as a library file, so the app's own @main
+          # (in the Fieldnote package) stays the entry point.
+          python3 - <<'PY'
+          path = "xtool/.xtool-tmp/Package.swift"
+          s = open(path).read()
+          s = s.replace("    linkerSettings: [", '    swiftSettings: [.unsafeFlags(["-parse-as-library"])],\n    linkerSettings: [')
+          assert s.count("-parse-as-library") == 2, "expected two executable targets"
+          open(path, "w").write(s)
+          PY
           # The app target is xtool's "Fieldnote-App"; "Fieldnote" is the SwiftPM library.
           xcodebuild -list -workspace xtool/Fieldnote.xcworkspace
           xcodebuild build \
@@ -90,6 +106,11 @@ jobs:
           echo "--- built $APP"
           ls "$APP"
           [ -d "$APP/PlugIns" ] || { echo "no PlugIns: the widget extension was not built into the app"; exit 1; }
+          # Without these, the Action button and Control Centre control do nothing.
+          WIDGET_APPEX=$(find "$APP/PlugIns" -maxdepth 1 -name "*.appex" | head -1)
+          [ -d "$APP/Metadata.appintents" ] && [ -d "$WIDGET_APPEX/Metadata.appintents" ] \
+            || { echo "App Intents metadata missing from the app or the widget extension"; ls "$APP" "$WIDGET_APPEX"; exit 1; }
+          ls "$APP/Metadata.appintents"
           [ -d "$APP/DiarizationModels/Nemotron3/Nemotron3Diarizer_c128_split_w8a8.mlmodelc" ] \
             && [ -f "$APP/DiarizationModels/Nemotron3/learnable_sil_emb.bin" ] \
             && [ -f "$APP/DiarizationModels/Nemotron3/pre_encode_proj_t.bin" ] \

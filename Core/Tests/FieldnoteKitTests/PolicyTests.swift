@@ -113,7 +113,10 @@ struct PolicyTests {
             "AssistantIntent",
             "indexingKey",
             "ViewAnnotation",
-            ": AppIntent",
+            // Exact: `: AppIntentsPackage` only registers a package's intents.
+            ": AppIntent ",
+            ": AppIntent,",
+            ": AppIntent {",
             "EntityQuery",
             "@Parameter",
             "AppEntity"

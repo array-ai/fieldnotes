@@ -27,6 +27,11 @@ public struct RecordMeetingIntent: AudioRecordingIntent {
     }
 }
 
+/// Registers this package's one intent with Xcode's App Intents metadata. Without
+/// it, intents in a Swift package never reach the app's Metadata.appintents and iOS
+/// can't run them: the Action button animated and did nothing (builds 40–49).
+public struct FieldnoteSharedIntents: AppIntentsPackage {}
+
 /// The app's side of `RecordMeetingIntent`. The app sets `toggle` at launch; the
 /// widget extension never does, and doesn't need to, as the intent runs in the app.
 @MainActor
