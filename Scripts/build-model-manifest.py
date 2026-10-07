@@ -155,6 +155,14 @@ PACKS = [
         "paths": ["gpu-pipelined-b2/lfm2_5_1_2b_instruct_decode_int8hu_block32_sym"],
     },
     {
+        "id": "lfm2_5H17p",
+        "name": "LFM2.5 1.2B (Core AI, compiled for h17p, GPU)",
+        "repo": "publicarray/fieldnote-models",
+        "revision": "95da0578df44a09b6881d7168642facab9276fad",
+        "license": "LFM-1.0",
+        "paths": ["lfm2.5-1.2b-gpu/ios-h17p"],
+    },
+    {
         "id": "pyannoteCommunity1",
         "name": "pyannote community-1",
         "repo": "FluidInference/speaker-diarization-coreml",

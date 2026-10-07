@@ -441,6 +441,28 @@ extension ModelPack {
             ]
         ),
         ModelPack(
+            id: .lfm2_5H17p,
+            name: "LFM2.5 1.2B (Core AI, compiled for h17p, GPU)",
+            repo: "publicarray/fieldnote-models",
+            revision: "95da0578df44a09b6881d7168642facab9276fad",
+            license: "LFM-1.0",
+            files: [
+                ModelFile(path: "lfm2.5-1.2b-gpu/ios-h17p/lfm2_5_1_2b_instruct_decode_int8hu_block32_sym.h17p.aimodelc/main-h17p-delegates/MPSGraph/mpsExecutable.mpsgraphpackage/manifest.plist", size: 27556, sha256: "648733f8714c22475c6a98b8b132f617cc781fd556961bac9d7888df7ba9b1be"),
+                ModelFile(path: "lfm2.5-1.2b-gpu/ios-h17p/lfm2_5_1_2b_instruct_decode_int8hu_block32_sym.h17p.aimodelc/main-h17p-delegates/MPSGraph/mpsExecutable.mpsgraphpackage/original_model_0.mpsgraph", size: 206485, sha256: "0c07888d84c2f5499fd840e72f10d83cf8563a0cce0a3ffc6604ed69b2fce6a6"),
+                ModelFile(path: "lfm2.5-1.2b-gpu/ios-h17p/lfm2_5_1_2b_instruct_decode_int8hu_block32_sym.h17p.aimodelc/main-h17p-delegates/MPSGraph/mpsExecutable.mpsgraphpackage/reflection.fb", size: 492, sha256: "25655aab2ce0946485f065abd176edcf103bf34f7db87eafab97d78ef904b48e"),
+                ModelFile(path: "lfm2.5-1.2b-gpu/ios-h17p/lfm2_5_1_2b_instruct_decode_int8hu_block32_sym.h17p.aimodelc/main-h17p-delegates/MPSGraph/mpsExecutable.mpsgraphpackage/resources.bin", size: 1696855220, sha256: "22681cf5cc9c0eeb513db819daaf8f67b38cdc5f9f054f0b37960caf5ef23be1"),
+                ModelFile(path: "lfm2.5-1.2b-gpu/ios-h17p/lfm2_5_1_2b_instruct_decode_int8hu_block32_sym.h17p.aimodelc/main-h17p.mlirb", size: 2940, sha256: "b0509a9509d307fdea8a39dd7cb691dc5d0c8fd6bf1af82a9bc4a60f80310e5e"),
+                ModelFile(path: "lfm2.5-1.2b-gpu/ios-h17p/lfm2_5_1_2b_instruct_decode_int8hu_block32_sym.h17p.aimodelc/main.hash", size: 32, sha256: "38bd4aed34d600ecfb8a4e72eda8da66adf5887b586de98c2be71aa97e8059aa"),
+                ModelFile(path: "lfm2.5-1.2b-gpu/ios-h17p/lfm2_5_1_2b_instruct_decode_int8hu_block32_sym.h17p.aimodelc/metadata.json", size: 193, sha256: "9c14305949aecaf7f6b878786d9956e44b2b945849108d66c35e0541fd9683ed"),
+                ModelFile(path: "lfm2.5-1.2b-gpu/ios-h17p/lfm2_5_1_2b_instruct_decode_int8hu_block32_sym.h17p.aimodelc/stats.json", size: 1810, sha256: "e002dfa2252c27591dcf63474cd1d08255027ca15400faa2103320017ee0e84f"),
+                ModelFile(path: "lfm2.5-1.2b-gpu/ios-h17p/metadata.json", size: 755, sha256: "744d2aeb2273dd561c9af0180f051a80c2daeba15b4aa3997e09763f7cea347d"),
+                ModelFile(path: "lfm2.5-1.2b-gpu/ios-h17p/tokenizer/chat_template.jinja", size: 1783, sha256: "f05bf4b967dc993bdc7a2fe6e43759ee218eb0eb340d68b063e1c4f8ad148176"),
+                ModelFile(path: "lfm2.5-1.2b-gpu/ios-h17p/tokenizer/special_tokens_map.json", size: 434, sha256: "742aefe2b7dec496e8caffdba03a75d0c1a9925d53bd3f3e0d388c96b591b6f4"),
+                ModelFile(path: "lfm2.5-1.2b-gpu/ios-h17p/tokenizer/tokenizer.json", size: 4733389, sha256: "df1d8d5ec5d091b460562ffd545e4a5e91d17d4a0db7ebe733be34ed374377bd"),
+                ModelFile(path: "lfm2.5-1.2b-gpu/ios-h17p/tokenizer/tokenizer_config.json", size: 92225, sha256: "2a52ec012d3df831ba434b081bef3726a6ee22501f062ad8353c557a0cfa0d01"),
+            ]
+        ),
+        ModelPack(
             id: .pyannoteCommunity1,
             name: "pyannote community-1",
             repo: "FluidInference/speaker-diarization-coreml",

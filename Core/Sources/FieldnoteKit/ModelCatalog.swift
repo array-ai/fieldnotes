@@ -31,6 +31,7 @@ public struct ModelPack: Sendable, Identifiable, Equatable {
         case qwen3_4bH17p
         // LFM2.5 1.2B (Liquid AI), mlboydaisuke's Core AI export, GPU-pipelined.
         case lfm2_5
+        case lfm2_5H17p
         case pyannoteCommunity1
 
         /// A notes model run through Core AI (prepared on the phone after download).
