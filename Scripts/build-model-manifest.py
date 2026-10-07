@@ -133,11 +133,14 @@ PACKS = [
     },
     {
         "id": "qwen3_4bH17p",
-        "name": "Qwen3 4B (Core AI, compiled for h17p)",
+        "name": "Qwen3 4B (Core AI, compiled for h17p, GPU)",
         "repo": "publicarray/fieldnote-models",
-        "revision": "75fd5ff1d17c04a8d492437fdc7bfd2a88462d16",
+        # Compiled for the GPU only (--preferred-compute gpu): the default build's
+        # Neural Engine parts took the phone from 5.9 GB free to 1.2 GB while
+        # preparing, and iOS closed the app after half an hour (builds 47 and 48).
+        "revision": "e0e43c063f6d008e62961809d050fc611c8bf1d4",
         "license": "Apache-2.0",
-        "paths": ["qwen3-4b/ios-h17p"],
+        "paths": ["qwen3-4b-gpu/ios-h17p"],
     },
     {
         "id": "pyannoteCommunity1",
