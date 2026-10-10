@@ -114,6 +114,23 @@ struct PlainNotesTests {
         #expect(notes.actionItems.first?.dueDate == "3-4 days")
     }
 
+    @Test("Overview numbering goes; saying there's nothing isn't an item; generic headings aren't topics")
+    func smallFixes() {
+        #expect(PlainNotes.cleanOverview("1. The team met.\n2. They chose a tool.") == "The team met. They chose a tool.")
+        let text = """
+            ### Meeting Headings
+            - The commercial agreement is finished [10]
+            DECISION: No decisions were made in this part [11]
+            DECISION: Prove the technical side next [11]
+            QUESTION: None [12]
+            """
+        let notes = PlainNotes.parse(text, chunk: chunk)
+        #expect(notes.topics.map(\.title) == ["Discussion"])
+        #expect(notes.decisions.map(\.statement) == ["Prove the technical side next"])
+        #expect(notes.openQuestions.isEmpty)
+        #expect(!PlainNotes.isNothing("No major red flag to prevent switching to Acronis"))
+    }
+
     @Test("Notes with no overview and no topics count as empty")
     func emptySummary() {
         let segment = UUID()

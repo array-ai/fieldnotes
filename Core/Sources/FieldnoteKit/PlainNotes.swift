@@ -104,6 +104,13 @@ public enum PlainNotes {
         // "[1] The meeting… [2] Users…": sentence numbers or line citations, which
         // MiniCPM5 2B and Qwen3.5 2B put in the overview (build 62).
         result = result.replacingOccurrences(of: #"\s*\[[\d,\s\-–]+\]"#, with: "", options: .regularExpression)
+        // "1. The meeting…\n2. It was…": a numbered list instead of sentences
+        // (MiniCPM5 1B, build 63). One paragraph.
+        result = result.replacingOccurrences(of: #"(?m)^\s*\d+[.)]\s+"#, with: "", options: .regularExpression)
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         return result.trimmingCharacters(in: CharacterSet(charactersIn: "\"“” \n"))
     }
@@ -139,13 +146,13 @@ public enum PlainNotes {
                 case "decision":
                     // "x | DECISION: y": a second line run into the first (MiniCPM5 2B).
                     let statement = body.components(separatedBy: "|").first?.trimmingCharacters(in: .whitespaces) ?? ""
-                    guard let lines = cite(cited, statement, chunk), !statement.isEmpty else { continue }
+                    guard !isNothing(statement), let lines = cite(cited, statement, chunk), !statement.isEmpty else { continue }
                     decisions.append(NoteDecision(statement: speakerLetters(statement), sourceLines: lines))
                 case "task", "action":
                     let parts = body.split(separator: "|", omittingEmptySubsequences: false)
                         .map { $0.trimmingCharacters(in: .whitespaces) }
                     let task = parts.first ?? ""
-                    guard !task.isEmpty, let lines = cite(cited, task, chunk) else { continue }
+                    guard !task.isEmpty, !isNothing(task), let lines = cite(cited, task, chunk) else { continue }
                     actions.append(NoteActionItem(
                         task: speakerLetters(task),
                         owner: parts.count > 1 ? speakerLetters(blankIfNone(parts[1])) : "",
@@ -153,7 +160,7 @@ public enum PlainNotes {
                         sourceLines: lines
                     ))
                 case "question":
-                    guard let lines = cite(cited, body, chunk), !body.isEmpty else { continue }
+                    guard !isNothing(body), let lines = cite(cited, body, chunk), !body.isEmpty else { continue }
                     questions.append(NoteClaim(text: speakerLetters(body), sourceLines: lines))
                 case "name":
                     // A name must be cited where it was said: no guessing by overlap.
@@ -179,7 +186,7 @@ public enum PlainNotes {
 
         func addDecision(_ text: String) {
             let (body, cited) = citations(in: text)
-            guard !body.isEmpty, let lines = cite(cited, body, chunk) else { return }
+            guard !body.isEmpty, !isNothing(body), let lines = cite(cited, body, chunk) else { return }
             decisions.append(NoteDecision(statement: speakerLetters(body), sourceLines: lines))
         }
 
@@ -200,7 +207,7 @@ public enum PlainNotes {
 
         func addQuestion(_ text: String) {
             let (body, cited) = citations(in: text)
-            guard !body.isEmpty, let lines = cite(cited, body, chunk) else { return }
+            guard !body.isEmpty, !isNothing(body), let lines = cite(cited, body, chunk) else { return }
             questions.append(NoteClaim(text: speakerLetters(body), sourceLines: lines))
         }
 
@@ -225,6 +232,15 @@ public enum PlainNotes {
         )
     }
 
+    /// "No decisions were made in this part", "None": the model saying there's
+    /// nothing, not an item (MiniCPM5 2B, build 63).
+    static func isNothing(_ text: String) -> Bool {
+        let t = text.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: " .:-–"))
+        if ["none", "n/a", "nothing", "no", "none mentioned", "none noted"].contains(t) { return true }
+        return t.range(of: #"^(no|none|nothing|there (were|was|are|is) no)\b.{0,40}\b(decisions?|tasks?|action items?|questions?)\b.{0,40}(made|given|raised|assigned|mentioned|discussed|noted|identified|in this part|here|yet)?\.?$"#, options: .regularExpression) != nil
+            && t.count < 80
+    }
+
     /// "64 | Speaker A: printer people": a transcript line copied back as it was
     /// sent, not a note.
     static func isEchoedLine(_ text: String) -> Bool {
@@ -244,7 +260,7 @@ public enum PlainNotes {
             else if has(#"\b(open )?questions?\b"#) { self = .questions }
             else if has(#"^(participants|attendees|date|time|location|agenda)\b"#) { self = .ignored }
             // A heading over the whole answer, not a topic: its bullets still count.
-            else if has(#"^(meeting (notes|summary)|notes|summary|overview|key (topics|points)|main topics|summary of key topics)\b"#) || has(#"part \d+ of \d+"#) { self = .overview }
+            else if has(#"^(meeting (notes|summary|overview|headings|topics)|headings|notes|summary|overview|key (topics|points)|main topics|discussion points|summary of key topics)\b"#) || has(#"part \d+ of \d+"#) { self = .overview }
             else { self = .topics }
         }
     }
