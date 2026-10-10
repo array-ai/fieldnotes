@@ -60,19 +60,22 @@ img { max-width: 100%; }
 
 /* TestFlight beta banner, on every page */
 .beta { background: var(--ink); color: var(--on-ink); font-size: 15px; }
-.beta .wrap { display: flex; align-items: center; justify-content: space-between; gap: 10px 16px; flex-wrap: wrap; padding-block: 10px; }
+.beta .wrap { display: flex; align-items: center; justify-content: space-between; gap: 8px 16px; flex-wrap: wrap; padding-block: 8px; }
+.beta .beta-button { font-size: 14px; padding: 6px 12px; }
 .beta strong { color: #ffb35c; }
 .beta-button { display: inline-block; background: #ff8a3d; color: #1a1e2b; font-weight: 600; text-decoration: none; padding: 8px 14px; border-radius: 999px; white-space: nowrap; }
 .beta-button:hover { background: #ffb35c; color: #1a1e2b; }
 .beta-button:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
 
 /* Home */
-.hero-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; }
+/* The beta button and its QR code side by side; the code only for computer visitors,
+   as on the phone itself the button is the way in. */
+.get-beta { display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap; }
+.hero-actions { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; min-width: 0; }
 .hero-actions .beta-button { font-size: 17px; padding: 12px 20px; }
-/* Only for computer visitors: on the phone itself, the button is the way in. */
-.qr { display: none; margin: 4px 0 0; align-items: center; gap: 16px; }
-.qr img { background: #fff; padding: 8px; border-radius: 10px; border: 1px solid var(--line); }
-.qr figcaption { color: var(--muted); font-size: 15px; max-width: 18em; }
+.qr { display: none; margin: 0; flex-direction: column; align-items: center; gap: 8px; }
+.qr img { display: block; background: #fff; padding: 6px; border-radius: 10px; border: 1px solid var(--line); }
+.qr figcaption { color: var(--muted); font-size: 13px; }
 @media (hover: hover) and (min-width: 700px) { .qr { display: flex; } }
 .hero { padding-block: 64px 40px; display: grid; gap: 18px; }
 .hero-icon { width: 96px; height: 96px; border-radius: 22px; box-shadow: 0 8px 24px rgb(18 20 29 / .18); }
