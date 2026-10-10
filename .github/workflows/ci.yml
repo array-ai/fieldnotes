@@ -5,6 +5,10 @@ on:
     branches: ["**"]
   pull_request:
 
+# Read-only token: nothing here writes to the repo through GITHUB_TOKEN.
+permissions:
+  contents: read
+
 jobs:
   policy:
     name: Policy checks

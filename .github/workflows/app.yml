@@ -7,6 +7,10 @@ name: App build (iOS)
 on:
   workflow_dispatch:
 
+# Read-only token: nothing here writes to the repo through GITHUB_TOKEN.
+permissions:
+  contents: read
+
 jobs:
   build:
     name: Build for iOS 27

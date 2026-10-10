@@ -45,6 +45,10 @@ env:
   UPLOAD_PATH: ${{ inputs.model == 'qwen3.5-2b' && 'qwen3.5-2b' || inputs.model == 'lfm2.5-1.2b' && 'lfm2.5-1.2b' || inputs.model == 'minicpm5-2b' && 'minicpm5-2b' || '.' }}
   PREFERRED_COMPUTE: ${{ inputs.preferred_compute }}
 
+# Read-only token: nothing here writes to the repo through GITHUB_TOKEN.
+permissions:
+  contents: read
+
 jobs:
   compile:
     name: Compile

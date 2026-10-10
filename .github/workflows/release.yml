@@ -11,6 +11,10 @@ on:
         type: boolean
         default: true
 
+# Read-only token: nothing here writes to the repo through GITHUB_TOKEN.
+permissions:
+  contents: read
+
 jobs:
   release:
     name: Build, sign, and upload
