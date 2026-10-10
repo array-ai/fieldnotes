@@ -25,6 +25,12 @@ public struct MeetingSummary: Codable, Hashable, Sendable {
     /// notes written before it was recorded.
     public var model: String? = nil
 
+    /// No overview and no topics: nothing worth showing, even if a stray task or
+    /// decision survived. A model that writes this didn't follow the format.
+    public var isEmpty: Bool {
+        overview.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && (topics ?? []).isEmpty
+    }
+
     public init(
         overview: String = "",
         topics: [SummaryTopic]? = nil,

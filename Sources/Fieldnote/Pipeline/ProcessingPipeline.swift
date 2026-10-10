@@ -457,11 +457,27 @@ public actor ProcessingPipeline {
             throw deferred
         }
 
-        summary.model = OnDeviceModel.takeEngineUsed()?.card.title
+        let engine = OnDeviceModel.takeEngineUsed()
+        summary.model = engine?.card.title
+        // Empty notes would replace the meeting's current ones (a summary redo kept
+        // none of a 68-minute meeting's 20 topics, build 57). Fail instead: the old
+        // notes stay, and the message says what to do.
+        if summary.isEmpty, !segments.isEmpty {
+            debug.log("pipeline", "\(DebugLog.short(input.meetingID)): \(engine?.card.title ?? "the notes model") wrote nothing usable; keeping the meeting's current notes")
+            throw NothingUsable(model: engine?.card.title)
+        }
         try await store.saveSummary(summary)
         try await store.markComplete(.summarising, in: &checkpoint)
         progress(.summarising, 1.0)
         return (summary, await cleanedTranscript.segments)
+    }
+}
+
+/// The notes model answered, but nothing in its answers could be used.
+public struct NothingUsable: Error, LocalizedError {
+    public var model: String?
+    public var errorDescription: String? {
+        "\(model ?? "The notes model") didn't write usable notes for this meeting. Choose another notes model in Settings, then use Redo → Redo summary."
     }
 }
 

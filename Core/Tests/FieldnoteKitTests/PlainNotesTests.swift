@@ -37,6 +37,32 @@ struct PlainNotesTests {
         #expect(notes.speakerNames.first?.text == "Alex")
     }
 
+    @Test("Labels in brackets, as LFM2.5 writes them, are accepted")
+    func bracketedLabels() {
+        let text = """
+            [TOPIC] Moving from commercial to technical
+            [Key Point 1] The commercial agreement is finished [10]
+            [Number 11] The team now has to prove the technical side [11]
+            [3] Alex runs the integration team [12]
+            [Decision] Prove the technical side next [11]
+            [Task] Send the firewall rules | Alex | Friday [13]
+            [Potential unwanted software discussed]
+            """
+        let notes = PlainNotes.parse(text, chunk: chunk)
+        #expect(notes.topics.map(\.title) == ["Moving from commercial to technical"])
+        #expect(notes.topics.first?.points.map(\.sourceLines) == [[10], [11], [12]])
+        #expect(notes.decisions.first?.sourceLines == [11])
+        #expect(notes.actionItems.first?.owner == "Alex")
+    }
+
+    @Test("Notes with no overview and no topics count as empty")
+    func emptySummary() {
+        let segment = UUID()
+        #expect(MeetingSummary(actionItems: [ActionItem(task: "Stray task", sourceSegmentID: segment)]).isEmpty)
+        #expect(!MeetingSummary(overview: "A short call.").isEmpty)
+        #expect(!MeetingSummary(topics: [SummaryTopic(title: "Budget", summary: "", points: [])]).isEmpty)
+    }
+
     @Test("Markdown, other bullets and citation styles are accepted")
     func forgiving() {
         let text = """

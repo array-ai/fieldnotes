@@ -98,9 +98,11 @@ public enum PlainNotes {
             // "- Decision: …" under a topic is a decision, not a point (MiniCPM5 1B
             // wrote its decisions and tasks that way, build 44).
             let content = bullet(line) ?? line
-            if let (label, rest) = labelled(content) {
+            if let (label, rest) = labelled(content) ?? bracketLabelled(content) {
                 let (body, cited) = citations(in: rest)
                 switch label {
+                case "point":
+                    addPoint(rest)
                 case "topic":
                     let title = body.trimmingCharacters(in: .whitespaces)
                     guard !title.isEmpty else { continue }
@@ -131,13 +133,17 @@ public enum PlainNotes {
                     continue
                 }
             } else if let pointText = bullet(line), !isAnswerLine(pointText) {
-                let (body, cited) = citations(in: pointText)
-                let point = speakerLetters(dropSpeakerPrefix(body))
-                guard point.count > 2, let lines = cite(cited, point, chunk) else { continue }
-                if topics.isEmpty { topics.append(NoteTopic(title: "Discussion")) }
-                guard !topics[topics.count - 1].points.contains(where: { $0.text == point }) else { continue }
-                topics[topics.count - 1].points.append(NotePoint(text: point, sourceLines: lines))
+                addPoint(pointText)
             }
+        }
+
+        func addPoint(_ text: String) {
+            let (body, cited) = citations(in: text)
+            let point = speakerLetters(dropSpeakerPrefix(body))
+            guard point.count > 2, let lines = cite(cited, point, chunk) else { return }
+            if topics.isEmpty { topics.append(NoteTopic(title: "Discussion")) }
+            guard !topics[topics.count - 1].points.contains(where: { $0.text == point }) else { return }
+            topics[topics.count - 1].points.append(NotePoint(text: point, sourceLines: lines))
         }
 
         // A topic with no points has nothing to show; its headline alone isn't a note.
@@ -167,6 +173,23 @@ public enum PlainNotes {
         var label = line[labelRange].lowercased()
         if label.hasSuffix("question") { label = "question" }
         if label.hasPrefix("action") { label = "action" }
+        return (label, String(line[restRange]))
+    }
+
+    /// LFM2.5 1.2B's own format, the label in brackets: "[TOPIC] x", "[Decision] x",
+    /// "[Key Point 1] x", "[Number 259] x", "[3] x" (build 57: all ten parts of a
+    /// 68-minute meeting were written this way, and none parsed). Points come back
+    /// labelled "point".
+    static func bracketLabelled(_ line: String) -> (String, String)? {
+        let pattern = #"^\[\s*(topic|decision|task|action item|action|question|open question|name|key\s*point(?:\s*\d+)?|point(?:\s*\d+)?|number\s*\d+|\d+)\s*\]\s*[:\-–]?\s*(.+)$"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]),
+              let match = regex.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)),
+              let labelRange = Range(match.range(at: 1), in: line),
+              let restRange = Range(match.range(at: 2), in: line) else { return nil }
+        var label = line[labelRange].lowercased()
+        if label.hasSuffix("question") { label = "question" }
+        if label.hasPrefix("action") { label = "action" }
+        if label.contains("point") || label.hasPrefix("number") || label.first?.isNumber == true { label = "point" }
         return (label, String(line[restRange]))
     }
 
