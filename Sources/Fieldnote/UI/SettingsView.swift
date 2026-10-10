@@ -167,8 +167,9 @@ struct SettingsView: View {
                 } footer: {
                     Text(
                         """
-                        Shows a log of what ran and how long it took. The log holds \
-                        timings and errors only, never what was said.
+                        Shows a log of what ran, how long it took and what failed. It \
+                        avoids meeting content, but an error message can include part \
+                        of one, so read it before you share it.
                         """
                     )
                 }
@@ -236,12 +237,17 @@ extension SettingsView {
 
 struct DebugLogView: View {
     @State private var text = ""
+    @State private var truncated = false
     @State private var confirmingClear = false
 
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                Text("Fieldnote \(DebugLog.appVersion)\n\n" + (text.isEmpty ? "Nothing logged yet." : text))
+                Text(
+                    "Fieldnote \(DebugLog.appVersion)\n\n"
+                        + (truncated ? "Showing the newest entries. Share sends the whole log.\n\n" : "")
+                        + (text.isEmpty ? "Nothing logged yet." : text)
+                )
                     .font(.caption2.monospaced())
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -270,7 +276,7 @@ struct DebugLogView: View {
     }
 
     private func reload() {
-        text = DebugLog.shared.contents()
+        (text, truncated) = DebugLog.shared.contents()
     }
 }
 

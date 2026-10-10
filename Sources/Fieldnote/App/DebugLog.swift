@@ -20,7 +20,12 @@ public final class DebugLog: @unchecked Sendable {
     public let fileURL: URL
     private let queue = DispatchQueue(label: "fieldnote.debuglog")
     private var handle: FileHandle?
-    private let maxBytes: UInt64 = 512 * 1024
+    /// Past this the oldest half is dropped, so the file stays between 2.5 and 5 MB:
+    /// months of normal use (two days with a long meeting were about 30 KB).
+    private let maxBytes: UInt64 = 5 * 1024 * 1024
+    /// What the in-app viewer shows: the newest part. A whole 5 MB file in one Text
+    /// would stall the screen; Share sends all of it.
+    public static let viewerBytes = 256 * 1024
     private let formatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
@@ -40,11 +45,18 @@ public final class DebugLog: @unchecked Sendable {
         }
     }
 
-    /// The whole log, oldest first.
-    public func contents() -> String {
+    /// The newest `limit` bytes of the log, oldest first, starting on a whole line,
+    /// and whether anything older was left out.
+    public func contents(limit: Int = DebugLog.viewerBytes) -> (text: String, truncated: Bool) {
         queue.sync {
             try? handle?.synchronize()
-            return (try? String(contentsOf: fileURL, encoding: .utf8)) ?? ""
+            guard let data = try? Data(contentsOf: fileURL) else { return ("", false) }
+            guard data.count > limit else { return (String(decoding: data, as: UTF8.self), false) }
+            var tail = data.suffix(limit)
+            if let newline = tail.firstIndex(of: UInt8(ascii: "\n")) {
+                tail = tail[tail.index(after: newline)...]
+            }
+            return (String(decoding: tail, as: UTF8.self), true)
         }
     }
 

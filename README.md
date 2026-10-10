@@ -72,7 +72,9 @@ two things you choose: optional model downloads, and Apple Maps place names.
 - **Debug mode** (Settings) adds an activity log of what ran, for how long and what
   failed, a benchmark that times every on-device model on one of your recordings, and an
   editor for the summary prompt (the grounding rules stay attached).
-  The log records timings and errors only, never what was said.
+  The log is meant for timings, counts and errors, not meeting content, but an
+  error message can include part of a meeting, so read it before sharing it. It stays
+  on the phone, capped at 5 MB.
 
 Meetings can be renamed at any time from the meeting screen.
 
