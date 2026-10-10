@@ -115,7 +115,7 @@ SDKs are included.
 
 | | |
 |---|---|
-| Core logic (`Core/`) | Builds and tests on Linux, no Apple SDK. 129 tests, run in CI on every push |
+| Core logic (`Core/`) | Builds and tests on Linux, no Apple SDK. Tests run in CI on every push |
 | App and widget | Build for `arm64-apple-ios27.0` in CI with Xcode 27, both through xtool and `xcodebuild` |
 | On a device | Runs on iPhone, with known small bugs. The device checks under [Testing](#testing) haven't all been done |
 | Linux device builds | Blocked: the bundled LLD can't read the iOS 27 SDK's stubs (see [Build](#build)) |

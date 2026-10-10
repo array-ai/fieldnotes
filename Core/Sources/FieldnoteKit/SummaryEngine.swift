@@ -64,21 +64,23 @@ public enum SummaryEngine: String, Codable, CaseIterable, Sendable {
                 summary: "Recommended. The clearest notes in our tests: real questions, decisions and owners, and five times faster than Apple's model on long meetings.",
                 accuracy: 0.8, speed: 0.75, languages: "English and Chinese best", runs: "In the app, or while charging")
         case .qwen3_5_2b:
-            // DeviceMark (iPhone 17 Pro): IFEval 0.69, MMLU-Pro 0.51, 29 tokens/s. Qwen3
-            // 4B, offered before, ran the iPhone 16 out of memory while preparing.
-            // Not yet measured on this phone: ratings are placeholders until it is.
+            // DeviceMark (iPhone 17 Pro): IFEval 0.69, MMLU-Pro 0.51, 29 tokens/s. On an
+            // iPhone 16 (build 56): a one-minute meeting's notes in 48 s, against 18 s
+            // for MiniCPM5 2B, with usable points. Qwen3 4B, offered before, ran the
+            // iPhone 16 out of memory while preparing.
             ModelCard(
                 title: "Qwen3.5 2B",
-                summary: "Alibaba's small model: more general knowledge than LFM2.5, slower and a bigger download. Not yet tested on this phone.",
-                accuracy: 0.7, speed: 0.6, languages: "Many languages", runs: "In the app, or while charging")
+                summary: "Alibaba's small model. Usable notes in our test, but about 2½ times slower than MiniCPM5 2B on an iPhone 16, and a 3 GB download.",
+                accuracy: 0.65, speed: 0.3, languages: "Many languages", runs: "In the app, or while charging")
         case .lfm2_5:
-            // DeviceMark (iPhone 17 Pro, 4,096-token cap): the best on-device model for
-            // following instructions (IFEval 0.88; Apple's built-in 0.82), 45.5 tokens/s.
-            // Not yet measured on this phone: ratings are placeholders until it is.
+            // DeviceMark (iPhone 17 Pro) rated it highest for following instructions
+            // (IFEval 0.88), but on an iPhone 16 (build 57) it ignored the notes format
+            // on all ten parts of a 68-minute meeting, 75–105 s each, and nothing was
+            // usable. Its bracketed labels are parsed since; quality is still unproven.
             ModelCard(
                 title: "LFM2.5 1.2B",
-                summary: "Liquid AI's small model, the best at following instructions of the on-device models DeviceMark tested, Apple's included. Fast; not yet tested on this phone.",
-                accuracy: 0.75, speed: 0.9, languages: "English best; several others", runs: "In the app, or while charging")
+                summary: "Experimental. Liquid AI's small model. In our test on a long meeting it didn't follow the notes format and was slow; expect thin notes or none.",
+                accuracy: 0.25, speed: 0.4, languages: "English best; several others", runs: "In the app, or while charging")
         }
     }
 
