@@ -260,7 +260,7 @@ struct PolicyTests {
             ("attributesOfItem", "NSPrivacyAccessedAPICategoryFileTimestamp"),
             ("creationDate", "NSPrivacyAccessedAPICategoryFileTimestamp"),
             ("modificationDate", "NSPrivacyAccessedAPICategoryFileTimestamp"),
-            ("ContinuousClock", "NSPrivacyAccessedAPICategorySystemBootTime"),
+            ("mach_absolute_time", "NSPrivacyAccessedAPICategorySystemBootTime"),
             ("systemUptime", "NSPrivacyAccessedAPICategorySystemBootTime"),
             ("volumeAvailableCapacity", "NSPrivacyAccessedAPICategoryDiskSpace"),
         ]

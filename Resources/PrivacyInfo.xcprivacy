@@ -10,8 +10,9 @@
   - File timestamps: sizes and dates of the app's own files, through
     attributesOfItem and stat (C617.1), and the creation date of an audio file the
     user imports, used as the meeting's date (3B52.1).
-  - System boot time: elapsed time for the activity log, estimates and model
-    profiling, through ContinuousClock and mach_absolute_time (35F9.1).
+  - System boot time: coreai-models' profiler times the notes models with
+    mach_absolute_time (35F9.1). The app's own ContinuousClock isn't on Apple's
+    list, so without coreai-models this entry could go.
   - Disk space: checking there is room before a model download (E174.1).
 -->
 <plist version="1.0">
