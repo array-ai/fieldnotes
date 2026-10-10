@@ -151,11 +151,13 @@ public actor SummarizationService {
 
         var notes: [ChunkNotes] = []
         // Parts in a row where the model produced nothing and failed: two means it
-        // isn't working, and the rest would fail the same way. A meeting of one part
-        // gets one: its only part failing is the same signal (build 59: MiniCPM5 2B
-        // failed at once, twice, on a short meeting, and the check never ran).
+        // isn't working, and the rest would fail the same way. For a downloaded model
+        // a meeting of one part gets one: its only part failing is the same signal,
+        // and the recovery (clearing its prepared copy) has to run (build 59:
+        // MiniCPM5 2B failed at once, twice, on a short meeting, and the check never
+        // ran). Apple's model keeps two.
         var failedInARow = 0
-        let failuresToStop = min(2, chunks.count)
+        let failuresToStop = plain ? min(2, chunks.count) : 2
         var anyProduced = false
         var degraded: [DegradedChunk] = []
         notes.reserveCapacity(chunks.count)
