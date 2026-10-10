@@ -181,6 +181,30 @@ struct PlainNotesTests {
         #expect(PlainNotes.cleanOverview("**Overview:** \"The team moved to the technical phase.\"") == "The team moved to the technical phase.")
     }
 
+    @Test("Numbered sentences and citations are taken out of an overview")
+    func overviewNumbers() {
+        #expect(
+            PlainNotes.cleanOverview("[1] The meeting covered the switch. [2] Alex will send the rules [13, 14].")
+                == "The meeting covered the switch. Alex will send the rules."
+        )
+    }
+
+    @Test("Speaker tags in brackets are dropped from points; vague due dates are blank")
+    func speakerTagsAndDueDates() {
+        let text = """
+            TOPIC: Moving from commercial to technical
+            - The commercial agreement is finished [Speaker A] [10]
+            - The team now has to prove the technical side [Alex] [11]
+            TASK: Send the firewall rules | Alex | Ongoing [13]
+            """
+        let notes = PlainNotes.parse(text, chunk: chunk)
+        #expect(notes.topics.first?.points.map(\.text) == [
+            "The commercial agreement is finished",
+            "The team now has to prove the technical side",
+        ])
+        #expect(notes.actionItems.first?.dueDate == "")
+    }
+
     @Test("A think block is dropped, finished or not")
     func thinking() {
         #expect(PlainNotes.cleanOverview("<think>\n\n</think>\n\nThe team chose a backup tool.") == "The team chose a backup tool.")

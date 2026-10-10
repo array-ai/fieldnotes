@@ -78,6 +78,10 @@ public enum PlainNotes {
         if let range = result.range(of: #"^[*#\s]*(overview|summary)[*\s]*[:\-][*\s]*"#, options: [.regularExpression, .caseInsensitive]) {
             result.removeSubrange(range)
         }
+        // "[1] The meeting… [2] Users…": sentence numbers or line citations, which
+        // MiniCPM5 2B and Qwen3.5 2B put in the overview (build 62).
+        result = result.replacingOccurrences(of: #"\s*\[[\d,\s\-–]+\]"#, with: "", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
         return result.trimmingCharacters(in: CharacterSet(charactersIn: "\"“” \n"))
     }
 
@@ -230,6 +234,13 @@ public enum PlainNotes {
         }
         // Empty citations the model left: "[, , ]", "[]", "[<>]".
         body = body.replacingOccurrences(of: #"\[[\s,<>]*\]"#, with: "", options: .regularExpression)
+        // Who said it, in brackets: "[Dan]", "[Speaker A]" (LFM2.5 1.2B, build 62).
+        // The citation already says who; the tag only clutters the point.
+        body = body.replacingOccurrences(
+            of: #"\s*\[(?:Speaker\s+)?[A-Z][A-Za-z.'’\-]*(?:\s+[A-Z][A-Za-z.'’\-]*){0,2}\]"#,
+            with: "",
+            options: .regularExpression
+        )
         body = body.trimmingCharacters(in: CharacterSet(charactersIn: " .;,:–-")).trimmingCharacters(in: .whitespaces)
         return (body, Array(Set(lines)).sorted())
     }
@@ -322,6 +333,8 @@ public enum PlainNotes {
     }
 
     static func blankIfNone(_ text: String) -> String {
-        ["none", "n/a", "-", "unknown", "nobody", "no one"].contains(text.lowercased()) ? "" : text
+        // "Ongoing" as a due date (MiniCPM5 2B, build 62) says there isn't one.
+        ["none", "n/a", "na", "-", "unknown", "nobody", "no one", "ongoing", "not specified", "unspecified", "not mentioned"]
+            .contains(text.lowercased()) ? "" : text
     }
 }

@@ -83,6 +83,11 @@ public final class NotesComparison {
                 result.summary = summary.applyingSpeakerNames(meeting.speakerNames)
                 results.append(result)
                 debug.log("compare", "\(engine.card.title): \(result.line)")
+            } catch let notWritten as SummarizationService.NotWritten {
+                // The detail, not the user-facing "busy or limited": this is for
+                // finding out why.
+                results.append(Result(engine: engine, error: "failed: \(notWritten.detail.prefix(200))"))
+                debug.log("compare", "\(engine.card.title): failed: \(notWritten.detail)")
             } catch {
                 results.append(Result(engine: engine, error: "failed: \(error.localizedDescription)"))
                 debug.log("compare", "\(engine.card.title): failed: \(error)")
