@@ -198,7 +198,7 @@ public actor SummarizationService {
                     ? "Apple's model isn't answering (\(detail.prefix(80))). Tap Try again later."
                     : gaveUp
                     ? "\(OnDeviceModel.selectedEngine.card.title) isn't answering (\(detail.prefix(80))). Its build for this iPhone keeps failing, so download it again in Settings → Processing: this phone will prepare its own copy."
-                    : "\(OnDeviceModel.selectedEngine.card.title) isn't answering (\(detail.prefix(80))). Its prepared copy was cleared: tap Try again to prepare it afresh (a minute or two).")
+                    : "\(OnDeviceModel.selectedEngine.card.title) isn't answering (\(detail.prefix(80))). Its prepared copy was cleared: tap Try again to prepare it afresh. That takes a few minutes (6½ for MiniCPM5 2B on an iPhone 16); leave it running.")
             }
             // Only clean parts are kept for a resume; a degraded one gets another go.
             if chunkDegraded.isEmpty { await savePart(chunk.partKey, chunkNotes) }

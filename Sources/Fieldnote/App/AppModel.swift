@@ -19,7 +19,12 @@ public final class AppModel {
     public private(set) var importProgress: Double?
     public var importError: String?
     public var searchQuery: String = "" {
-        didSet { Task { await refresh() } }
+        // The search field sets the same text more than once per keystroke; each
+        // set ran a search (two identical log lines per key, build 59).
+        didSet {
+            guard searchQuery != oldValue else { return }
+            Task { await refresh() }
+        }
     }
 
     public let recorder = RecordingController()
