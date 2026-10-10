@@ -48,9 +48,9 @@ public actor ProcessingPipeline {
         public var segments: [TranscriptSegment]
         public var embeddings: [String: [Float]]
         public var summary: MeetingSummary
-        /// A redone transcript replaces hand-edited lines too; otherwise the edited
-        /// old lines would sit alongside their re-transcribed versions.
-        public var replacesEditedSegments: Bool = false
+        /// A redone transcript: its lines are new, so the store keeps the user's
+        /// edited lines by time and drops the new lines they cover.
+        public var isRedoneTranscript: Bool = false
     }
 
     /// Fractional progress within a stage, 0...1.
@@ -58,7 +58,7 @@ public actor ProcessingPipeline {
     /// Called as each stage starts, with when processing is expected to finish.
     public typealias EstimateHandler = @Sendable (ProcessingStage, Date) -> Void
     /// The labelled transcript, once speakers are done and before summarising.
-    public typealias TranscriptHandler = @Sendable (_ segments: [TranscriptSegment], _ embeddings: [String: [Float]], _ replacesEditedSegments: Bool) async -> Void
+    public typealias TranscriptHandler = @Sendable (_ segments: [TranscriptSegment], _ embeddings: [String: [Float]], _ isRedoneTranscript: Bool) async -> Void
 
     private let log = Logger(subsystem: "com.publicarray.fieldnotes", category: "pipeline")
     private let debug = DebugLog.shared
@@ -202,7 +202,7 @@ public actor ProcessingPipeline {
             segments: cleaned ?? diarization.segments,
             embeddings: diarization.embeddings,
             summary: summary,
-            replacesEditedSegments: checkpoint.redoTranscript == true
+            isRedoneTranscript: checkpoint.redoTranscript == true
         )
     }
 

@@ -63,8 +63,8 @@ two things you choose: optional model downloads, and Apple Maps place names.
 
 - **Redo** on a meeting runs the transcript, speakers or summary again with the
   models now chosen in Settings, so you can try another model on a recording you
-  already have. The old results stay until the new ones replace them; a redone
-  transcript replaces your edits to it, so it asks first.
+  already have. The old results stay until the new ones replace them, and lines
+  you edited by hand are kept.
 
 - **Debug mode** (Settings) adds an activity log of what ran, for how long and what
   failed, a benchmark that times every on-device model on one of your recordings, and an

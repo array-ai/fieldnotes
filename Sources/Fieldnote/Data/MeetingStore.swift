@@ -55,7 +55,7 @@ public actor MeetingStore {
         guard let meeting = try meeting(with: result.meetingID) else { return }
         meeting.duration = result.duration
         meeting.processingState = .queued
-        replaceSegments(result.liveSegments, on: meeting)
+        replaceSegments(result.liveSegments, on: meeting, isRedoneTranscript: false)
         rebuildSearchText(for: meeting)
         try modelContext.save()
     }
@@ -144,9 +144,9 @@ public actor MeetingStore {
     /// The transcript and speakers, saved as soon as those stages finish, so the
     /// meeting shows them while the summary is still being written, or after the user
     /// stops it. `apply` writes them again with the summary's speaker names.
-    public func applyTranscript(_ segments: [TranscriptSegment], embeddings: [String: [Float]], replacesEditedSegments: Bool, to meetingID: UUID) async {
+    public func applyTranscript(_ segments: [TranscriptSegment], embeddings: [String: [Float]], isRedoneTranscript: Bool, to meetingID: UUID) async {
         guard let meeting = try? meeting(with: meetingID) else { return }
-        replaceTranscript(segments, embeddings: embeddings, speakerNames: [:], keepEdits: !replacesEditedSegments, on: meeting)
+        replaceTranscript(segments, embeddings: embeddings, speakerNames: [:], isRedoneTranscript: isRedoneTranscript, on: meeting)
         rebuildSearchText(for: meeting)
         try? modelContext.save()
     }
@@ -158,7 +158,7 @@ public actor MeetingStore {
             output.segments,
             embeddings: output.embeddings,
             speakerNames: output.summary.speakerNames,
-            keepEdits: !output.replacesEditedSegments,
+            isRedoneTranscript: output.isRedoneTranscript,
             on: meeting
         )
 
@@ -398,10 +398,10 @@ public actor MeetingStore {
         _ segments: [TranscriptSegment],
         embeddings: [String: [Float]],
         speakerNames: [String: String],
-        keepEdits: Bool,
+        isRedoneTranscript: Bool,
         on meeting: Meeting
     ) {
-        replaceSegments(segments, on: meeting, keepEdits: keepEdits)
+        replaceSegments(segments, on: meeting, isRedoneTranscript: isRedoneTranscript)
 
         // Speakers are per-meeting labels. The embeddings ride along for v2. A name
         // the user gave a speaker survives re-processing; the summary's grounded
@@ -432,15 +432,22 @@ public actor MeetingStore {
         meeting.speakers = created
     }
 
-    private func replaceSegments(_ segments: [TranscriptSegment], on meeting: Meeting, keepEdits: Bool = true) {
-        // Manual edits win over anything the pipeline produces, unless the transcript
-        // itself is being redone.
-        let edited = keepEdits ? meeting.segments.filter(\.editedByUser) : []
+    private func replaceSegments(_ segments: [TranscriptSegment], on meeting: Meeting, isRedoneTranscript: Bool) {
+        // Manual edits win over anything the pipeline produces.
+        let edited = meeting.segments.filter(\.editedByUser)
         let editedIDs = Set(edited.map(\.id))
         meeting.segments.filter { !editedIDs.contains($0.id) }.forEach(modelContext.delete)
 
+        // A redone transcript has new lines with new IDs, so match by time: a new
+        // line whose midpoint falls in an edited line is that line again.
+        let editedRanges = isRedoneTranscript ? edited.map { min($0.start, $0.end)...max($0.start, $0.end) } : []
+        func coveredByEdit(_ value: TranscriptSegment) -> Bool {
+            let mid = (value.start + value.end) / 2
+            return editedRanges.contains { $0.contains(mid) }
+        }
+
         var kept = edited
-        for value in segments where !editedIDs.contains(value.id) {
+        for value in segments where !editedIDs.contains(value.id) && !coveredByEdit(value) {
             let segment = Segment(value: value)
             segment.meeting = meeting
             modelContext.insert(segment)
