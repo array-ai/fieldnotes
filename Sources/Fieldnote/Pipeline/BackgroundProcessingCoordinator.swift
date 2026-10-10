@@ -128,7 +128,7 @@ public final class BackgroundProcessingCoordinator: @unchecked Sendable {
         await submit(title: "Processing \(title)")
     }
 
-    /// Called from the debug "Redo" actions, which are also a foreground tap.
+    /// Called from a meeting's "Redo" actions, which are also a foreground tap.
     public func submitRedo(title: String) async {
         await submit(title: title)
     }

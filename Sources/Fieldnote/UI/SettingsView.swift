@@ -151,9 +151,8 @@ struct SettingsView: View {
                 } footer: {
                     Text(
                         """
-                        Shows a log of what ran and how long it took, and adds Redo \
-                        actions to each meeting. The log holds timings and errors only, \
-                        never what was said.
+                        Shows a log of what ran and how long it took. The log holds \
+                        timings and errors only, never what was said.
                         """
                     )
                 }

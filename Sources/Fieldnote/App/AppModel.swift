@@ -388,7 +388,7 @@ public final class AppModel {
             didSet { UserDefaults.standard.set(cleanUpCustomWords, forKey: TranscriptCleanup.defaultsKey) }
         }
 
-        /// Shows the log viewer and the redo actions.
+        /// Shows the log viewer, the benchmark and the prompt editor.
         public var debugMode: Bool {
             didSet { UserDefaults.standard.set(debugMode, forKey: "debugMode") }
         }

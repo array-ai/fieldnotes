@@ -61,9 +61,13 @@ two things you choose: optional model downloads, and Apple Maps place names.
   notes will finish when you come back. It shows how long is left (learned from this
   phone's past runs) and notifies you when the notes are ready.
 
+- **Redo** on a meeting runs the transcript, speakers or summary again with the
+  models now chosen in Settings, so you can try another model on a recording you
+  already have. The old results stay until the new ones replace them; a redone
+  transcript replaces your edits to it, so it asks first.
+
 - **Debug mode** (Settings) adds an activity log of what ran, for how long and what
-  failed, Redo actions on each meeting for the transcript, speakers or summary, a
-  benchmark that times every on-device model on one of your recordings, and an
+  failed, a benchmark that times every on-device model on one of your recordings, and an
   editor for the summary prompt (the grounding rules stay attached).
   The log records timings and errors only, never what was said.
 

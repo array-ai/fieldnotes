@@ -240,7 +240,7 @@ public actor MeetingStore {
         try modelContext.save()
     }
 
-    /// What "Redo" in debug mode re-runs. Each one re-runs that stage and every
+    /// What "Redo" on a meeting re-runs. Each one re-runs that stage and every
     /// stage after it.
     public enum RedoStage: String, Sendable {
         case transcript, speakers, summary

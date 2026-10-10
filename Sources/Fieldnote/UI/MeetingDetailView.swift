@@ -17,6 +17,8 @@ struct MeetingDetailView: View {
     /// The speaker label being renamed, e.g. "S1".
     @State private var renamingSpeaker: String?
     @State private var newSpeakerName = ""
+    /// Asked first when a transcript redo would replace the user's edits.
+    @State private var confirmingRedoTranscript = false
     /// Bumped to restart polling after a redo is queued.
     @State private var pollGeneration = 0
     @State private var player = MeetingPlayer()
@@ -74,17 +76,21 @@ struct MeetingDetailView: View {
                         renaming = true
                     }
                 }
-                if model.settings.debugMode {
-                    ToolbarItem(placement: .secondaryAction) {
-                        Menu {
-                            Button("Redo transcript", systemImage: "waveform") { redo(.transcript, meeting) }
-                            Button("Redo speakers", systemImage: "person.2") { redo(.speakers, meeting) }
-                            Button("Redo summary", systemImage: "text.badge.star") { redo(.summary, meeting) }
-                        } label: {
-                            Label("Redo", systemImage: "arrow.clockwise")
+                ToolbarItem(placement: .secondaryAction) {
+                    Menu {
+                        Button("Redo transcript", systemImage: "waveform") {
+                            if meeting.segments.contains(where: \.editedByUser) {
+                                confirmingRedoTranscript = true
+                            } else {
+                                redo(.transcript, meeting)
+                            }
                         }
-                        .disabled(!meeting.state.isTerminal)
+                        Button("Redo speakers", systemImage: "person.2") { redo(.speakers, meeting) }
+                        Button("Redo summary", systemImage: "text.badge.star") { redo(.summary, meeting) }
+                    } label: {
+                        Label("Redo", systemImage: "arrow.clockwise")
                     }
+                    .disabled(!meeting.state.isTerminal)
                 }
             }
         }
@@ -129,6 +135,13 @@ struct MeetingDetailView: View {
                     await load()
                 }
             }
+        }
+        .confirmationDialog("Redo the transcript?", isPresented: $confirmingRedoTranscript, titleVisibility: .visible) {
+            Button("Redo transcript", role: .destructive) {
+                if let meeting { redo(.transcript, meeting) }
+            }
+        } message: {
+            Text("Your edits to this transcript are replaced by the new one.")
         }
         .confirmationDialog("Change speaker", isPresented: .constant(relabelling != nil), titleVisibility: .visible) {
             if let segment = relabelling, let meeting {
