@@ -230,7 +230,8 @@ struct MeetingDetailView: View {
                             onRenameSpeaker: { label in
                                 newSpeakerName = meeting.speakerNames[label] ?? ""
                                 renamingSpeaker = label
-                            }
+                            },
+                            showsModels: model.settings.debugMode
                         )
                     }
                 }
@@ -350,7 +351,8 @@ struct ProcessingStatusBanner: View {
 
 struct SummarySections: View {
     let meeting: MeetingSnapshot
-    /// Debug mode: show the model's own error text under each Coverage line.
+    /// Debug mode: show the model's own error text under each Coverage line, and
+    /// which model wrote the notes.
     var showsDetail = false
     var onCitation: (UUID) -> Void
 
@@ -446,6 +448,10 @@ struct SummarySections: View {
                     }
                 }
             }
+            // Debug mode: which model wrote the notes.
+            if showsDetail, let credit = meeting.summaryCredit {
+                Section {} footer: { ModelCredit(text: credit) }
+            }
         } else {
             Section {
                 ContentUnavailableView("No summary yet", systemImage: "text.badge.plus")
@@ -490,6 +496,20 @@ struct CitedRow: View {
     }
 }
 
+/// The small print at the end of the notes or the transcript naming the model that
+/// wrote them.
+private struct ModelCredit: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.caption2)
+            .foregroundStyle(.tertiary)
+            .frame(maxWidth: .infinity, alignment: .center)
+            .padding(.top, 8)
+    }
+}
+
 struct TranscriptSections: View {
     let meeting: MeetingSnapshot
     /// The line under the playhead, highlighted.
@@ -500,6 +520,8 @@ struct TranscriptSections: View {
     var onEdit: (TranscriptSegment) -> Void
     var onRelabel: (TranscriptSegment) -> Void
     var onRenameSpeaker: (String) -> Void = { _ in }
+    /// Debug mode: name the models that wrote the transcript and found the speakers.
+    var showsModels = false
 
     var body: some View {
         let lines = terms.isEmpty
@@ -544,6 +566,10 @@ struct TranscriptSections: View {
                     Button("Change speaker for this line", systemImage: "person.crop.circle") { onRelabel(segment) }
                     Button("Edit text", systemImage: "pencil") { onEdit(segment) }
                 }
+            }
+        } footer: {
+            if showsModels, terms.isEmpty, let credit = meeting.transcriptCredit {
+                ModelCredit(text: credit)
             }
         }
     }

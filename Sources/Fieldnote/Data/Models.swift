@@ -39,6 +39,11 @@ public final class Meeting {
     /// (spec 7). This flag records the plain-language acknowledgement shown before
     /// recording; the consent log, badge and share gate are v2 (spec 11.5).
     public var consentAcknowledged: Bool = false
+    /// The models that wrote the transcript and identified the speakers, by display
+    /// name. Set at stop for a live transcript, and by processing when it writes new
+    /// ones. The notes' model is kept with the summary.
+    public var transcriptModel: String?
+    public var speakersModel: String?
 
     @Relationship(deleteRule: .cascade, inverse: \Segment.meeting)
     public var segments: [Segment] = []

@@ -21,6 +21,9 @@ public struct MeetingSummary: Codable, Hashable, Sendable {
     /// meeting has no existing name for that label already (manual renames always win;
     /// see `MeetingStore.apply`).
     public var speakerNames: [String: String]
+    /// The model that wrote these notes, by display name ("MiniCPM5 2B"). Nil for
+    /// notes written before it was recorded.
+    public var model: String? = nil
 
     public init(
         overview: String = "",

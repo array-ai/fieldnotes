@@ -88,13 +88,27 @@ public enum OnDeviceModel {
         instructions: String
     ) throws -> LanguageModelSession {
         if usesLocalModel, let local = localModel.withLock({ $0 }) {
+            engineUsed.withLock { $0 = selectedEngine }
             return LanguageModelSession(model: local, instructions: instructions)
         }
         let model = pinnedModel(for: tier)
         guard case .available = model.availability else {
             throw ModelUnavailable(status: DeviceCapability.current())
         }
+        engineUsed.withLock { $0 = .apple }
         return LanguageModelSession(model: model, instructions: instructions)
+    }
+
+    /// The model the last session was built on, so the notes can say which model
+    /// wrote them (a chosen model that isn't loaded falls back to Apple's).
+    private static let engineUsed = Mutex<SummaryEngine?>(nil)
+
+    /// Returns the model sessions were built on since the last call, and forgets it.
+    public static func takeEngineUsed() -> SummaryEngine? {
+        engineUsed.withLock { used in
+            defer { used = nil }
+            return used
+        }
     }
 
     // MARK: - Optional local model (MiniCPM5 on Core AI)

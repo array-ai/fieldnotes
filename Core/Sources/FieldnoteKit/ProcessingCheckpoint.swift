@@ -22,6 +22,11 @@ public struct ProcessingCheckpoint: Codable, Sendable {
     /// How many times summarising was put off because the model wouldn't run
     /// (usually because the app was in the background). Optional for old checkpoints.
     public var summaryDeferrals: Int?
+    /// The models that wrote this run's transcript and identified its speakers, by
+    /// display name, so a resumed run still knows. Nil when the stage reused what
+    /// the meeting already had. Optional for old checkpoints.
+    public var transcriptModel: String?
+    public var speakersModel: String?
 
     public init(meetingID: UUID) {
         self.meetingID = meetingID

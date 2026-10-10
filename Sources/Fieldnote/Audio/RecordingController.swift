@@ -61,6 +61,8 @@ public final class RecordingController {
     private var diarizationBuffer: DiarizationBuffer?
     private var transcription: TranscriptionSession?
     private var nemotron: NemotronStreamingTranscriber?
+    /// Which model is writing the live transcript, chosen when the recording starts.
+    private var liveTranscriptModel = TranscriptionEngine.apple.card.title
     private var pump: Task<Void, Never>?
     private var livePump: Task<Void, Never>?
     private var liveContinuation: AsyncStream<LiveAudio>.Continuation?
@@ -138,10 +140,12 @@ public final class RecordingController {
             }
             await nemotron.begin(localeIdentifier: locale.identifier)
             self.nemotron = nemotron
+            liveTranscriptModel = TranscriptionEngine.nemotronStreaming.card.title
             DebugLog.shared.log("recording", "\(DebugLog.short(meetingID)): live transcript by nemotronStreaming")
         } else {
             let transcription = TranscriptionSession(locale: locale)
             self.transcription = transcription
+            liveTranscriptModel = TranscriptionEngine.apple.card.title
             try await transcription.start()
             observe(transcription)
         }
@@ -320,7 +324,8 @@ public final class RecordingController {
             liveSegments: liveSegments,
             duration: saved > 0 ? saved : accumulated,
             locale: locale,
-            liveSpeakerSpans: liveSpeakerSpans
+            liveSpeakerSpans: liveSpeakerSpans,
+            liveTranscriptModel: liveTranscriptModel
         )
     }
 
@@ -589,6 +594,8 @@ public struct RecordingResult: Sendable {
     /// Speakers identified while recording, if that was on and worked. The pipeline
     /// uses these instead of running the batch pass.
     public var liveSpeakerSpans: [DiarizedSpan]? = nil
+    /// The model that wrote `liveSegments`, by display name.
+    public var liveTranscriptModel: String? = nil
 }
 
 public enum RecordingError: Error, LocalizedError {

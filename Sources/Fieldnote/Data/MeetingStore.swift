@@ -55,6 +55,8 @@ public actor MeetingStore {
         guard let meeting = try meeting(with: result.meetingID) else { return }
         meeting.duration = result.duration
         meeting.processingState = .queued
+        meeting.transcriptModel = result.liveTranscriptModel
+        meeting.speakersModel = result.liveSpeakerSpans == nil ? nil : DiarizationMethod.nemotron3.card.title
         replaceSegments(result.liveSegments, on: meeting)
         rebuildSearchText(for: meeting)
         try modelContext.save()
@@ -144,8 +146,15 @@ public actor MeetingStore {
     /// The transcript and speakers, saved as soon as those stages finish, so the
     /// meeting shows them while the summary is still being written, or after the user
     /// stops it. `apply` writes them again with the summary's speaker names.
-    public func applyTranscript(_ segments: [TranscriptSegment], embeddings: [String: [Float]], replacesEditedSegments: Bool, to meetingID: UUID) async {
+    public func applyTranscript(
+        _ segments: [TranscriptSegment],
+        embeddings: [String: [Float]],
+        replacesEditedSegments: Bool,
+        models: ProcessingPipeline.StageModels,
+        to meetingID: UUID
+    ) async {
         guard let meeting = try? meeting(with: meetingID) else { return }
+        record(models, on: meeting)
         replaceTranscript(segments, embeddings: embeddings, speakerNames: [:], keepEdits: !replacesEditedSegments, on: meeting)
         rebuildSearchText(for: meeting)
         try? modelContext.save()
@@ -153,6 +162,7 @@ public actor MeetingStore {
 
     public func apply(_ output: ProcessingPipeline.Output, to meetingID: UUID) async {
         guard let meeting = try? meeting(with: meetingID) else { return }
+        record(output.models, on: meeting)
 
         replaceTranscript(
             output.segments,
@@ -392,6 +402,12 @@ public actor MeetingStore {
 
     private func segment(with id: UUID) throws -> Segment? {
         try modelContext.fetch(FetchDescriptor<Segment>(predicate: #Predicate { $0.id == id })).first
+    }
+
+    /// A stage that reused what the meeting had reports no model; keep the old name.
+    private func record(_ models: ProcessingPipeline.StageModels, on meeting: Meeting) {
+        if let transcript = models.transcript { meeting.transcriptModel = transcript }
+        if let speakers = models.speakers { meeting.speakersModel = speakers }
     }
 
     private func replaceTranscript(

@@ -51,6 +51,14 @@ public actor ProcessingPipeline {
         /// A redone transcript replaces hand-edited lines too; otherwise the edited
         /// old lines would sit alongside their re-transcribed versions.
         public var replacesEditedSegments: Bool = false
+        public var models = StageModels()
+    }
+
+    /// The models that wrote a new transcript or new speakers in this run, by display
+    /// name. Nil for a stage that kept what the meeting already had.
+    public struct StageModels: Sendable {
+        public var transcript: String?
+        public var speakers: String?
     }
 
     /// Fractional progress within a stage, 0...1.
@@ -58,7 +66,7 @@ public actor ProcessingPipeline {
     /// Called as each stage starts, with when processing is expected to finish.
     public typealias EstimateHandler = @Sendable (ProcessingStage, Date) -> Void
     /// The labelled transcript, once speakers are done and before summarising.
-    public typealias TranscriptHandler = @Sendable (_ segments: [TranscriptSegment], _ embeddings: [String: [Float]], _ replacesEditedSegments: Bool) async -> Void
+    public typealias TranscriptHandler = @Sendable (_ segments: [TranscriptSegment], _ embeddings: [String: [Float]], _ replacesEditedSegments: Bool, _ models: StageModels) async -> Void
 
     private let log = Logger(subsystem: "com.publicarray.fieldnotes", category: "pipeline")
     private let debug = DebugLog.shared
@@ -85,7 +93,7 @@ public actor ProcessingPipeline {
         inBackgroundTask: Bool = false,
         progress: @escaping ProgressHandler = { _, _ in },
         estimate: @escaping EstimateHandler = { _, _ in },
-        transcriptReady: @escaping TranscriptHandler = { _, _, _ in }
+        transcriptReady: @escaping TranscriptHandler = { _, _, _, _ in }
     ) async throws -> Output {
         await HeavyModelWork.shared.acquire("processing \(DebugLog.short(input.meetingID))")
         do {
@@ -173,7 +181,8 @@ public actor ProcessingPipeline {
         learn(.diarizing, stageStart)
         // Saved to the meeting now, so it can be read while the summary is written,
         // or if the user stops the summary.
-        await transcriptReady(diarization.segments, diarization.embeddings, checkpoint.redoTranscript == true)
+        let models = StageModels(transcript: checkpoint.transcriptModel, speakers: checkpoint.speakersModel)
+        await transcriptReady(diarization.segments, diarization.embeddings, checkpoint.redoTranscript == true, models)
 
         stageStart = .now
         announce(.summarising)
@@ -202,7 +211,8 @@ public actor ProcessingPipeline {
             segments: cleaned ?? diarization.segments,
             embeddings: diarization.embeddings,
             summary: summary,
-            replacesEditedSegments: checkpoint.redoTranscript == true
+            replacesEditedSegments: checkpoint.redoTranscript == true,
+            models: models
         )
     }
 
@@ -235,6 +245,7 @@ public actor ProcessingPipeline {
                 }
                 if !segments.isEmpty {
                     try await store.saveSegments(segments)
+                    checkpoint.transcriptModel = engine.card.title
                     try await store.markComplete(.transcribing, in: &checkpoint)
                     progress(.transcribing, 1.0)
                     return segments
@@ -260,6 +271,7 @@ public actor ProcessingPipeline {
                 }
                 if !segments.isEmpty {
                     try await store.saveSegments(segments)
+                    checkpoint.transcriptModel = TranscriptionEngine.nemotronStreaming.card.title
                     try await store.markComplete(.transcribing, in: &checkpoint)
                     progress(.transcribing, 1.0)
                     return segments
@@ -303,6 +315,7 @@ public actor ProcessingPipeline {
 
         try await store.saveSegments(recovered)
         checkpoint.lastTranscribedChunkIndex = input.chunks.last?.index
+        checkpoint.transcriptModel = TranscriptionEngine.apple.card.title
         try await store.markComplete(.transcribing, in: &checkpoint)
         progress(.transcribing, 1.0)
         return recovered
@@ -347,6 +360,7 @@ public actor ProcessingPipeline {
             let labelled = WordSpeakerSplit.apply(spans: live, to: segments)
             try await store.saveSpans(live, embeddings: [:])
             try await store.saveSegments(labelled)
+            checkpoint.speakersModel = DiarizationMethod.nemotron3.card.title
             try await store.markComplete(.diarizing, in: &checkpoint)
             progress(.diarizing, 1.0)
             return Diarization(segments: labelled, embeddings: [:])
@@ -377,6 +391,7 @@ public actor ProcessingPipeline {
         let labelled = WordSpeakerSplit.apply(spans: output.spans, to: segments)
         try await store.saveSpans(output.spans, embeddings: output.embeddings)
         try await store.saveSegments(labelled)
+        checkpoint.speakersModel = method.card.title
         try await store.markComplete(.diarizing, in: &checkpoint)
         progress(.diarizing, 1.0)
         return Diarization(segments: labelled, embeddings: output.embeddings)
@@ -408,7 +423,8 @@ public actor ProcessingPipeline {
         )
         let deferrals = checkpoint.summaryDeferrals ?? 0
         let inFront = await PowerState.isAppInFront()
-        let summary: MeetingSummary
+        var summary: MeetingSummary
+        _ = OnDeviceModel.takeEngineUsed()
         do {
             // After a few waits, accept thinner notes rather than waiting forever.
             let saved = await store.loadSummaryParts()
@@ -441,6 +457,7 @@ public actor ProcessingPipeline {
             throw deferred
         }
 
+        summary.model = OnDeviceModel.takeEngineUsed()?.card.title
         try await store.saveSummary(summary)
         try await store.markComplete(.summarising, in: &checkpoint)
         progress(.summarising, 1.0)

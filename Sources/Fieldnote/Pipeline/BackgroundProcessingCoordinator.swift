@@ -342,8 +342,10 @@ public final class BackgroundProcessingCoordinator: @unchecked Sendable {
                         reporter.setEstimate(finish, for: stage)
                         Task { await provider.markStage(stage, meetingID: job.meetingID, estimatedCompletion: finish) }
                     },
-                    transcriptReady: { [provider] segments, embeddings, replacesEdited in
-                        await provider.applyTranscript(segments, embeddings: embeddings, replacesEditedSegments: replacesEdited, to: job.meetingID)
+                    transcriptReady: { [provider] segments, embeddings, replacesEdited, models in
+                        await provider.applyTranscript(
+                            segments, embeddings: embeddings, replacesEditedSegments: replacesEdited, models: models, to: job.meetingID
+                        )
                     }
                 )
                 await provider.apply(output, to: job.meetingID)

@@ -21,6 +21,10 @@ public struct MeetingSnapshot: Sendable, Identifiable, Hashable {
     /// A readable name for those coordinates: the nearest town from the offline
     /// table, or a building or business from Apple Maps when that is turned on.
     public var placeName: String?
+    /// The models that wrote the transcript and identified the speakers, by display
+    /// name. Nil for meetings processed before they were recorded.
+    public var transcriptModel: String?
+    public var speakersModel: String?
 
     public init(
         id: UUID = UUID(),
@@ -37,7 +41,9 @@ public struct MeetingSnapshot: Sendable, Identifiable, Hashable {
         latitude: Double? = nil,
         longitude: Double? = nil,
         placeName: String? = nil,
-        estimatedCompletion: Date? = nil
+        estimatedCompletion: Date? = nil,
+        transcriptModel: String? = nil,
+        speakersModel: String? = nil
     ) {
         self.id = id
         self.title = title
@@ -54,5 +60,23 @@ public struct MeetingSnapshot: Sendable, Identifiable, Hashable {
         self.longitude = longitude
         self.placeName = placeName
         self.estimatedCompletion = estimatedCompletion
+        self.transcriptModel = transcriptModel
+        self.speakersModel = speakersModel
+    }
+
+    /// The small print under the transcript: "Transcript by Parakeet TDT v3, speakers
+    /// by Nemotron 3".
+    public var transcriptCredit: String? {
+        switch (transcriptModel, speakersModel) {
+        case let (transcript?, speakers?): "Transcript by \(transcript), speakers by \(speakers)"
+        case let (transcript?, nil): "Transcript by \(transcript)"
+        case let (nil, speakers?): "Speakers by \(speakers)"
+        case (nil, nil): nil
+        }
+    }
+
+    /// The small print under the notes: "Notes by MiniCPM5 2B".
+    public var summaryCredit: String? {
+        summary?.model.map { "Notes by \($0)" }
     }
 }
