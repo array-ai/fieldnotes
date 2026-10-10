@@ -32,17 +32,11 @@ public struct ModelPack: Sendable, Identifiable, Equatable {
         case qwen3_5_2b
         case qwen3_5_2bH17p
         case qwen3_5_2bH18p
-        // LFM2.5 1.2B (Liquid AI), mlboydaisuke's Core AI export. Builds for a chip
-        // are compiled for the Neural Engine.
-        case lfm2_5
-        case lfm2_5H17p
-        case lfm2_5H18p
         case pyannoteCommunity1
 
         /// A notes model run through Core AI (prepared on the phone after download).
         public var isLanguageModel: Bool {
             rawValue.hasPrefix(ID.minicpm5.rawValue) || rawValue.hasPrefix(ID.qwen3_5_2b.rawValue)
-                || rawValue.hasPrefix(ID.lfm2_5.rawValue)
         }
 
         /// The build of this model compiled for a Core AI chip family

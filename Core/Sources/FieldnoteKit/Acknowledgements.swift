@@ -4,7 +4,7 @@ import Foundation
 /// under what licence, shown in Settings → Acknowledgements.
 ///
 /// Several licences require the licence text itself to travel with the app
-/// (Apache 2.0, OpenMDW, LFM, MIT, BSD), so each entry names a file in
+/// (Apache 2.0, OpenMDW, MIT, BSD), so each entry names a file in
 /// `Resources/Licenses`, copied into the app bundle. `AcknowledgementsTests` checks
 /// that every downloadable model and every Swift package is listed here, and that
 /// every file named exists.
@@ -98,13 +98,6 @@ public struct Acknowledgement: Sendable, Identifiable, Hashable {
             licence: "Apache 2.0", file: "Apache-2.0.txt",
             source: "https://huggingface.co/Qwen/Qwen3.5-2B",
             repos: ["mlboydaisuke/qwen3.5-2B-CoreAI", "publicarray/fieldnote-models"]
-        ),
-        Acknowledgement(
-            .downloadableModel, "LFM2.5 1.2B",
-            credit: "Liquid AI. Core AI export by mlboydaisuke; chip-specific builds compiled by publicarray.",
-            licence: "LFM Open License 1.0", file: "LFM-1.0.txt",
-            source: "https://huggingface.co/LiquidAI/LFM2.5-1.2B-Instruct",
-            repos: ["mlboydaisuke/LFM2.5-1.2B-CoreAI", "publicarray/fieldnote-models"]
         ),
         Acknowledgement(
             .downloadableModel, "pyannote community-1",

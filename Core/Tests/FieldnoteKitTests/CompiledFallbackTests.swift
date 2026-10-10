@@ -14,7 +14,7 @@ struct CompiledFallbackTests {
     func portable() {
         #expect(ModelPack.ID.minicpm5_2bH17p.portable == .minicpm5_2b)
         #expect(ModelPack.ID.minicpm5H17p.portable == .minicpm5)
-        #expect(ModelPack.ID.lfm2_5H17p.portable == .lfm2_5)
+        #expect(ModelPack.ID.qwen3_5_2bH17p.portable == .qwen3_5_2b)
         #expect(ModelPack.ID.minicpm5_2b.portable == nil)
         #expect(ModelPack.ID.parakeetV2.portable == nil)
     }

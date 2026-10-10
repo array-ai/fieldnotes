@@ -48,7 +48,7 @@ public enum ParakeetTranscriber {
         case .parakeetV2: .v2
         case .parakeetTdtCtc110m: .tdtCtc110m
         case .parakeetCtcWords, .pyannoteCommunity1, .nemotronStreaming,
-             .minicpm5, .minicpm5H17g, .minicpm5H17p, .minicpm5H18p, .minicpm5_2b, .minicpm5_2bH17p, .minicpm5_2bH18p, .qwen3_5_2b, .qwen3_5_2bH17p, .qwen3_5_2bH18p, .lfm2_5, .lfm2_5H17p, .lfm2_5H18p: nil
+             .minicpm5, .minicpm5H17g, .minicpm5H17p, .minicpm5H18p, .minicpm5_2b, .minicpm5_2bH17p, .minicpm5_2bH18p, .qwen3_5_2b, .qwen3_5_2bH17p, .qwen3_5_2bH18p: nil
         }
     }
 

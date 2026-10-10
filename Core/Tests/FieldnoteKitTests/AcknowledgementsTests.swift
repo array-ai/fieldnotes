@@ -31,7 +31,7 @@ struct AcknowledgementsTests {
 
     @Test("A model's licence matches the catalog's")
     func modelLicencesMatch() {
-        let files = ["CC-BY-4.0": "CC-BY-4.0.txt", "OpenMDW-1.1": "OpenMDW-1.1.txt", "Apache-2.0": "Apache-2.0.txt", "LFM-1.0": "LFM-1.0.txt"]
+        let files = ["CC-BY-4.0": "CC-BY-4.0.txt", "OpenMDW-1.1": "OpenMDW-1.1.txt", "Apache-2.0": "Apache-2.0.txt"]
         for pack in ModelPack.catalog {
             let file = files[pack.license]
             #expect(file != nil, "\(pack.name): no licence text for \(pack.license)")

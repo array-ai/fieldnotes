@@ -155,34 +155,6 @@ PACKS = [
         "paths": ["qwen3.5-2b/ios-h18p"],
     },
     {
-        "id": "lfm2_5",
-        "name": "LFM2.5 1.2B (Core AI)",
-        "repo": "mlboydaisuke/LFM2.5-1.2B-CoreAI",
-        "revision": "3e3241cbcf368a663768dcc4e5785c4f0a02bae4",
-        # LFM Open License v1.0: free for use below USD 10M annual revenue.
-        "license": "LFM-1.0",
-        # The ship config (int8 weights, int8 per-block-32 head), 4,096-token
-        # context, GPU-pipelined. The phone compiles it, unless a build compiled for
-        # its chip is listed.
-        "paths": ["gpu-pipelined-b2/lfm2_5_1_2b_instruct_decode_int8hu_block32_sym"],
-    },
-    {
-        "id": "lfm2_5H17p",
-        "name": "LFM2.5 1.2B (Core AI, compiled for h17p)",
-        "repo": "publicarray/fieldnote-models",
-        "revision": "10be9226653e1baccdec7726e313154efd64efe3",
-        "license": "LFM-1.0",
-        "paths": ["lfm2.5-1.2b/ios-h17p"],
-    },
-    {
-        "id": "lfm2_5H18p",
-        "name": "LFM2.5 1.2B (Core AI, compiled for h18p)",
-        "repo": "publicarray/fieldnote-models",
-        "revision": "10be9226653e1baccdec7726e313154efd64efe3",
-        "license": "LFM-1.0",
-        "paths": ["lfm2.5-1.2b/ios-h18p"],
-    },
-    {
         "id": "pyannoteCommunity1",
         "name": "pyannote community-1",
         "repo": "FluidInference/speaker-diarization-coreml",

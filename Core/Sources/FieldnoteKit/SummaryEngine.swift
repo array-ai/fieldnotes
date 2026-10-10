@@ -11,7 +11,6 @@ public enum SummaryEngine: String, Codable, CaseIterable, Sendable {
     case minicpm5
     case minicpm5_2b
     case qwen3_5_2b
-    case lfm2_5
 
     public static let defaultsKey = "summaryEngine"
     /// This phone's Core AI chip family, stored by the app at launch (Core AI
@@ -33,8 +32,6 @@ public enum SummaryEngine: String, Codable, CaseIterable, Sendable {
             CompiledFallback.pack(for: .minicpm5_2b, architecture: UserDefaults.standard.string(forKey: Self.deviceArchitectureKey))
         case .qwen3_5_2b:
             CompiledFallback.pack(for: .qwen3_5_2b, architecture: UserDefaults.standard.string(forKey: Self.deviceArchitectureKey))
-        case .lfm2_5:
-            CompiledFallback.pack(for: .lfm2_5, architecture: UserDefaults.standard.string(forKey: Self.deviceArchitectureKey))
         }
     }
 
@@ -49,41 +46,35 @@ public enum SummaryEngine: String, Codable, CaseIterable, Sendable {
     public var card: ModelCard {
         switch self {
         case .apple:
-            // iPhone 16, build 62's notes comparison (5½-minute meeting): the most
-            // accurate of the five models, in 30 s.
+            // iPhone 16, build 63: the most exact notes on a 5½-minute meeting (38 s);
+            // 8½ minutes for a 68-minute one, with facts listed as decisions.
             ModelCard(
                 title: "Apple Intelligence model",
-                summary: "Built in. The most accurate notes in our tests on this phone, but slow on long meetings and rate-limited in the background.",
+                summary: "Built in. The most exact notes on short meetings in our tests, but slow on long ones (8½ minutes for an hour), and rate-limited in the background.",
                 accuracy: 0.8, speed: 0.3, languages: "Many languages", runs: "In the app, or while charging")
         case .minicpm5:
+            // iPhone 16, build 63: 22 s and one point for a 5½-minute meeting; 3 min for
+            // a 68-minute one, in many small sections.
             ModelCard(
                 title: "MiniCPM5 1B",
-                summary: "OpenBMB's small open model on Apple's Core AI. Very fast; thinner notes, and few tasks or decisions.",
-                accuracy: 0.4, speed: 0.95, languages: "English and Chinese best", runs: "In the app, or while charging")
+                summary: "OpenBMB's small open model on Apple's Core AI. Very fast, but thin notes on short meetings and scattered ones on long meetings.",
+                accuracy: 0.35, speed: 0.95, languages: "English and Chinese best", runs: "In the app, or while charging")
         case .minicpm5_2b:
-            // iPhone 16: a 68-minute meeting's notes in 3.6 minutes with 20 sections
-            // (build 60); on a 5½-minute one, thinner and less exact than Apple's
-            // model (build 62).
+            // iPhone 16, build 63: a 68-minute meeting in 3¼ minutes, 2½ times faster
+            // than Apple's model, with the most faithful decisions; a 5½-minute one in
+            // 44 s, thinner than Apple's model.
             ModelCard(
                 title: "MiniCPM5 2B",
-                summary: "Recommended for long meetings: about five times faster than Apple's model there, with clear notes. On short meetings Apple's model was more exact.",
+                summary: "Recommended for long meetings: an hour's notes in about 3 minutes, faster than Apple's model and the most careful about what was actually decided. On short meetings Apple's model is more exact.",
                 accuracy: 0.7, speed: 0.75, languages: "English and Chinese best", runs: "In the app, or while charging")
         case .qwen3_5_2b:
-            // iPhone 16: 48 s for a one-minute meeting against MiniCPM5 2B's 18 s
-            // (build 56); one point for a 5½-minute meeting after 169 s (build 62),
-            // repeating itself under greedy decoding, which it no longer uses.
+            // iPhone 16, build 63: 14 points in 3½ min for a 5½-minute meeting (one
+            // point under greedy decoding before); 42½ min for a 68-minute meeting,
+            // with the phone running hot.
             ModelCard(
                 title: "Qwen3.5 2B",
-                summary: "Alibaba's small model. Until now it repeated itself on this phone and kept little; the setting that caused that is fixed. Slower than MiniCPM5 2B, and a 3 GB download.",
-                accuracy: 0.5, speed: 0.3, languages: "Many languages", runs: "In the app, or while charging")
-        case .lfm2_5:
-            // iPhone 16: ignored the notes format on all ten parts of a 68-minute
-            // meeting (build 57); a generic, partly made-up overview on a 5½-minute
-            // one (build 62). It now writes Markdown notes instead.
-            ModelCard(
-                title: "LFM2.5 1.2B",
-                summary: "Liquid AI's small model. Not recommended: in our tests on this phone its notes were thin and partly made up. It now writes Markdown notes, which may help.",
-                accuracy: 0.25, speed: 0.4, languages: "English best; several others", runs: "In the app, or while charging")
+                summary: "Alibaba's small model. Detailed notes on short meetings, but slow: over 40 minutes for an hour-long meeting, and the phone gets hot. A 3 GB download.",
+                accuracy: 0.55, speed: 0.1, languages: "Many languages", runs: "In the app, or while charging")
         }
     }
 
@@ -100,8 +91,6 @@ public enum SummaryEngine: String, Codable, CaseIterable, Sendable {
             NotesProfile(temperature: 0.5, answerTokens: 1_000, format: .labelled)
         case .qwen3_5_2b:
             NotesProfile(temperature: 0.5, answerTokens: 1_000, format: .labelled)
-        case .lfm2_5:
-            NotesProfile(temperature: 0.5, answerTokens: 1_000, format: .markdown)
         }
     }
 }
@@ -119,7 +108,8 @@ public enum SummaryEngine: String, Codable, CaseIterable, Sendable {
 /// - `partTokens`: transcript per part, if smaller than what fits. Unset: smaller
 ///   parts add detail but also mistakes.
 /// - `format`: the labelled TOPIC/TASK lines, or plain Markdown notes for a model
-///   that won't follow the labels (LFM2.5 wrote headlines with no points).
+///   that won't follow the labels (LFM2.5, offered until build 63, wrote headlines
+///   with no points). No model uses it now.
 public struct NotesProfile: Sendable, Equatable {
     public enum Format: Sendable, Equatable {
         case labelled
