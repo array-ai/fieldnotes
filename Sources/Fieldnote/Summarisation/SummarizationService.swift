@@ -151,8 +151,12 @@ public actor SummarizationService {
 
         var notes: [ChunkNotes] = []
         // Parts in a row where the model produced nothing and failed: two means it
-        // isn't working, and the rest would fail the same way.
+        // isn't working, and the rest would fail the same way. A meeting of one part
+        // gets one: its only part failing is the same signal (build 59: MiniCPM5 2B
+        // failed at once, twice, on a short meeting, and the check never ran).
         var failedInARow = 0
+        let failuresToStop = min(2, chunks.count)
+        var anyProduced = false
         var degraded: [DegradedChunk] = []
         notes.reserveCapacity(chunks.count)
         progress(0.02)
@@ -174,7 +178,8 @@ public actor SummarizationService {
             degraded.append(contentsOf: chunkDegraded)
             let produced = !chunkNotes.topics.isEmpty || !chunkNotes.actionItems.isEmpty || !chunkNotes.decisions.isEmpty
             failedInARow = (!produced && !chunkDegraded.isEmpty) ? failedInARow + 1 : 0
-            if failedInARow >= 2 {
+            if produced { anyProduced = true }
+            if failedInARow >= failuresToStop {
                 let detail = chunkDegraded.first?.detail ?? "no answer"
                 debug.log("summary", "\(DebugLog.short(meeting.id)): the model failed on \(failedInARow) parts in a row; stopping (\(detail.prefix(120)))")
                 // Most likely a broken prepared copy: clear it so Try again prepares
@@ -205,7 +210,9 @@ public actor SummarizationService {
             progress(0.9 * Double(chunk.index + 1) / Double(chunks.count))
         }
 
-        if plain, let pack = OnDeviceModel.selectedEngine.modelPack { CompiledFallback.recordSuccess(pack) }
+        // Only a run that produced something counts as the model working; recording a
+        // success for a run where every part failed reset the fallback count.
+        if plain, anyProduced, let pack = OnDeviceModel.selectedEngine.modelPack { CompiledFallback.recordSuccess(pack) }
         let grounder = SummaryGrounder(meetingDate: meeting.date)
         let grounded = grounder.ground(notes, chunks: chunks)
         if grounded.discardedClaims > 0 {
