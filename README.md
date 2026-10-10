@@ -195,6 +195,7 @@ swift test --package-path Core     # Linux or Mac, no device
 | Local summary model built only in `OnDeviceModel`; no cloud model or downloading tokenizer | `PolicyTests.localModelConfined` |
 | No download-on-first-use model loaders | `PolicyTests.noModelDownloads` |
 | Background inference entitlement present | `PolicyTests.inferenceEntitlement` |
+| Privacy manifest: no tracking, nothing collected, a reason for each API used | `PolicyTests.privacyManifest` |
 
 These checks can't cover the following, which needs a device:
 

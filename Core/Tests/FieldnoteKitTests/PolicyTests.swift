@@ -240,6 +240,35 @@ struct PolicyTests {
         #expect(contents.contains("com.apple.developer.background-tasks.continued-processing.inference"))
     }
 
+    /// The privacy manifest says what the rest of these tests enforce: no tracking,
+    /// no data collected, and a reason for every required-reason API the app uses.
+    @Test("Privacy manifest: no tracking, nothing collected, every API reason declared")
+    func privacyManifest() throws {
+        let url = PolicySourceScanner.repositoryRoot.appending(path: "Resources/PrivacyInfo.xcprivacy")
+        let data = try Data(contentsOf: url)
+        let plist = try #require(try PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any])
+        #expect(plist["NSPrivacyTracking"] as? Bool == false)
+        #expect((plist["NSPrivacyTrackingDomains"] as? [Any])?.isEmpty == true)
+        #expect((plist["NSPrivacyCollectedDataTypes"] as? [Any])?.isEmpty == true)
+
+        let declared = Set(
+            (plist["NSPrivacyAccessedAPITypes"] as? [[String: Any]] ?? [])
+                .compactMap { $0["NSPrivacyAccessedAPIType"] as? String }
+        )
+        let uses: [(marker: String, category: String)] = [
+            ("UserDefaults", "NSPrivacyAccessedAPICategoryUserDefaults"),
+            ("attributesOfItem", "NSPrivacyAccessedAPICategoryFileTimestamp"),
+            ("creationDate", "NSPrivacyAccessedAPICategoryFileTimestamp"),
+            ("modificationDate", "NSPrivacyAccessedAPICategoryFileTimestamp"),
+            ("ContinuousClock", "NSPrivacyAccessedAPICategorySystemBootTime"),
+            ("systemUptime", "NSPrivacyAccessedAPICategorySystemBootTime"),
+            ("volumeAvailableCapacity", "NSPrivacyAccessedAPICategoryDiskSpace"),
+        ]
+        for use in uses where !PolicySourceScanner.filesContaining(use.marker).isEmpty {
+            #expect(declared.contains(use.category), "\(use.marker) is used but \(use.category) isn't in the privacy manifest")
+        }
+    }
+
     /// The macOS sandbox entitlements must not grant network client access. Nothing in
     /// the app uses it, and granting it invites something later to.
     @Test("No network entitlements")

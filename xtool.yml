@@ -13,10 +13,12 @@ entitlementsPath: Config/Fieldnote.entitlements
 # rather than downloaded at runtime: populate them with
 # Scripts/fetch-diarization-models.sh + vendor-diarization-models.sh before the
 # first build (the directory is gitignored). Places holds the offline place-name
-# table, committed and regenerated with Scripts/build-places.py.
+# table, committed and regenerated with Scripts/build-places.py. PrivacyInfo is
+# the privacy manifest, which App Store Connect looks for at the bundle root.
 resources:
   - Resources/DiarizationModels
   - Resources/Places
+  - Resources/PrivacyInfo.xcprivacy
 
 extensions:
   - product: FieldnoteWidgets

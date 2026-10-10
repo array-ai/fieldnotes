@@ -116,6 +116,7 @@ jobs:
             grep -q "$INTENT" "$APP/Metadata.appintents/extract.actionsdata" \
               || { echo "$INTENT isn't in the app's App Intents metadata"; exit 1; }
           done
+          [ -f "$APP/PrivacyInfo.xcprivacy" ] || { echo "PrivacyInfo.xcprivacy is missing from the app"; exit 1; }
           [ -d "$APP/DiarizationModels/Nemotron3/Nemotron3Diarizer_c128_split_w8a8.mlmodelc" ] \
             && [ -f "$APP/DiarizationModels/Nemotron3/learnable_sil_emb.bin" ] \
             && [ -f "$APP/DiarizationModels/Nemotron3/pre_encode_proj_t.bin" ] \
