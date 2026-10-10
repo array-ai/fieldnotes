@@ -575,7 +575,53 @@ public enum DiarizationModelProvider {
         _ = try existing(nemotronConfig.modelFileName, in: directory)
         _ = try existing(ModelNames.Nemotron3.silenceEmbeddingFile, in: directory)
         _ = try existing(ModelNames.Nemotron3.preEncodeProjectionFile, in: directory)
-        return directory
+        return stableCopy(of: directory)
+    }
+
+    /// The Neural Engine compile (about two minutes) is kept by Core ML for the
+    /// model's location, and an app update moves the bundle, so every new build
+    /// compiled again on first launch (builds 55, 56 and 57). A copy in Application
+    /// Support stays put across updates; it's replaced only when the bundled model
+    /// changes. Any problem falls back to the bundle, which always works. Not under
+    /// `Models/`: `ModelDownloads` deletes folders there it doesn't know.
+    private static let copyLock = NSLock()
+
+    private static func stableCopy(of bundled: URL) -> URL {
+        copyLock.lock()
+        defer { copyLock.unlock() }
+        let manager = FileManager.default
+        let target = FieldnoteStorage.applicationSupportDirectory
+            .appending(path: "BundledModels/Nemotron3", directoryHint: .isDirectory)
+        let marker = target.appending(path: ".source")
+        guard let sums = try? Data(contentsOf: bundled.deletingLastPathComponent().appending(path: "SHA256SUMS")) else {
+            return bundled
+        }
+        if (try? Data(contentsOf: marker)) == sums { return target }
+        let started = ContinuousClock.now
+        do {
+            let staging = target.deletingLastPathComponent().appending(path: "Nemotron3-\(UUID().uuidString)", directoryHint: .isDirectory)
+            try manager.createDirectory(
+                at: staging.deletingLastPathComponent(),
+                withIntermediateDirectories: true,
+                attributes: [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication]
+            )
+            try manager.copyItem(at: bundled, to: staging)
+            try sums.write(to: staging.appending(path: ".source"))
+            // Rebuildable from the bundle, so not worth 95 MB of the user's backup.
+            var values = URLResourceValues()
+            values.isExcludedFromBackup = true
+            var excluded = staging
+            try excluded.setResourceValues(values)
+            if manager.fileExists(atPath: target.path(percentEncoded: false)) {
+                try manager.removeItem(at: target)
+            }
+            try manager.moveItem(at: staging, to: target)
+            DebugLog.shared.log("speakers", "nemotron3: copied the bundled model to a fixed location in \(DebugLog.elapsed(since: started)), so its Neural Engine compile is kept across updates")
+            return target
+        } catch {
+            DebugLog.shared.log("speakers", "nemotron3: couldn't copy the bundled model (\(error)); loading it from the app bundle")
+            return bundled
+        }
     }
 
     // MARK: Shared
