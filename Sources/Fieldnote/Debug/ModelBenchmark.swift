@@ -315,7 +315,10 @@ public final class ModelBenchmark {
         let loadStarted = ContinuousClock.now
         let loaded: OnDeviceModel.BenchmarkSession?
         do {
-            loaded = try await OnDeviceModel.benchmarkSession(for: engine, instructions: PlainNotes.instructions)
+            loaded = try await OnDeviceModel.benchmarkSession(
+                for: engine,
+                instructions: engine.notesProfile?.format == .markdown ? PlainNotes.markdownInstructions : PlainNotes.instructions
+            )
         } catch {
             add("Summary", name, "couldn't load: \(error.localizedDescription)")
             return
@@ -326,12 +329,16 @@ public final class ModelBenchmark {
         }
         defer { loaded.unload() }
         add("Summary", name, String(format: "loaded in %.2f s, context window %d tokens", seconds(since: loadStarted), OnDeviceModel.localContextSize))
-        let prompt = PlainNotes.prompt(chunk: chunk, chunkIndex: 0, chunkCount: 1)
+        // The model's own notes settings, as processing uses them.
+        let profile = engine.notesProfile
+        let prompt = profile?.format == .markdown
+            ? PlainNotes.markdownPrompt(chunk: chunk, chunkIndex: 0, chunkCount: 1)
+            : PlainNotes.prompt(chunk: chunk, chunkIndex: 0, chunkCount: 1)
         do {
             let started = ContinuousClock.now
             let response = try await loaded.session.respond(
                 to: prompt,
-                options: GenerationOptions(maximumResponseTokens: 600),
+                options: GenerationOptions(temperature: profile?.temperature, maximumResponseTokens: profile?.answerTokens ?? 600),
                 contextOptions: OnDeviceModel.contextOptions(local: true)
             )
             let elapsed = seconds(since: started)

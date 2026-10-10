@@ -52,6 +52,29 @@ public enum PlainNotes {
             """
     }
 
+    /// Instructions for the Markdown format (`NotesProfile.Format.markdown`).
+    public static let markdownInstructions = """
+        You write meeting notes from a numbered transcript.
+        Only write what was said, in your own words. Copy names exactly.
+        """
+
+    /// For a model that won't follow the labels: ordinary Markdown notes, which
+    /// LFM2.5 writes well when simply asked (it wrote TOPIC headlines with no points
+    /// otherwise). Read by `parse` like the labelled format: headings become topics,
+    /// bullets their points, and uncited points are matched to the line they repeat.
+    public static func markdownPrompt(chunk: TranscriptChunk, chunkIndex: Int, chunkCount: Int) -> String {
+        """
+        Here is part \(chunkIndex + 1) of \(chunkCount) of a meeting transcript. Lines are "N | Speaker: text".
+
+        \(chunk.promptText())
+
+        Write concise meeting notes in Markdown: a ### heading for each main topic, with its key \
+        points as bullets. Then ### Decisions, ### Action items (who will do what) and \
+        ### Open questions, only if there are any. End each bullet with the transcript line \
+        numbers it comes from, like [12, 15].
+        """
+    }
+
     /// The overview, from the notes so far.
     public static func overviewPrompt(points: [String], meetingTitle: String) -> String {
         """
@@ -94,6 +117,8 @@ public enum PlainNotes {
         var actions: [NoteActionItem] = []
         var questions: [NoteClaim] = []
         var names: [NoteClaim] = []
+        // Markdown notes: which list a bullet belongs to, from the heading above it.
+        var section = Section.topics
 
         for rawLine in text.components(separatedBy: .newlines) {
             let line = stripMarkup(rawLine)
@@ -112,8 +137,10 @@ public enum PlainNotes {
                     guard !title.isEmpty else { continue }
                     topics.append(NoteTopic(title: title))
                 case "decision":
-                    guard let lines = cite(cited, body, chunk), !body.isEmpty else { continue }
-                    decisions.append(NoteDecision(statement: speakerLetters(body), sourceLines: lines))
+                    // "x | DECISION: y": a second line run into the first (MiniCPM5 2B).
+                    let statement = body.components(separatedBy: "|").first?.trimmingCharacters(in: .whitespaces) ?? ""
+                    guard let lines = cite(cited, statement, chunk), !statement.isEmpty else { continue }
+                    decisions.append(NoteDecision(statement: speakerLetters(statement), sourceLines: lines))
                 case "task", "action":
                     let parts = body.split(separator: "|", omittingEmptySubsequences: false)
                         .map { $0.trimmingCharacters(in: .whitespaces) }
@@ -136,9 +163,45 @@ public enum PlainNotes {
                 default:
                     continue
                 }
-            } else if let pointText = bullet(line), !isAnswerLine(pointText) {
-                addPoint(pointText)
+            } else if let heading = markdownHeading(rawLine) {
+                section = Section(heading: heading)
+                if section == .topics { topics.append(NoteTopic(title: heading)) }
+            } else if let pointText = bullet(line), !isAnswerLine(pointText), !isEchoedLine(pointText) {
+                switch section {
+                case .topics, .overview: addPoint(pointText)
+                case .decisions: addDecision(pointText)
+                case .actions: addAction(pointText)
+                case .questions: addQuestion(pointText)
+                case .ignored: continue
+                }
             }
+        }
+
+        func addDecision(_ text: String) {
+            let (body, cited) = citations(in: text)
+            guard !body.isEmpty, let lines = cite(cited, body, chunk) else { return }
+            decisions.append(NoteDecision(statement: speakerLetters(body), sourceLines: lines))
+        }
+
+        /// "Rod: send the quote", "Send the quote (Rod)", or just the task.
+        func addAction(_ text: String) {
+            let (body, cited) = citations(in: text)
+            var task = body, owner = ""
+            if let colon = body.firstIndex(of: ":"), body[..<colon].split(separator: " ").count <= 3 {
+                owner = String(body[..<colon]).trimmingCharacters(in: .whitespaces)
+                task = String(body[body.index(after: colon)...]).trimmingCharacters(in: .whitespaces)
+            } else if let range = body.range(of: #"\s*\(([^()]{1,40})\)$"#, options: .regularExpression) {
+                owner = String(body[range]).trimmingCharacters(in: CharacterSet(charactersIn: " ()"))
+                task = String(body[..<range.lowerBound])
+            }
+            guard !task.isEmpty, let lines = cite(cited, task, chunk) else { return }
+            actions.append(NoteActionItem(task: speakerLetters(task), owner: speakerLetters(blankIfNone(owner)), dueDate: "", sourceLines: lines))
+        }
+
+        func addQuestion(_ text: String) {
+            let (body, cited) = citations(in: text)
+            guard !body.isEmpty, let lines = cite(cited, body, chunk) else { return }
+            questions.append(NoteClaim(text: speakerLetters(body), sourceLines: lines))
         }
 
         func addPoint(_ text: String) {
@@ -160,6 +223,48 @@ public enum PlainNotes {
             openQuestions: questions,
             speakerNames: names
         )
+    }
+
+    /// "64 | Speaker A: printer people": a transcript line copied back as it was
+    /// sent, not a note.
+    static func isEchoedLine(_ text: String) -> Bool {
+        text.range(of: #"^\d+\s*\|\s*(Speaker [A-Z]+|[A-Z][\w'’.-]*)( [A-Z][\w'’.-]*)?\s*:"#, options: .regularExpression) != nil
+    }
+
+    /// Where a Markdown heading puts the bullets under it.
+    enum Section: Equatable {
+        case topics, overview, decisions, actions, questions, ignored
+
+        init(heading: String) {
+            let h = heading.lowercased()
+            func has(_ pattern: String) -> Bool { h.range(of: pattern, options: .regularExpression) != nil }
+            // Anywhere in the heading: "Key Decisions", "Action items and owners".
+            if has(#"\b(action items?|actions|tasks?|next steps|to-?dos?|follow[- ]ups?)\b"#) { self = .actions }
+            else if has(#"\bdecisions?\b"#) { self = .decisions }
+            else if has(#"\b(open )?questions?\b"#) { self = .questions }
+            else if has(#"^(participants|attendees|date|time|location|agenda)\b"#) { self = .ignored }
+            // A heading over the whole answer, not a topic: its bullets still count.
+            else if has(#"^(meeting (notes|summary)|notes|summary|overview|key (topics|points)|main topics|summary of key topics)\b"#) || has(#"part \d+ of \d+"#) { self = .overview }
+            else { self = .topics }
+        }
+    }
+
+    /// The text of a Markdown heading ("### Backups", "**Backups**", "2. **Backups:**"),
+    /// or nil. A bold label followed by text ("**TOPIC:** x") isn't one.
+    static func markdownHeading(_ rawLine: String) -> String? {
+        let line = rawLine.trimmingCharacters(in: .whitespaces)
+        let patterns = [#"^(?:#{1,6}\s+)+(.+)$"#, #"^(?:\d+[.)]\s+)?\*\*([^*]+)\*\*:?$"#]
+        for pattern in patterns {
+            guard let regex = try? NSRegularExpression(pattern: pattern),
+                  let match = regex.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)),
+                  let range = Range(match.range(at: 1), in: line) else { continue }
+            let title = String(line[range])
+                .replacingOccurrences(of: "**", with: "")
+                .replacingOccurrences(of: #"\s*\[[^\]]*\]\s*$"#, with: "", options: .regularExpression)
+                .trimmingCharacters(in: CharacterSet(charactersIn: " :"))
+            return title.isEmpty ? nil : title
+        }
+        return nil
     }
 
     /// "Answer: …" bullets: the model answering its own question, not a note.
@@ -232,8 +337,16 @@ public enum PlainNotes {
                 body.removeSubrange(whole)
             }
         }
-        // Empty citations the model left: "[, , ]", "[]", "[<>]".
+        // Empty citations the model left: "[, , ]", "[]", "[<>]", and the prompt's
+        // placeholder copied as is: "[<line numbers>]" (Qwen3.5 2B).
         body = body.replacingOccurrences(of: #"\[[\s,<>]*\]"#, with: "", options: .regularExpression)
+        body = body.replacingOccurrences(of: #"\[\s*<[^\]]*>\s*\]"#, with: "", options: .regularExpression)
+        // Other debris small models leave: a line range after a bar ("| 1-33"),
+        // HTML comments ("<!-- 247, 248 -->") and stray citation pieces (", , ]").
+        body = body.replacingOccurrences(of: #"\s*\|\s*\d+\s*[-–]\s*\d+(?=\s*$)"#, with: "", options: .regularExpression)
+        body = body.replacingOccurrences(of: #"<!--.*?-->"#, with: "", options: .regularExpression)
+        body = body.replacingOccurrences(of: #"(\s*,)+\s*\]"#, with: "", options: .regularExpression)
+        body = body.replacingOccurrences(of: #"(\s*,\s*\d+)+\s*$"#, with: "", options: .regularExpression)
         // Who said it, in brackets: "[Dan]", "[Speaker A]" (LFM2.5 1.2B, build 62).
         // The citation already says who; the tag only clutters the point.
         body = body.replacingOccurrences(
@@ -241,7 +354,8 @@ public enum PlainNotes {
             with: "",
             options: .regularExpression
         )
-        body = body.trimmingCharacters(in: CharacterSet(charactersIn: " .;,:–-")).trimmingCharacters(in: .whitespaces)
+        // "point | [9:23]": the separator left behind once the citation is gone.
+        body = body.trimmingCharacters(in: CharacterSet(charactersIn: " .;,:–-|")).trimmingCharacters(in: .whitespaces)
         return (body, Array(Set(lines)).sorted())
     }
 

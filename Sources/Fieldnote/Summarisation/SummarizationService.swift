@@ -75,9 +75,20 @@ public actor SummarizationService {
     /// the structured schema, which it doesn't follow. Set per run.
     private var plain = false
 
+    /// How this run's downloaded model is driven (`SummaryEngine.notesProfile`);
+    /// nil for Apple's model, which keeps its own prompts and settings.
+    private var profile: NotesProfile?
+
     /// Session instructions for this run.
     private var instructions: String {
-        plain ? PlainNotes.instructions : prompt.instructions
+        guard plain else { return prompt.instructions }
+        return profile?.format == .markdown ? PlainNotes.markdownInstructions : PlainNotes.instructions
+    }
+
+    /// Generation options for a downloaded model's answer: its temperature (Core AI
+    /// decodes greedily without one) and its answer length.
+    private func localOptions(maximumTokens: Int) -> GenerationOptions {
+        GenerationOptions(temperature: profile?.temperature, maximumResponseTokens: maximumTokens)
     }
 
     /// Whether this run may defer (the pipeline allows it a few times per meeting,
@@ -116,7 +127,12 @@ public actor SummarizationService {
         try await OnDeviceModel.prepareSummaryModel()
         defer { OnDeviceModel.releaseSummaryModel() }
         plain = OnDeviceModel.usesLocalModel
-        debug.log("summary", "\(DebugLog.short(meeting.id)): writing notes with \(plain ? "\(OnDeviceModel.selectedEngine.card.title) (Core AI), plain-text notes" : "Apple's model")")
+        profile = plain ? OnDeviceModel.selectedEngine.notesProfile : nil
+        if plain, let profile {
+            debug.log("summary", "\(DebugLog.short(meeting.id)): writing notes with \(OnDeviceModel.selectedEngine.card.title) (Core AI), \(profile.format == .markdown ? "Markdown" : "plain-text") notes, temperature \(profile.temperature), answers up to \(profile.answerTokens) tokens\(profile.partTokens.map { ", parts up to \($0) tokens" } ?? "")")
+        } else {
+            debug.log("summary", "\(DebugLog.short(meeting.id)): writing notes with \(plain ? "\(OnDeviceModel.selectedEngine.card.title) (Core AI), plain-text notes" : "Apple's model")")
+        }
         if !prompt.isBuiltIn {
             debug.log("summary", "\(DebugLog.short(meeting.id)): using an edited summary prompt")
         }
@@ -144,7 +160,10 @@ public actor SummarizationService {
             "\(DebugLog.short(meeting.id)): context \(budget.contextSize), fixed \(budget.fixedCost), answer reserve \(budget.outputReserve), prompt limit \(budget.promptLimit), chunk target \(budget.chunkBudget)\(budget.isMeasured ? "" : " (fallback, not measured)")"
         )
 
-        let chunker = TranscriptChunker(budget: budget.chunkBudget, overlap: budget.overlap)
+        // A downloaded model's own part size, if it sets one smaller than what fits
+        // (none does today; see NotesProfile).
+        let partTokens = min(budget.chunkBudget, profile?.partTokens ?? budget.chunkBudget)
+        let chunker = TranscriptChunker(budget: partTokens, overlap: partTokens / 10)
         let chunks = chunker.chunks(from: finalized)
         guard !chunks.isEmpty else { return MeetingSummary() }
         debug.log("summary", "\(DebugLog.short(meeting.id)): \(finalized.count) lines in \(chunks.count) chunk(s)")
@@ -352,7 +371,9 @@ public actor SummarizationService {
         degraded: inout [DegradedChunk]
     ) async throws -> ChunkNotes {
         let prompt = plain
-            ? PlainNotes.prompt(chunk: piece, chunkIndex: piece.index, chunkCount: total)
+            ? (profile?.format == .markdown
+                ? PlainNotes.markdownPrompt(chunk: piece, chunkIndex: piece.index, chunkCount: total)
+                : PlainNotes.prompt(chunk: piece, chunkIndex: piece.index, chunkCount: total))
             : PromptTemplates.chunkPrompt(chunk: piece, chunkIndex: piece.index, chunkCount: total, request: self.prompt.effectiveRequest)
         let tokens = await cost(of: prompt)
 
@@ -365,9 +386,9 @@ public actor SummarizationService {
             let session = try OnDeviceModel.session(tier: tier, instructions: instructions)
             let started = ContinuousClock.now
             if plain {
-                // Plain notes are short; a small model given more room rambles (1,000
-                // tokens for eight lines of transcript, build 40).
-                let response = try await session.respond(to: prompt, options: GenerationOptions(maximumResponseTokens: min(answerCap, 600)), contextOptions: OnDeviceModel.contextOptions)
+                // The model's own answer length (600 cut answers off mid-list; build 40's
+                // rambling at 1,000 came from greedy decoding, now sampled).
+                let response = try await session.respond(to: prompt, options: localOptions(maximumTokens: min(answerCap, profile?.answerTokens ?? 600)), contextOptions: OnDeviceModel.contextOptions)
                 let notes = PlainNotes.parse(response.content, chunk: piece)
                 debug.log(
                     "summary",
@@ -449,7 +470,7 @@ public actor SummarizationService {
     private func respond(to prompt: String, piece: TranscriptChunk) async throws -> ChunkNotes {
         let session = try OnDeviceModel.session(tier: tier, instructions: instructions)
         if plain {
-            let text = try await session.respond(to: prompt, options: GenerationOptions(maximumResponseTokens: min(answerCap, 600)), contextOptions: OnDeviceModel.contextOptions).content
+            let text = try await session.respond(to: prompt, options: localOptions(maximumTokens: min(answerCap, profile?.answerTokens ?? 600)), contextOptions: OnDeviceModel.contextOptions).content
             return PlainNotes.parse(text, chunk: piece)
         }
         return try await session.respond(to: prompt, generating: DraftChunkNotes.self, options: GenerationOptions(maximumResponseTokens: answerCap), contextOptions: OnDeviceModel.contextOptions).content.notes
@@ -563,7 +584,7 @@ public actor SummarizationService {
         do {
             let session = try OnDeviceModel.session(tier: tier, instructions: instructions)
             if plain {
-                let response = try await session.respond(to: prompt, options: GenerationOptions(maximumResponseTokens: 300), contextOptions: OnDeviceModel.contextOptions)
+                let response = try await session.respond(to: prompt, options: localOptions(maximumTokens: 300), contextOptions: OnDeviceModel.contextOptions)
                 return PlainNotes.cleanOverview(response.content)
             }
             let response = try await session.respond(to: prompt, generating: DraftRollup.self, options: GenerationOptions(maximumResponseTokens: 800), contextOptions: OnDeviceModel.contextOptions)

@@ -55,6 +55,65 @@ struct PlainNotesTests {
         #expect(notes.actionItems.first?.owner == "Alex")
     }
 
+    @Test("Markdown notes: headings are topics, and their sections sort the bullets")
+    func markdownNotes() {
+        let text = """
+            ## Meeting Notes – Part 1 of 1
+
+            ### Moving to the technical phase
+            - The commercial agreement is finished [10]
+            - **Next:** prove the technical side works [11]
+
+            **Key Decisions:**
+            - Prove the technical side before signing anything else [11]
+
+            ### Action items
+            - Alex: send the firewall rules by Friday [13, 14]
+
+            ### Open questions
+            - Who pays for the firewall rules? [13]
+            """
+        let notes = PlainNotes.parse(text, chunk: chunk)
+        #expect(notes.topics.map(\.title) == ["Moving to the technical phase"])
+        #expect(notes.topics.first?.points.map(\.sourceLines) == [[10], [11]])
+        #expect(notes.decisions.map(\.sourceLines) == [[11]])
+        #expect(notes.actionItems.first?.owner == "Alex")
+        #expect(notes.actionItems.first?.task == "send the firewall rules by Friday")
+        #expect(notes.openQuestions.count == 1)
+    }
+
+    @Test("Leftover separators and the prompt's placeholder are cleaned off")
+    func leftovers() {
+        let text = """
+            TOPIC: Firewall rollout [<line numbers>]
+            - The commercial agreement is finished | [10]
+            DECISION: Prove the technical side next | DECISION: sign later [11]
+            """
+        let notes = PlainNotes.parse(text, chunk: chunk)
+        #expect(notes.topics.first?.title == "Firewall rollout")
+        #expect(notes.topics.first?.points.first?.text == "The commercial agreement is finished")
+        #expect(notes.decisions.first?.statement == "Prove the technical side next")
+    }
+
+    @Test("Echoed transcript lines, line ranges and comment debris are dropped")
+    func echoesAndDebris() {
+        let text = """
+            ### ### Moving to the technical phase
+            - 10 | Speaker A: Thanks for joining, the commercial part is done.
+            - The commercial part of the deal is done | 10-11
+            - The team now has to prove the technical side <!-- 11 --> , , ]
+            TASK: Send the firewall rules | Alex | 3-4 days [13]
+            """
+        let notes = PlainNotes.parse(text, chunk: chunk)
+        #expect(notes.topics.first?.title == "Moving to the technical phase")
+        // The range is dropped; the point is matched to the line it repeats.
+        #expect(notes.topics.first?.points.map(\.text) == [
+            "The commercial part of the deal is done",
+            "The team now has to prove the technical side",
+        ])
+        #expect(notes.actionItems.first?.dueDate == "3-4 days")
+    }
+
     @Test("Notes with no overview and no topics count as empty")
     func emptySummary() {
         let segment = UUID()
