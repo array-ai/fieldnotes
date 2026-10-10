@@ -85,14 +85,22 @@ This is the point of the app, and it is enforced by tests rather than by intenti
 - **No cloud models.** Every model runs on the phone. Every language-model session is
   pinned to Apple's on-device model, and the speech libraries' download-on-first-use
   loaders are banned in the source.
-- **No Siri or Spotlight indexing.** There are no App Intents, so meeting content never
-  reaches the system's semantic index.
+- **No Siri or Spotlight indexing.** Meetings are never added to the system's
+  semantic index, and Siri can't search them: there are no App Intents entities,
+  queries or parameters, and a policy check keeps it that way.
+- **Siri reads notes only if you let it.** Siri can start and stop a recording, open
+  your last meeting and say whether its notes are ready, without naming it. With
+  "Let Siri read meeting notes" on (Settings, off by default), you can also ask for
+  the last meeting's action items or summary: Siri gets that one short answer, from
+  the notes and never the transcript, only when you ask and only with the phone
+  unlocked. Siri may process requests off the phone, which is why it's off by default.
 - **Location is opt-in.** The place is named offline (nearest suburb or town, from a
   table built into the app). A business or building name needs Apple Maps, which is
   a separate setting, off by default, that sends only the coordinates to Apple. All
   Apple Maps calls live in one file, and a policy check keeps them there.
 
-Meeting content leaves the phone only when you share it yourself.
+Meeting content leaves the phone only when you share it yourself, or ask Siri for
+it with that setting on.
 
 The one third-party library is [FluidAudio](https://github.com/FluidInference/FluidAudio),
 which runs the speaker and Parakeet models with CoreML. No analytics or networking
@@ -180,7 +188,7 @@ swift test --package-path Core     # Linux or Mac, no device
 |---|---|
 | Model sessions only built in `OnDeviceModel`, pinned on-device | `PolicyTests.sessionsOnlyFromFactory`, `policy-check.sh` |
 | No third-party `LanguageModel` providers | `PolicyTests.noThirdPartyProviders` |
-| No App Intents or semantic indexing | `PolicyTests.noAppIntents` |
+| App Intents only in the named files; no entities or semantic indexing | `PolicyTests.appIntentsConfined` |
 | No networking code, no network entitlements | `PolicyTests.noNetworking`, `noNetworkEntitlements` |
 | Apple Maps place lookups only in `PlaceNamer` | `PolicyTests.placeLookupsConfined` |
 | Model downloads only in `ModelDownloads` | `PolicyTests.downloadsConfined` |

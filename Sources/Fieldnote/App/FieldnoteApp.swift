@@ -47,6 +47,9 @@ struct FieldnoteApp: App {
         }
         // The Action button / Control Centre / Siri control runs in this process.
         MeetingRecordingControl.toggle = { try await model.toggleRecordingFromIntent() }
+        // Siri's questions about meetings, also answered in this process.
+        MeetingNotesForSiri.store = model.store
+        MeetingNotesForSiri.open = { id in model.openMeetingID = id }
         #endif
     }
 

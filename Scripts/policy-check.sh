@@ -51,16 +51,19 @@ for needle in ": LanguageModel " ": LanguageModel," ": LanguageModel {"; do
 done
 
 echo
-echo "== Constraint 8 / spec 4.8: no App Intents beyond the record button, no semantic indexing"
-# One exception: the "Record a Meeting" intent behind the Action button, Control
-# Centre control and Siri phrase. It takes no parameters and returns no meeting
-# content, and only these files may import App Intents.
-RECORD_INTENT_FILES="RecordMeetingIntent.swift\|RecordMeetingControl.swift\|RecordMeetingShortcut.swift"
-check_absent "import AppIntents" "App Intents only for the record button" "$RECORD_INTENT_FILES"
-check_absent "AppShortcutsProvider" "the only app shortcut is the record button" "RecordMeetingShortcut.swift"
+echo "== Constraint 8 / spec 4.8: App Intents only in the named files, no entities or semantic indexing"
+# Allowed: the "Record a Meeting" intent behind the Action button, Control Centre
+# control and Siri phrase, which returns no meeting content; and the meeting-notes
+# questions, which take no parameters and answer one request from the last
+# meeting's notes, only with the user's opt-in and the phone unlocked.
+INTENT_FILES="RecordMeetingIntent.swift\|RecordMeetingControl.swift\|RecordMeetingShortcut.swift\|MeetingNotesIntents.swift"
+check_absent "import AppIntents" "App Intents only in the named files" "$INTENT_FILES"
+check_absent "AppShortcutsProvider" "app shortcuts only in RecordMeetingShortcut" "RecordMeetingShortcut.swift"
+for needle in ": AppIntent " ": AppIntent," ": AppIntent {"; do
+  check_absent "$needle" "plain App Intents only in MeetingNotesIntents ($needle)" "MeetingNotesIntents.swift"
+done
 for needle in "IndexedEntity" "AssistantEntity" "AssistantIntent" \
-              "indexingKey" "ViewAnnotation" ": AppIntent " ": AppIntent," ": AppIntent {" \
-              "EntityQuery" "@Parameter" "AppEntity"; do
+              "indexingKey" "ViewAnnotation" "EntityQuery" "@Parameter" "AppEntity"; do
   check_absent "$needle" "no $needle"
 done
 

@@ -140,6 +140,22 @@ struct SettingsView: View {
                 }
 
                 Section {
+                    Toggle("Let Siri read meeting notes", isOn: $settings.siriReadsNotes)
+                } header: {
+                    Text("Siri")
+                } footer: {
+                    Text(
+                        """
+                        Ask Siri for the action items or a summary of your last meeting. \
+                        Siri gets only that answer, only when you ask, and only with the \
+                        phone unlocked; nothing is added to Siri's or Spotlight's index. \
+                        Siri may process requests off this device. To turn Siri off for \
+                        Fieldnote completely, go to Settings → Apps → Fieldnote → Siri.
+                        """
+                    )
+                }
+
+                Section {
                     Toggle("Debug mode", isOn: $settings.debugMode)
                     if settings.debugMode {
                         NavigationLink("Activity log") { DebugLogView() }

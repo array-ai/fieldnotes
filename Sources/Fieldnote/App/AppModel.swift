@@ -388,6 +388,12 @@ public final class AppModel {
             didSet { UserDefaults.standard.set(cleanUpCustomWords, forKey: TranscriptCleanup.defaultsKey) }
         }
 
+        /// Siri can read the last meeting's summary and action items when asked. Off
+        /// by default: Siri may process requests off the phone.
+        public var siriReadsNotes: Bool {
+            didSet { UserDefaults.standard.set(siriReadsNotes, forKey: SiriAnswers.enabledKey) }
+        }
+
         /// Shows the log viewer, the benchmark and the prompt editor.
         public var debugMode: Bool {
             didSet { UserDefaults.standard.set(debugMode, forKey: "debugMode") }
@@ -410,6 +416,7 @@ public final class AppModel {
 
         public init() {
             self.debugMode = UserDefaults.standard.bool(forKey: "debugMode")
+            self.siriReadsNotes = UserDefaults.standard.bool(forKey: SiriAnswers.enabledKey)
             self.summariseWhileCharging = UserDefaults.standard.bool(forKey: SummaryInBackground.defaultsKey)
             self.keepAwakeWhileProcessing = UserDefaults.standard.object(forKey: "keepAwakeWhileProcessing") as? Bool ?? true
             self.skipSmallTalk = UserDefaults.standard.object(forKey: SummarizationService.skipSmallTalkKey) as? Bool ?? true

@@ -111,8 +111,11 @@ jobs:
           [ -d "$APP/Metadata.appintents" ] && [ -d "$WIDGET_APPEX/Metadata.appintents" ] \
             || { echo "App Intents metadata missing from the app or the widget extension"; ls "$APP" "$WIDGET_APPEX"; exit 1; }
           ls "$APP/Metadata.appintents"
-          grep -q RecordMeetingIntent "$APP/Metadata.appintents/extract.actionsdata" \
-            || { echo "RecordMeetingIntent isn't in the app's App Intents metadata"; exit 1; }
+          for INTENT in RecordMeetingIntent LastMeetingActionItemsIntent LastMeetingSummaryIntent \
+                        NotesStatusIntent OpenLastMeetingIntent; do
+            grep -q "$INTENT" "$APP/Metadata.appintents/extract.actionsdata" \
+              || { echo "$INTENT isn't in the app's App Intents metadata"; exit 1; }
+          done
           [ -d "$APP/DiarizationModels/Nemotron3/Nemotron3Diarizer_c128_split_w8a8.mlmodelc" ] \
             && [ -f "$APP/DiarizationModels/Nemotron3/learnable_sil_emb.bin" ] \
             && [ -f "$APP/DiarizationModels/Nemotron3/pre_encode_proj_t.bin" ] \

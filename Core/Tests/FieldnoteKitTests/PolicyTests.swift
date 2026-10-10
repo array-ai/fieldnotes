@@ -89,23 +89,34 @@ struct PolicyTests {
         }
     }
 
-    /// Constraint 8 / spec 4.8: no App Intents beyond the record button, and nothing
+    /// Constraint 8 / spec 4.8: App Intents only in the named files, and nothing
     /// that could contribute app content to the Spotlight semantic index.
     ///
-    /// Siri is now a cloud Gemini model with cloud routing. Indexing a transcript
-    /// entity is a data-exfiltration path with a friendly name. Fieldnote accepts
-    /// being invisible to Siri's content search. The one exception is "Record a
-    /// Meeting" (Action button, Control Centre, Siri phrase): no parameters, no
-    /// entities, and it returns no meeting content.
-    @Test("No App Intents beyond the record button, and no semantic indexing")
-    func noAppIntents() {
-        let recordButton = ["RecordMeetingIntent.swift", "RecordMeetingControl.swift", "RecordMeetingShortcut.swift"]
+    /// Siri is now a cloud model with cloud routing. Indexing a transcript entity is
+    /// a data-exfiltration path with a friendly name, so Fieldnote stays invisible to
+    /// Siri's content search: no entities, no queries, no parameters. What's allowed
+    /// is "Record a Meeting" (Action button, Control Centre, Siri phrase), which
+    /// returns no meeting content, and the meeting-notes questions, which answer one
+    /// request with a short piece of the last meeting's notes, only when the user
+    /// has turned on "Let Siri read meeting notes" and the phone is unlocked.
+    @Test("App Intents only in the named files, and no entities or semantic indexing")
+    func appIntentsConfined() {
+        let intentFiles = [
+            "RecordMeetingIntent.swift", "RecordMeetingControl.swift", "RecordMeetingShortcut.swift",
+            "MeetingNotesIntents.swift"
+        ]
         let importers = PolicySourceScanner.filesContaining("import AppIntents")
-            .filter { file in !recordButton.contains { file.hasSuffix($0) } }
+            .filter { file in !intentFiles.contains { file.hasSuffix($0) } }
         #expect(importers.isEmpty, "import AppIntents found in: \(importers.joined(separator: ", "))")
         let shortcuts = PolicySourceScanner.filesContaining("AppShortcutsProvider")
             .filter { !$0.hasSuffix("RecordMeetingShortcut.swift") }
         #expect(shortcuts.isEmpty, "AppShortcutsProvider found in: \(shortcuts.joined(separator: ", "))")
+        // Exact: `: AppIntentsPackage` only registers a package's intents.
+        for marker in [": AppIntent ", ": AppIntent,", ": AppIntent {"] {
+            let offenders = PolicySourceScanner.filesContaining(marker)
+                .filter { !$0.hasSuffix("MeetingNotesIntents.swift") }
+            #expect(offenders.isEmpty, "\(marker) found in: \(offenders.joined(separator: ", "))")
+        }
 
         let forbidden = [
             "IndexedEntity",
@@ -113,10 +124,6 @@ struct PolicyTests {
             "AssistantIntent",
             "indexingKey",
             "ViewAnnotation",
-            // Exact: `: AppIntentsPackage` only registers a package's intents.
-            ": AppIntent ",
-            ": AppIntent,",
-            ": AppIntent {",
             "EntityQuery",
             "@Parameter",
             "AppEntity"
