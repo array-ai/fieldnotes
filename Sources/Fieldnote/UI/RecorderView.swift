@@ -55,6 +55,11 @@ struct RecorderView: View {
             }
             .onChange(of: model.meetings) { load() }
             .onDisappear { save() }
+            // Stopped from the Action button, Control Centre or Siri: nothing left to
+            // show, and no Stop to press.
+            .onChange(of: model.recorder.isActive) { _, active in
+                if !active { dismiss() }
+            }
         }
     }
 

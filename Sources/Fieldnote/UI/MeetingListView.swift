@@ -90,7 +90,7 @@ struct MeetingListView: View {
                         .buttonBorderShape(.capsule)
                         .tint(.red)
                         .disabled(isStarting)
-                        .accessibilityLabel("Start recording")
+                        .accessibilityHint("Starts the meeting described in the card above")
                     }
                 }
                 ToolbarItem(placement: .secondaryAction) {
