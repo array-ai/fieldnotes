@@ -394,7 +394,7 @@ struct SummarySections: View {
                         .buttonStyle(.plain)
                     }
                 } header: {
-                    Text([topic.emoji, topic.title].compactMap { $0 }.joined(separator: " "))
+                    Text([topic.displayEmoji, topic.title].compactMap { $0 }.joined(separator: " "))
                 }
             }
             if !summary.actionItems.isEmpty {

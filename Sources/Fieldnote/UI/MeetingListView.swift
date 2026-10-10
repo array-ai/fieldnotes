@@ -269,7 +269,7 @@ struct MeetingRow: View {
                 VStack(alignment: .leading, spacing: 6) {
                     ForEach(topics.prefix(3)) { topic in
                         HStack(alignment: .firstTextBaseline, spacing: 8) {
-                            Text(topic.emoji ?? "•")
+                            Text(topic.displayEmoji ?? "•")
                             Text("\(Text(topic.title).bold())\(topic.summary.isEmpty ? "" : ": \(topic.summary)")")
                                 .lineLimit(3)
                         }

@@ -114,4 +114,19 @@ struct TopicTests {
         let decoded = try JSONDecoder().decode(MeetingSummary.self, from: Data(old.utf8))
         #expect(decoded.topics == nil)
     }
+
+    @Test("Only real emoji are shown for a topic")
+    func emojiOnly() {
+        func topic(_ emoji: String?) -> SummaryTopic {
+            SummaryTopic(title: "Backups", summary: "", points: [], emoji: emoji)
+        }
+        #expect(topic("🔧").displayEmoji == "🔧")
+        #expect(topic(":wrench:").displayEmoji == nil)
+        #expect(topic(":w").displayEmoji == nil)
+        #expect(topic("🇦🇺 flag").displayEmoji == "🇦🇺")
+        #expect(topic("👍🏽").displayEmoji == "👍🏽")
+        #expect(topic("☎️").displayEmoji == "☎️")
+        #expect(topic("3").displayEmoji == nil)
+        #expect(topic(nil).displayEmoji == nil)
+    }
 }

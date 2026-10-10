@@ -61,6 +61,10 @@ public struct SummaryTopic: Codable, Hashable, Sendable, Identifiable {
     /// A single emoji for the meeting list's highlights. Decoration only.
     public var emoji: String?
 
+    /// `emoji` if it really is one. Apple's model sometimes writes a code like
+    /// ":wrench:" instead, which notes saved before build 64 cut to ":w".
+    public var displayEmoji: String? { emoji.flatMap(Emoji.first(in:)) }
+
     public init(id: UUID = UUID(), title: String, summary: String, points: [TopicPoint], emoji: String? = nil) {
         self.id = id
         self.title = title

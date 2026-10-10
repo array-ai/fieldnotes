@@ -41,7 +41,9 @@ public enum TopicMerger {
         for section in sections {
             let members = section.members.filter { candidates.indices.contains($0) && used.insert($0).inserted }
             guard !members.isEmpty else { continue }
-            let emoji = section.emoji?.trimmed().nilIfEmpty.map { String($0.prefix(2)) }
+            // The first real emoji in what the model wrote: it sometimes writes a
+            // code like ":wrench:", and two characters of that showed as ":w".
+            let emoji = section.emoji.flatMap(Emoji.first(in:))
             for (index, run) in runs(members, maxPerSection: maxPerSection).enumerated() {
                 // The model's title and summary fit the first run; a later run is the
                 // same subject coming back, under its own excerpt title.
