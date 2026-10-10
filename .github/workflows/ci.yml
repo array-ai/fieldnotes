@@ -11,8 +11,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      # The prohibitions that make Fieldnote what it is: no App Intents, no semantic
-      # indexing, no networking, no unpinned model session. Pure grep, so they gate
+      # The prohibitions that make Fieldnote what it is: App Intents only in named
+      # files, no semantic indexing, no networking, no unpinned model session. Pure grep, so they gate
       # every push without a toolchain.
       - name: Run policy checks
         run: ./Scripts/policy-check.sh
