@@ -58,7 +58,17 @@ img { max-width: 100%; }
 .site-foot .wrap { padding-block: 24px 40px; color: var(--muted); font-size: 14px; display: flex; flex-wrap: wrap; gap: 8px 20px; justify-content: space-between; }
 .site-foot a { color: var(--muted); }
 
+/* TestFlight beta banner, on every page */
+.beta { background: var(--ink); color: var(--on-ink); font-size: 15px; }
+.beta .wrap { display: flex; align-items: center; justify-content: space-between; gap: 10px 16px; flex-wrap: wrap; padding-block: 10px; }
+.beta strong { color: #ffb35c; }
+.beta-button { display: inline-block; background: #ff8a3d; color: #1a1e2b; font-weight: 600; text-decoration: none; padding: 8px 14px; border-radius: 999px; white-space: nowrap; }
+.beta-button:hover { background: #ffb35c; color: #1a1e2b; }
+.beta-button:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+
 /* Home */
+.hero-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; }
+.hero-actions .beta-button { font-size: 17px; padding: 12px 20px; }
 .hero { padding-block: 64px 40px; display: grid; gap: 18px; }
 .hero-icon { width: 96px; height: 96px; border-radius: 22px; box-shadow: 0 8px 24px rgb(18 20 29 / .18); }
 .hero h1 { font: 700 clamp(34px, 7vw, 52px)/1.08 var(--display); letter-spacing: -0.02em; margin: 0; text-wrap: balance; }

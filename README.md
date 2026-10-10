@@ -4,6 +4,9 @@ A meeting recorder for iPhone that transcribes, works out who spoke when, and
 summarises, all on the device. No server, no account, and no network access except
 two things you choose: optional model downloads, and Apple Maps place names.
 
+> **Try it:** [join the TestFlight beta](https://testflight.apple.com/join/c2M82CMX) (iPhone 15 Pro or later, iOS 27;
+> 25 places). Website, privacy policy and support: https://array-ai.github.io/fieldnotes/
+
 > **Experimental.** Fieldnote runs on a real iPhone, but it still has small bugs.
 > Expect rough edges.
 >
