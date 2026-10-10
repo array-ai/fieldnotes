@@ -7,8 +7,8 @@ two things you choose: optional model downloads, and Apple Maps place names.
 > **Try it:** [join the TestFlight beta](https://testflight.apple.com/join/c2M82CMX) (iPhone 15 Pro or later, iOS 27;
 > 25 places). Website, privacy policy and support: https://array-ai.github.io/fieldnotes/
 
-> **Experimental.** Fieldnote runs on a real iPhone, but it still has small bugs.
-> Expect rough edges.
+> **In beta on TestFlight.** Found a bug? Open an
+> [issue](https://github.com/array-ai/fieldnotes/issues).
 >
 > **Written almost entirely by AI** (Claude), directed and reviewed by publicarray.
 
@@ -117,7 +117,7 @@ SDKs are included.
 |---|---|
 | Core logic (`Core/`) | Builds and tests on Linux, no Apple SDK. Tests run in CI on every push |
 | App and widget | Build for `arm64-apple-ios27.0` in CI with Xcode 27, both through xtool and `xcodebuild` |
-| On a device | Runs on iPhone, with known small bugs. The device checks under [Testing](#testing) haven't all been done |
+| On a device | In beta on TestFlight. The device checks under [Testing](#testing) haven't all been done |
 | Linux device builds | Blocked: the bundled LLD can't read the iOS 27 SDK's stubs (see [Build](#build)) |
 
 ## Requirements
