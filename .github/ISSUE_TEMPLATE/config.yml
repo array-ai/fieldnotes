@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Support and common questions
+    url: https://array-ai.github.io/fieldnotes/support.html
+    about: Requirements, how notes are written, Siri, storage and more.
+  - name: Join the TestFlight beta
+    url: https://testflight.apple.com/join/c2M82CMX
+    about: iPhone 15 Pro or later, iOS 27.

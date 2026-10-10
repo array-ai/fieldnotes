@@ -29,3 +29,6 @@ xcuserdata/
 
 # Photo-manager sidecar notes (e.g. Screenshots/.comments/*.xml)
 .comments/
+
+# App Store assets (screenshots and their sources), kept out of the repo
+AppStore/

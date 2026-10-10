@@ -1,0 +1,71 @@
+name: Bug report
+description: Something in Fieldnote didn't work as expected.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for testing Fieldnote. Be aware that issues are public: **anything you attach, including recordings, transcripts or notes, can be seen by anyone.**
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+      placeholder: |
+        I renamed Speaker B to Priya on the transcript, but the notes still say "Speaker B".
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: If you know how to make it happen again.
+      placeholder: |
+        1. Record a short meeting with two people
+        2. On the Transcript tab, tap "Speaker B" and rename them
+        3. Switch to the Summary tab
+  - type: input
+    id: build
+    attributes:
+      label: Fieldnote version
+      description: At the bottom of Settings, or the first line of the activity log, e.g. "0.1.0 (60, 705a086)".
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: iPhone and iOS version
+      placeholder: iPhone 16, iOS 27.0.1
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where
+      options:
+        - Recording
+        - Transcript
+        - Speakers
+        - Notes (summary)
+        - Search
+        - Siri, Action button or Control Centre
+        - Importing or sharing
+        - Model downloads
+        - Settings
+        - Something else
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Activity log
+      description: |
+        Turn on Settings → Debug → Debug mode, then open **Activity log** and tap Share (or select the lines). Paste the lines from around when it happened.
+
+        The log records what ran, how long it took and what failed. It avoids meeting content, but an error line can include part of a meeting: **read it before you paste it** and remove anything you don't want public.
+      render: text
+  - type: textarea
+    id: more
+    attributes:
+      label: Anything else
+      description: Screenshots of the screen with the problem (without meeting content) help.
