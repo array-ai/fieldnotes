@@ -19,6 +19,10 @@ public final class NotesComparison {
         /// What actually ran: a chosen model that can't load falls back to Apple's.
         public var ranOn: String?
         public var seconds: Double?
+        /// The phone's thermal state when this model started and finished. A hot
+        /// phone throttles, so a model run late in the comparison can look slower than
+        /// it is.
+        public var thermal = ""
         public var summary: MeetingSummary?
         public var error: String?
 
@@ -69,6 +73,11 @@ public final class NotesComparison {
                 results.append(Result(engine: engine, error: "not downloaded (Settings → Models)"))
                 continue
             }
+            // Models run back to back, so each inherits the heat of the ones before;
+            // wait for the phone to cool to a fair start (a throttled run made Qwen3.5
+            // 2B look far slower, build 63).
+            await coolDown(before: engine)
+            let thermalAtStart = ModelBenchmark.thermal(ProcessInfo.processInfo.thermalState)
             status = "\(engine.card.title)…"
             OnDeviceModel.overrideEngine(engine)
             _ = OnDeviceModel.takeEngineUsed()
@@ -83,6 +92,7 @@ public final class NotesComparison {
                 let elapsed = started.duration(to: .now)
                 let seconds = Double(elapsed.components.seconds) + Double(elapsed.components.attoseconds) / 1e18
                 var result = Result(engine: engine, ranOn: OnDeviceModel.takeEngineUsed()?.card.title, seconds: seconds)
+                result.thermal = "\(thermalAtStart) → \(ModelBenchmark.thermal(ProcessInfo.processInfo.thermalState))"
                 result.summary = summary.applyingSpeakerNames(meeting.speakerNames)
                 results.append(result)
                 debug.log("compare", "\(engine.card.title): \(result.line)")
@@ -102,6 +112,20 @@ public final class NotesComparison {
         reportURL = writeReport(meeting: meeting, includeTranscript: includeTranscript)
     }
 
+    /// Waits, up to ten minutes, while the phone reports serious or critical heat.
+    private func coolDown(before engine: SummaryEngine) async {
+        let started = ContinuousClock.now
+        while ProcessInfo.processInfo.thermalState.rawValue >= ProcessInfo.ThermalState.serious.rawValue,
+              started.duration(to: .now) < .seconds(600), !Task.isCancelled {
+            status = "Letting the phone cool before \(engine.card.title)…"
+            try? await Task.sleep(for: .seconds(15))
+        }
+        let waited = started.duration(to: .now)
+        if waited > .seconds(1) {
+            debug.log("compare", "waited \(waited.components.seconds) s for the phone to cool before \(engine.card.title); now \(ModelBenchmark.thermal(ProcessInfo.processInfo.thermalState))")
+        }
+    }
+
     // MARK: - Report
 
     private func writeReport(meeting: MeetingSnapshot, includeTranscript: Bool) -> URL? {
@@ -112,12 +136,13 @@ public final class NotesComparison {
             "- Fieldnote \(DebugLog.appVersion), \(ModelBenchmark.deviceModel()), iOS \(ProcessInfo.processInfo.operatingSystemVersionString)",
             "- Meeting: \(Timecode.short(meeting.duration)), \(meeting.segments.count) transcript lines",
             "- Same transcript for every model; Settings' summary prompt and small-talk setting apply to all.",
+            "- Before each model the phone is left to cool (up to 10 minutes) if it reports serious or critical heat; a hot phone runs slower.",
             "",
-            "| Model | Ran on | Result |",
-            "|---|---|---|",
+            "| Model | Ran on | Thermal state | Result |",
+            "|---|---|---|---|",
         ]
         for result in results {
-            lines.append("| \(result.engine.card.title) | \(result.ranOn ?? "–") | \(result.line) |")
+            lines.append("| \(result.engine.card.title) | \(result.ranOn ?? "–") | \(result.thermal.isEmpty ? "–" : result.thermal) | \(result.line) |")
         }
         for result in results {
             guard let summary = result.summary else { continue }

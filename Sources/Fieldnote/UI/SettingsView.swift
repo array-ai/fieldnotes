@@ -341,6 +341,9 @@ struct NotesComparisonView: View {
                             Text(result.line)
                                 .font(.caption.monospacedDigit())
                                 .foregroundStyle(.secondary)
+                            if !result.thermal.isEmpty {
+                                Text("Thermal state: \(result.thermal)").font(.caption).foregroundStyle(.secondary)
+                            }
                             if let ranOn = result.ranOn, ranOn != result.engine.card.title {
                                 Text("Ran on \(ranOn)").font(.caption).foregroundStyle(.orange)
                             }
