@@ -101,12 +101,17 @@ public final class AppModel {
 
     // MARK: - Recording
 
-    public func startRecording(title: String, coordinate: (latitude: Double, longitude: Double)?) async throws {
+    public func startRecording(
+        title: String,
+        client: String? = nil,
+        coordinate: (latitude: Double, longitude: Double)?
+    ) async throws {
         let locale = settings.locale
         // Meeting types are gone from the UI; every meeting is stored as `.general`.
         let type = MeetingType.general
         let id = try await store.createMeeting(
             title: title,
+            client: client,
             type: type,
             locale: locale,
             consentAcknowledged: settings.consentAcknowledged,
@@ -297,6 +302,11 @@ public final class AppModel {
 
     public func renameMeeting(_ meetingID: UUID, to title: String) async {
         try? await store.renameMeeting(meetingID, to: title)
+        await refresh()
+    }
+
+    public func setClient(_ meetingID: UUID, to client: String) async {
+        try? await store.setClient(meetingID, to: client)
         await refresh()
     }
 

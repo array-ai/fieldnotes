@@ -12,7 +12,8 @@ public enum MeetingSearch {
     /// index was built before the new summary was linked to its meeting).
     /// 5: only the title, place, speaker names and the list's notes (no transcript or
     /// full notes).
-    public static let indexVersion = 5
+    /// 6: the client.
+    public static let indexVersion = 6
 
     /// Lowercased, accents removed, typographic quotes made plain.
     public static func normalize(_ text: String) -> String {
@@ -38,17 +39,19 @@ public enum MeetingSearch {
         terms.allSatisfy { normalizedText.contains($0) }
     }
 
-    /// What the meeting list's search looks at: the title, the place, the speakers'
-    /// names, and the notes shown under each meeting in the list (the overview and
+    /// What the meeting list's search looks at: the title, the client, the place, the
+    /// speakers' names, and the notes shown under each meeting in the list (the overview and
     /// the topics' headlines and one-line summaries). Not the transcript or the rest
     /// of the notes: those are searched with Find inside a meeting.
     public static func indexText(
         title: String,
+        client: String? = nil,
         placeName: String?,
         speakerNames: [String],
         summary: MeetingSummary?
     ) -> String {
         var parts = [title]
+        if let client, !client.isEmpty { parts.append(client) }
         if let placeName, !placeName.isEmpty { parts.append(placeName) }
         parts.append(contentsOf: speakerNames)
         if let summary {

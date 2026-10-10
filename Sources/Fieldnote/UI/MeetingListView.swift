@@ -9,36 +9,65 @@ struct MeetingListView: View {
     @State private var importing = false
     @State private var share = SharePresentation()
     @State private var path: [UUID] = []
+    /// The record card's fields, kept here so the compact Record button starts the
+    /// same meeting the card would.
+    @State private var draftTitle = ""
+    @State private var draftClient = ""
+    @State private var isStarting = false
+    @State private var startError: String?
+    /// False once the record card scrolls out of view; the toolbar then shows a
+    /// compact Record button.
+    @State private var cardVisible = true
+
+    /// The card is left out while searching, so it doesn't push the results down.
+    private var showsCard: Bool {
+        model.searchQuery.trimmed().isEmpty && !model.recorder.isActive
+    }
 
     var body: some View {
         @Bindable var model = model
         NavigationStack(path: $path) {
             List {
-                ForEach(model.meetings) { meeting in
-                    NavigationLink(value: meeting.id) {
-                        MeetingRow(meeting: meeting)
-                    }
-                    .contextMenu {
-                        // Each payload is independently shareable from here as well as
-                        // from the detail view (spec 6.1). The sheet itself is hosted
-                        // on the list, not in here — see SharePayloadMenu.
-                        SharePayloadMenu(meeting: meeting) { payload, format in
-                            share.select(meeting: meeting, payload: payload, format: format)
-                        }
-                        if !meeting.state.isTerminal, meeting.state != .recording {
-                            Divider()
-                            Button("Stop processing", systemImage: "xmark.circle", role: .destructive) {
-                                Task { await model.stopProcessing(meeting.id) }
-                            }
-                        } else if meeting.state == .failed {
-                            Divider()
-                            Button("Try again", systemImage: "arrow.clockwise") {
-                                Task { await model.retryProcessing(meeting.id, title: meeting.title) }
-                            }
-                        }
-                    }
+                if model.recorder.isActive {
+                    RecordingInProgressRow { showingRecorder = true }
+                } else if showsCard {
+                    RecordCard(
+                        title: $draftTitle,
+                        client: $draftClient,
+                        isStarting: isStarting,
+                        onStart: { Task { await startRecording() } },
+                        startButtonVisible: { cardVisible = $0 }
+                    )
                 }
-                .onDelete(perform: delete)
+                Section {
+                    ForEach(model.meetings) { meeting in
+                        NavigationLink(value: meeting.id) {
+                            MeetingRow(meeting: meeting)
+                        }
+                        .contextMenu {
+                            // Each payload is independently shareable from here as well as
+                            // from the detail view (spec 6.1). The sheet itself is hosted
+                            // on the list, not in here — see SharePayloadMenu.
+                            SharePayloadMenu(meeting: meeting) { payload, format in
+                                share.select(meeting: meeting, payload: payload, format: format)
+                            }
+                            if !meeting.state.isTerminal, meeting.state != .recording {
+                                Divider()
+                                Button("Stop processing", systemImage: "xmark.circle", role: .destructive) {
+                                    Task { await model.stopProcessing(meeting.id) }
+                                }
+                            } else if meeting.state == .failed {
+                                Divider()
+                                Button("Try again", systemImage: "arrow.clockwise") {
+                                    Task { await model.retryProcessing(meeting.id, title: meeting.title) }
+                                }
+                            }
+                        }
+                    }
+                    .onDelete(perform: delete)
+                } header: {
+                    if !model.meetings.isEmpty, showsCard { Text("Meetings") }
+                }
             }
             .navigationTitle("Fieldnote")
             .navigationDestination(for: UUID.self) { id in
@@ -46,9 +75,22 @@ struct MeetingListView: View {
             }
             .searchable(text: $model.searchQuery, prompt: "Search meetings")
             .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Button { showingRecorder = true } label: {
-                        Label("Record", systemImage: "record.circle")
+                // The record card, shrunk, once it has scrolled away: starts the
+                // meeting the card describes.
+                if showsCard, !cardVisible {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button {
+                            Task { await startRecording() }
+                        } label: {
+                            Label("Record", systemImage: "record.circle")
+                                .labelStyle(.titleAndIcon)
+                                .font(.body.weight(.semibold))
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .buttonBorderShape(.capsule)
+                        .tint(.red)
+                        .disabled(isStarting)
+                        .accessibilityLabel("Start recording")
                     }
                 }
                 ToolbarItem(placement: .secondaryAction) {
@@ -91,13 +133,26 @@ struct MeetingListView: View {
                 Text(model.importError ?? "")
             }
             .overlay {
-                if model.meetings.isEmpty {
+                // Under the card when there's nothing else, so the card stays usable.
+                if model.meetings.isEmpty, !showsCard {
                     ContentUnavailableView(
-                        "No meetings yet",
-                        systemImage: "waveform",
-                        description: Text("Everything you record stays on this device.")
+                        model.searchQuery.trimmed().isEmpty ? "No meetings yet" : "No matches",
+                        systemImage: model.searchQuery.trimmed().isEmpty ? "waveform" : "magnifyingglass",
+                        description: Text(
+                            model.searchQuery.trimmed().isEmpty
+                                ? "Everything you record stays on this device."
+                                : "No meeting's title, client, place, speakers or notes match."
+                        )
                     )
                 }
+            }
+            .alert("Couldn't start recording", isPresented: Binding(
+                get: { startError != nil },
+                set: { if !$0 { startError = nil } }
+            )) {
+                Button("OK") { startError = nil }
+            } message: {
+                Text(startError ?? "")
             }
             .refreshable { await model.refresh() }
             // Processing runs in the background and writes straight to the store, so
@@ -131,6 +186,25 @@ struct MeetingListView: View {
         .sheet(isPresented: $showingSettings) { SettingsView() }
     }
 
+    /// Starts the meeting the record card describes. The recorder sheet opens when
+    /// the recording is running (`onChange(of: isActive)` below).
+    private func startRecording() async {
+        guard !isStarting else { return }
+        isStarting = true
+        defer { isStarting = false }
+        let typed = draftTitle.trimmed()
+        let title = typed.isEmpty ? MeetingTitleGenerator.defaultTitle(type: .general) : typed
+        do {
+            model.settings.consentAcknowledged = true
+            let coordinate = model.settings.locationEnabled ? await model.locationProvider.currentCoordinate() : nil
+            try await model.startRecording(title: title, client: draftClient.trimmed().nilIfEmpty, coordinate: coordinate)
+            draftTitle = ""
+            draftClient = ""
+        } catch {
+            startError = error.localizedDescription
+        }
+    }
+
     private func delete(at offsets: IndexSet) {
         let ids = offsets.map { model.meetings[$0].id }
         Task { await model.deleteMeetings(ids) }
@@ -153,9 +227,16 @@ struct MeetingRow: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            // One line of details: when (short, no year this year), where, folder.
+            // One line of details: who (the client), when (short, no year this year),
+            // where, folder.
             // The place gives way first when space runs out.
             HStack(spacing: 4) {
+                if let client = meeting.client {
+                    Text(client)
+                        .fontWeight(.medium)
+                        .layoutPriority(3)
+                    Text("·")
+                }
                 Text(Self.when(meeting.startedAt))
                     .layoutPriority(2)
                 if let place = meeting.placeName, !place.isEmpty {

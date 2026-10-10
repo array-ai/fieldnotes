@@ -28,6 +28,7 @@ public actor MeetingStore {
     @discardableResult
     public func createMeeting(
         title: String,
+        client: String? = nil,
         type: MeetingType,
         locale: Locale,
         consentAcknowledged: Bool,
@@ -44,6 +45,7 @@ public actor MeetingStore {
             longitude: longitude
         )
         meeting.consentAcknowledged = consentAcknowledged
+        meeting.client = client?.trimmed().nilIfEmpty
         modelContext.insert(meeting)
         try modelContext.save()
         return meeting.id
@@ -246,6 +248,16 @@ public actor MeetingStore {
         let trimmed = title.trimmed()
         guard !trimmed.isEmpty, let meeting = try meeting(with: meetingID) else { return }
         meeting.title = trimmed
+        rebuildSearchText(for: meeting)
+        try modelContext.save()
+    }
+
+    /// Sets who the meeting was with. Empty clears it.
+    public func setClient(_ meetingID: UUID, to client: String) throws {
+        guard let meeting = try meeting(with: meetingID) else { return }
+        let value = client.trimmed().nilIfEmpty
+        guard meeting.client != value else { return }
+        meeting.client = value
         rebuildSearchText(for: meeting)
         try modelContext.save()
     }
@@ -476,6 +488,7 @@ public actor MeetingStore {
         let names = meeting.speakers.compactMap(\.displayName)
         meeting.searchText = MeetingSearch.indexText(
             title: meeting.title,
+            client: meeting.client,
             placeName: meeting.placeName,
             speakerNames: names,
             summary: summary

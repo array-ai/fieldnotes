@@ -17,6 +17,8 @@ public final class Meeting {
     #Index<Meeting>([\.startedAt], [\.processingStateRaw])
     public var id: UUID = UUID()
     public var title: String = ""
+    /// Who the meeting was with (a client or company), as typed. Nil when not given.
+    public var client: String?
     public var typeRaw: String = MeetingType.general.rawValue
     public var startedAt: Date = Date()
     public var duration: TimeInterval = 0

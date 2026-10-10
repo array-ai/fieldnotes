@@ -19,7 +19,7 @@ struct MeetingSearchTests {
         #expect(MeetingSearch.matches(text, terms: MeetingSearch.terms("don't")))
     }
 
-    @Test("The list's search covers the title, place, speakers and the notes under each meeting")
+    @Test("The list's search covers the title, client, place, speakers and the notes under each meeting")
     func indexesListFields() {
         let segment = UUID()
         let summary = MeetingSummary(
@@ -30,8 +30,8 @@ struct MeetingSearchTests {
             decisions: [], actionItems: [ActionItem(task: "Order the switch", owner: "Dave", sourceSegmentID: segment)],
             openQuestions: [OpenQuestion(text: "Who owns the licences?", sourceSegmentID: segment)]
         )
-        let text = MeetingSearch.indexText(title: "Weekly", placeName: "Melbourne", speakerNames: ["Priya"], summary: summary)
-        for query in ["weekly", "melbourne", "priya", "network upgrade", "firewall", "branch offices", "w"] {
+        let text = MeetingSearch.indexText(title: "Weekly", client: "Acme Logistics", placeName: "Melbourne", speakerNames: ["Priya"], summary: summary)
+        for query in ["weekly", "acme", "logistics", "melbourne", "priya", "network upgrade", "firewall", "branch offices", "w"] {
             #expect(MeetingSearch.matches(text, terms: MeetingSearch.terms(query)), "\(query)")
         }
         // The rest of the notes are for Find inside the meeting.

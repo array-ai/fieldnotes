@@ -5,89 +5,71 @@ struct RecorderView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
 
+    /// The meeting's title and client, editable while recording. Loaded once from the
+    /// meeting; saved on Return, on Stop and when the sheet closes.
     @State private var title = ""
-    @State private var error: String?
+    @State private var client = ""
+    @State private var loaded = false
+    /// The meeting read from the store, for when the list is filtered by a search.
+    @State private var stored: MeetingSnapshot?
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 24) {
+            Group {
                 if model.recorder.isActive {
                     activeRecording
                 } else {
-                    setup
+                    ProgressView()
                 }
             }
-            .padding()
+            .padding(.horizontal, 20)
+            .padding(.bottom, 8)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color(uiColor: .systemGroupedBackground))
             // A swipe down mustn't leave a recording running with no way back to Stop.
             .interactiveDismissDisabled(model.recorder.isActive)
-            .navigationTitle(model.recorder.isActive ? "Recording" : "New meeting")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                // ✕ stops and saves, the same as Stop: there is no "close and keep
+                // recording" here, and no way to lose a recording by closing.
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") { dismiss() }
-                        .disabled(model.recorder.isActive)
+                    Button("Stop and save", systemImage: "xmark") { stop() }
+                        .disabled(!model.recorder.isActive || model.recorder.state == .stopping)
+                }
+                ToolbarItem(placement: .principal) {
+                    HStack(spacing: 7) {
+                        Image(systemName: "circle.fill")
+                            .font(.system(size: 9))
+                            .foregroundStyle(.red)
+                            .symbolEffect(.pulse, isActive: model.recorder.state == .recording)
+                        Text(model.recorder.state.label).font(.headline)
+                    }
+                    .accessibilityElement(children: .combine)
                 }
             }
-            .alert("Recording problem", isPresented: .constant(error != nil)) {
-                Button("OK") { error = nil }
-            } message: {
-                Text(error ?? "")
-            }
             .task {
-                if title.isEmpty { title = MeetingTitleGenerator.defaultTitle(type: .general) }
+                if let id = model.recorder.meetingID, meeting == nil {
+                    stored = try? await model.store.meetingSnapshot(id)
+                }
+                load()
             }
+            .onChange(of: model.meetings) { load() }
+            .onDisappear { save() }
         }
     }
-
-    // MARK: - Before
-
-    private var setup: some View {
-        VStack(spacing: 20) {
-            TextField("Meeting title", text: $title)
-            .textFieldStyle(.roundedBorder)
-            .font(.title3)
-
-            Toggle("Include location", isOn: Bindable(model.settings).locationEnabled)
-            Text("Stored as coordinates only, for your own reference. Never sent anywhere.")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-            // Text, not workflow (spec 7). The consent log, the badge and the share
-            // gate are v2 (spec 11.5).
-            Text(Self.consentNotice)
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-            Spacer()
-
-            Button {
-                Task { await start() }
-            } label: {
-                Label("Start recording", systemImage: "record.circle")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            .disabled(title.trimmed().isEmpty)
-        }
-    }
-
-    static let consentNotice = """
-        Get everyone's agreement before you start. In NSW, recording a private \
-        conversation generally needs the consent of every principal party \
-        (Surveillance Devices Act 2007).
-        """
 
     // MARK: - During
 
     private var activeRecording: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 12) {
             Text(Timecode.short(model.recorder.elapsed))
-                .font(.system(size: 56, weight: .light, design: .rounded).monospacedDigit())
+                .font(.system(size: 60, weight: .light, design: .rounded).monospacedDigit())
+                .contentTransition(.numericText())
+                .accessibilityLabel("Recorded \(Timecode.short(model.recorder.elapsed))")
 
             LevelMeter(level: model.recorder.level)
                 .frame(height: 12)
+                .accessibilityHidden(true)
 
             if let notice = recorderNotice {
                 Label(notice, systemImage: "exclamationmark.triangle.fill")
@@ -96,8 +78,17 @@ struct RecorderView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
 
+            details
+                .padding(.top, 6)
+
+            Text("Live transcript")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.top, 6)
+
             ScrollView {
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 10) {
                     ForEach(recentLines) { segment in
                         VStack(alignment: .leading, spacing: 1) {
                             if let speaker = segment.speakerID {
@@ -105,20 +96,24 @@ struct RecorderView: View {
                                     .font(.caption.weight(.semibold))
                                     .foregroundStyle(.secondary)
                             }
-                            Text(segment.text).font(.callout)
+                            Text(segment.text)
                         }
                     }
                     if !model.recorder.volatileText.isEmpty {
                         // Interim text. Shown, never persisted (spec 4.3).
                         Text(model.recorder.volatileText)
-                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                    }
+                    if recentLines.isEmpty, model.recorder.volatileText.isEmpty {
+                        Text("Listening…")
                             .foregroundStyle(.secondary)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
+            .defaultScrollAnchor(.bottom)
 
-            HStack(spacing: 16) {
+            HStack(spacing: 12) {
                 if !isFailed {
                     Button {
                         Task {
@@ -133,28 +128,105 @@ struct RecorderView: View {
                             canResume ? "Resume" : "Pause",
                             systemImage: canResume ? "play.fill" : "pause.fill"
                         )
-                        .frame(maxWidth: .infinity)
+                        .font(.body.weight(.semibold))
+                        .frame(maxWidth: .infinity, minHeight: 34)
                     }
                     .buttonStyle(.bordered)
                     .disabled(model.recorder.state == .preparing || model.recorder.state == .stopping)
                 }
 
-                Button {
-                    Task {
-                        await model.stopRecording()
-                        dismiss()
-                    }
-                } label: {
-                    Label(isFailed ? "Save recording" : "Stop", systemImage: "stop.fill").frame(maxWidth: .infinity)
+                Button { stop() } label: {
+                    Label(isFailed ? "Save recording" : "Stop", systemImage: "stop.fill")
+                        .font(.body.weight(.semibold))
+                        .frame(maxWidth: .infinity, minHeight: 34)
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.red)
+                .disabled(model.recorder.state == .stopping)
             }
+            .buttonBorderShape(.capsule)
             .controlSize(.large)
 
             Text("Processing continues if you lock the phone.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+        }
+    }
+
+    /// Title, client and place, as on the record card, editable while recording.
+    private var details: some View {
+        VStack(spacing: 0) {
+            TextField("Meeting title", text: $title)
+                .font(.headline)
+                .submitLabel(.done)
+                .onSubmit(save)
+                .padding(.horizontal, 16)
+                .frame(minHeight: 44)
+            Divider().padding(.leading, 16)
+            HStack(spacing: 12) {
+                Text("Client")
+                    .foregroundStyle(.secondary)
+                    .frame(width: 62, alignment: .leading)
+                TextField("Client", text: $client, prompt: Text("Add client or company"))
+                    .submitLabel(.done)
+                    .onSubmit(save)
+            }
+            .font(.subheadline)
+            .padding(.horizontal, 16)
+            .frame(minHeight: 44)
+            if let meeting, meeting.latitude != nil {
+                Divider().padding(.leading, 16)
+                HStack(spacing: 12) {
+                    Text("Place")
+                        .foregroundStyle(.secondary)
+                        .frame(width: 62, alignment: .leading)
+                    Label(meeting.placeName ?? "Finding the place…", systemImage: "mappin")
+                        .foregroundStyle(.tint)
+                        .lineLimit(1)
+                    Spacer(minLength: 0)
+                }
+                .font(.subheadline)
+                .padding(.horizontal, 16)
+                .frame(minHeight: 44)
+            }
+        }
+        .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
+    }
+
+    /// The meeting being recorded, as the list last read it (with its place name,
+    /// which arrives a moment after the start).
+    private var meeting: MeetingSnapshot? {
+        model.meetings.first { $0.id == model.recorder.meetingID } ?? stored
+    }
+
+    private func load() {
+        guard !loaded, let meeting else { return }
+        loaded = true
+        title = meeting.title
+        client = meeting.client ?? ""
+    }
+
+    /// Writes the title and client back, if they changed.
+    private func save() {
+        guard loaded, let meeting else { return }
+        let id = meeting.id
+        let newTitle = title.trimmed()
+        let newClient = client.trimmed()
+        Task {
+            if !newTitle.isEmpty, newTitle != meeting.title {
+                await model.renameMeeting(id, to: newTitle)
+            }
+            if newClient != (meeting.client ?? "") {
+                await model.setClient(id, to: newClient)
+            }
+        }
+    }
+
+    private func stop() {
+        save()
+        Task {
+            await model.stopRecording()
+            dismiss()
         }
     }
 
@@ -185,16 +257,6 @@ struct RecorderView: View {
         let lines = Array(model.recorder.segments.suffix(12))
         guard !model.recorder.liveSpans.isEmpty else { return lines }
         return WordSpeakerSplit.apply(spans: model.recorder.liveSpans, to: lines)
-    }
-
-    private func start() async {
-        do {
-            model.settings.consentAcknowledged = true
-            let coordinate = model.settings.locationEnabled ? await model.locationProvider.currentCoordinate() : nil
-            try await model.startRecording(title: title.trimmed(), coordinate: coordinate)
-        } catch {
-            self.error = error.localizedDescription
-        }
     }
 }
 

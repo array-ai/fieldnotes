@@ -4,6 +4,8 @@ import Foundation
 public struct MeetingSnapshot: Sendable, Identifiable, Hashable {
     public var id: UUID
     public var title: String
+    /// Who the meeting was with: a client or company, as the user typed it.
+    public var client: String?
     public var type: MeetingType
     public var startedAt: Date
     public var duration: TimeInterval
@@ -29,6 +31,7 @@ public struct MeetingSnapshot: Sendable, Identifiable, Hashable {
     public init(
         id: UUID = UUID(),
         title: String,
+        client: String? = nil,
         type: MeetingType,
         startedAt: Date,
         duration: TimeInterval = 0,
@@ -47,6 +50,7 @@ public struct MeetingSnapshot: Sendable, Identifiable, Hashable {
     ) {
         self.id = id
         self.title = title
+        self.client = client
         self.type = type
         self.startedAt = startedAt
         self.duration = duration

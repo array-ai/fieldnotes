@@ -17,6 +17,7 @@ extension MeetingSnapshot {
         self.init(
             id: meeting.id,
             title: meeting.title,
+            client: meeting.client,
             type: meeting.type,
             startedAt: meeting.startedAt,
             duration: meeting.duration,

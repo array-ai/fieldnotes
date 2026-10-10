@@ -14,6 +14,8 @@ struct MeetingDetailView: View {
     @State private var share = SharePresentation()
     @State private var renaming = false
     @State private var newTitle = ""
+    @State private var editingClient = false
+    @State private var newClient = ""
     /// The speaker label being renamed, e.g. "S1".
     @State private var renamingSpeaker: String?
     @State private var newSpeakerName = ""
@@ -70,6 +72,12 @@ struct MeetingDetailView: View {
                     }
                 }
                 ToolbarItem(placement: .secondaryAction) {
+                    Button(meeting.client == nil ? "Add client" : "Edit client", systemImage: "building.2") {
+                        newClient = meeting.client ?? ""
+                        editingClient = true
+                    }
+                }
+                ToolbarItem(placement: .secondaryAction) {
                     Menu {
                         Button("Redo transcript", systemImage: "waveform") {
                             if meeting.segments.contains(where: \.editedByUser) {
@@ -97,6 +105,18 @@ struct MeetingDetailView: View {
                 }
             }
             .disabled(newTitle.trimmed().isEmpty)
+        }
+        .alert("Client", isPresented: $editingClient) {
+            TextField("Client or company", text: $newClient)
+            Button("Cancel", role: .cancel) {}
+            Button("Save") {
+                Task {
+                    await model.setClient(meetingID, to: newClient)
+                    await load()
+                }
+            }
+        } message: {
+            Text("Who the meeting was with. Leave empty to remove it.")
         }
         .alert(
             "Rename speaker",
@@ -671,6 +691,11 @@ struct MeetingHeader: View {
 
     var body: some View {
         HStack(spacing: 6) {
+            if let client = meeting.client {
+                Label(client, systemImage: "building.2")
+                    .lineLimit(1)
+                Text("·")
+            }
             Text(meeting.startedAt.formatted(date: .complete, time: .shortened))
             if let latitude = meeting.latitude, let longitude = meeting.longitude,
                let url = URL(string: "https://maps.apple.com/?ll=\(latitude),\(longitude)") {

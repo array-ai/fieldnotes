@@ -121,7 +121,9 @@ public struct MarkdownRenderer: Sendable {
     // MARK: - Pieces
 
     private func header(_ meeting: MeetingSnapshot) -> String {
-        var parts = [meeting.startedAt.formatted(dateStyle)]
+        var parts: [String] = []
+        if let client = meeting.client { parts.append(client) }
+        parts.append(meeting.startedAt.formatted(dateStyle))
         if let place = meeting.placeName { parts.append(place) }
         if meeting.duration > 0 { parts.append(Timecode.short(meeting.duration)) }
         if let folder = meeting.folderName { parts.append(folder) }
