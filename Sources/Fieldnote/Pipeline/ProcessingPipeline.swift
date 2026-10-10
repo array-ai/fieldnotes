@@ -48,23 +48,9 @@ public actor ProcessingPipeline {
         public var segments: [TranscriptSegment]
         public var embeddings: [String: [Float]]
         public var summary: MeetingSummary
-        public var editedLines: EditedLines = .keep
-    }
-
-    /// What happens to lines the user edited when a new transcript is saved.
-    public enum EditedLines: Sendable {
-        /// Matched by ID: the same lines, relabelled or summarised again.
-        case keep
-        /// A redone transcript has new lines, so an edited line is kept and the new
-        /// lines it covers in time are dropped.
-        case keepByTime
-        /// The user chose to start fresh.
-        case replace
-
-        init(_ checkpoint: ProcessingCheckpoint) {
-            guard checkpoint.redoTranscript == true else { self = .keep; return }
-            self = checkpoint.redoDiscardsEdits == true ? .replace : .keepByTime
-        }
+        /// A redone transcript replaces hand-edited lines too; otherwise the edited
+        /// old lines would sit alongside their re-transcribed versions.
+        public var replacesEditedSegments: Bool = false
     }
 
     /// Fractional progress within a stage, 0...1.
@@ -72,7 +58,7 @@ public actor ProcessingPipeline {
     /// Called as each stage starts, with when processing is expected to finish.
     public typealias EstimateHandler = @Sendable (ProcessingStage, Date) -> Void
     /// The labelled transcript, once speakers are done and before summarising.
-    public typealias TranscriptHandler = @Sendable (_ segments: [TranscriptSegment], _ embeddings: [String: [Float]], _ editedLines: EditedLines) async -> Void
+    public typealias TranscriptHandler = @Sendable (_ segments: [TranscriptSegment], _ embeddings: [String: [Float]], _ replacesEditedSegments: Bool) async -> Void
 
     private let log = Logger(subsystem: "com.publicarray.fieldnotes", category: "pipeline")
     private let debug = DebugLog.shared
@@ -187,7 +173,7 @@ public actor ProcessingPipeline {
         learn(.diarizing, stageStart)
         // Saved to the meeting now, so it can be read while the summary is written,
         // or if the user stops the summary.
-        await transcriptReady(diarization.segments, diarization.embeddings, EditedLines(checkpoint))
+        await transcriptReady(diarization.segments, diarization.embeddings, checkpoint.redoTranscript == true)
 
         stageStart = .now
         announce(.summarising)
@@ -216,7 +202,7 @@ public actor ProcessingPipeline {
             segments: cleaned ?? diarization.segments,
             embeddings: diarization.embeddings,
             summary: summary,
-            editedLines: EditedLines(checkpoint)
+            replacesEditedSegments: checkpoint.redoTranscript == true
         )
     }
 

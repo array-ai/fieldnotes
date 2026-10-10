@@ -297,11 +297,11 @@ public final class AppModel {
         await refresh()
     }
 
-    /// Re-runs one stage (and everything after it) for a finished meeting.
-    public func redo(_ stage: MeetingStore.RedoStage, meetingID: UUID, title: String, discardingEdits: Bool = false) async {
+    /// Debug mode: re-run one stage (and everything after it) for a finished meeting.
+    public func redo(_ stage: MeetingStore.RedoStage, meetingID: UUID, title: String) async {
         await ProcessingNotifier.shared.requestPermissionIfNeeded()
         do {
-            try await store.prepareRedo(stage, meetingID: meetingID, discardingEdits: discardingEdits)
+            try await store.prepareRedo(stage, meetingID: meetingID)
         } catch {
             DebugLog.shared.log("store", "\(DebugLog.short(meetingID)): could not queue redo of \(stage.rawValue): \(error)")
             return

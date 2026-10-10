@@ -16,12 +16,9 @@ public struct ProcessingCheckpoint: Codable, Sendable {
     public var updatedAt: Date
     public var failureCount: Int
     /// Transcribe from the saved audio even when the live transcript covers the
-    /// recording ("Redo transcript" on a meeting). Optional so checkpoints written
+    /// recording ("Redo transcript" in debug mode). Optional so checkpoints written
     /// before it existed still decode.
     public var redoTranscript: Bool?
-    /// With `redoTranscript`: the user chose to start fresh, so lines they edited
-    /// are replaced too. Optional for old checkpoints.
-    public var redoDiscardsEdits: Bool?
     /// How many times summarising was put off because the model wouldn't run
     /// (usually because the app was in the background). Optional for old checkpoints.
     public var summaryDeferrals: Int?

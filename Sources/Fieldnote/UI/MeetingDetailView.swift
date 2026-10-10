@@ -17,7 +17,7 @@ struct MeetingDetailView: View {
     /// The speaker label being renamed, e.g. "S1".
     @State private var renamingSpeaker: String?
     @State private var newSpeakerName = ""
-    /// Asked first when a transcript redo has the user's edits to keep or replace.
+    /// Asked first when a transcript redo would replace the user's edits.
     @State private var confirmingRedoTranscript = false
     /// Bumped to restart polling after a redo is queued.
     @State private var pollGeneration = 0
@@ -137,12 +137,11 @@ struct MeetingDetailView: View {
             }
         }
         .confirmationDialog("Redo the transcript?", isPresented: $confirmingRedoTranscript, titleVisibility: .visible) {
-            if let meeting {
-                Button("Keep my edits") { redo(.transcript, meeting) }
-                Button("Start fresh", role: .destructive) { redo(.transcript, meeting, discardingEdits: true) }
+            Button("Redo transcript", role: .destructive) {
+                if let meeting { redo(.transcript, meeting) }
             }
         } message: {
-            Text("You've edited lines in this transcript. Keep them, or replace everything with the new transcript?")
+            Text("Your edits to this transcript are replaced by the new one.")
         }
         .confirmationDialog("Change speaker", isPresented: .constant(relabelling != nil), titleVisibility: .visible) {
             if let segment = relabelling, let meeting {
@@ -252,9 +251,9 @@ struct MeetingDetailView: View {
         TranscriptPlayback.currentIndex(at: player.currentTime, in: meeting.segments).map { meeting.segments[$0].id }
     }
 
-    private func redo(_ stage: MeetingStore.RedoStage, _ meeting: MeetingSnapshot, discardingEdits: Bool = false) {
+    private func redo(_ stage: MeetingStore.RedoStage, _ meeting: MeetingSnapshot) {
         Task {
-            await model.redo(stage, meetingID: meeting.id, title: meeting.title, discardingEdits: discardingEdits)
+            await model.redo(stage, meetingID: meeting.id, title: meeting.title)
             pollGeneration += 1
         }
     }
