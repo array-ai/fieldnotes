@@ -55,7 +55,7 @@ public actor MeetingStore {
         guard let meeting = try meeting(with: result.meetingID) else { return }
         meeting.duration = result.duration
         meeting.processingState = .queued
-        replaceSegments(result.liveSegments, on: meeting, isRedoneTranscript: false)
+        replaceSegments(result.liveSegments, on: meeting, editedLines: .keep)
         rebuildSearchText(for: meeting)
         try modelContext.save()
     }
@@ -144,9 +144,9 @@ public actor MeetingStore {
     /// The transcript and speakers, saved as soon as those stages finish, so the
     /// meeting shows them while the summary is still being written, or after the user
     /// stops it. `apply` writes them again with the summary's speaker names.
-    public func applyTranscript(_ segments: [TranscriptSegment], embeddings: [String: [Float]], isRedoneTranscript: Bool, to meetingID: UUID) async {
+    public func applyTranscript(_ segments: [TranscriptSegment], embeddings: [String: [Float]], editedLines: ProcessingPipeline.EditedLines, to meetingID: UUID) async {
         guard let meeting = try? meeting(with: meetingID) else { return }
-        replaceTranscript(segments, embeddings: embeddings, speakerNames: [:], isRedoneTranscript: isRedoneTranscript, on: meeting)
+        replaceTranscript(segments, embeddings: embeddings, speakerNames: [:], editedLines: editedLines, on: meeting)
         rebuildSearchText(for: meeting)
         try? modelContext.save()
     }
@@ -158,7 +158,7 @@ public actor MeetingStore {
             output.segments,
             embeddings: output.embeddings,
             speakerNames: output.summary.speakerNames,
-            isRedoneTranscript: output.isRedoneTranscript,
+            editedLines: output.editedLines,
             on: meeting
         )
 
@@ -250,7 +250,9 @@ public actor MeetingStore {
     /// that marks the earlier stages done with the meeting's current results. The
     /// caller then submits the background task. Current results stay in place
     /// until the new ones replace them, so a failed redo loses nothing.
-    public func prepareRedo(_ stage: RedoStage, meetingID: UUID) async throws {
+    /// `discardingEdits` applies to a transcript redo: lines the user edited are
+    /// replaced too, instead of kept.
+    public func prepareRedo(_ stage: RedoStage, meetingID: UUID, discardingEdits: Bool = false) async throws {
         guard let meeting = try meeting(with: meetingID), meeting.processingState.isTerminal else { return }
         let segments = meeting.orderedSegments.map(\.value)
 
@@ -262,6 +264,7 @@ public actor MeetingStore {
         switch stage {
         case .transcript:
             checkpoint.redoTranscript = true
+            checkpoint.redoDiscardsEdits = discardingEdits
         case .speakers:
             try await fresh.saveSegments(segments)
             checkpoint.completedStages = [.transcribing]
@@ -398,10 +401,10 @@ public actor MeetingStore {
         _ segments: [TranscriptSegment],
         embeddings: [String: [Float]],
         speakerNames: [String: String],
-        isRedoneTranscript: Bool,
+        editedLines: ProcessingPipeline.EditedLines,
         on meeting: Meeting
     ) {
-        replaceSegments(segments, on: meeting, isRedoneTranscript: isRedoneTranscript)
+        replaceSegments(segments, on: meeting, editedLines: editedLines)
 
         // Speakers are per-meeting labels. The embeddings ride along for v2. A name
         // the user gave a speaker survives re-processing; the summary's grounded
@@ -432,15 +435,16 @@ public actor MeetingStore {
         meeting.speakers = created
     }
 
-    private func replaceSegments(_ segments: [TranscriptSegment], on meeting: Meeting, isRedoneTranscript: Bool) {
-        // Manual edits win over anything the pipeline produces.
-        let edited = meeting.segments.filter(\.editedByUser)
+    private func replaceSegments(_ segments: [TranscriptSegment], on meeting: Meeting, editedLines: ProcessingPipeline.EditedLines) {
+        // Manual edits win over anything the pipeline produces, unless the user
+        // chose to start the transcript fresh.
+        let edited = editedLines == .replace ? [] : meeting.segments.filter(\.editedByUser)
         let editedIDs = Set(edited.map(\.id))
         meeting.segments.filter { !editedIDs.contains($0.id) }.forEach(modelContext.delete)
 
         // A redone transcript has new lines with new IDs, so match by time: a new
         // line whose midpoint falls in an edited line is that line again.
-        let editedRanges = isRedoneTranscript ? edited.map { min($0.start, $0.end)...max($0.start, $0.end) } : []
+        let editedRanges = editedLines == .keepByTime ? edited.map { min($0.start, $0.end)...max($0.start, $0.end) } : []
         func coveredByEdit(_ value: TranscriptSegment) -> Bool {
             let mid = (value.start + value.end) / 2
             return editedRanges.contains { $0.contains(mid) }

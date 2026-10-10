@@ -17,6 +17,8 @@ struct MeetingDetailView: View {
     /// The speaker label being renamed, e.g. "S1".
     @State private var renamingSpeaker: String?
     @State private var newSpeakerName = ""
+    /// Asked first when a transcript redo has the user's edits to keep or replace.
+    @State private var confirmingRedoTranscript = false
     /// Bumped to restart polling after a redo is queued.
     @State private var pollGeneration = 0
     @State private var player = MeetingPlayer()
@@ -76,7 +78,13 @@ struct MeetingDetailView: View {
                 }
                 ToolbarItem(placement: .secondaryAction) {
                     Menu {
-                        Button("Redo transcript", systemImage: "waveform") { redo(.transcript, meeting) }
+                        Button("Redo transcript", systemImage: "waveform") {
+                            if meeting.segments.contains(where: \.editedByUser) {
+                                confirmingRedoTranscript = true
+                            } else {
+                                redo(.transcript, meeting)
+                            }
+                        }
                         Button("Redo speakers", systemImage: "person.2") { redo(.speakers, meeting) }
                         Button("Redo summary", systemImage: "text.badge.star") { redo(.summary, meeting) }
                     } label: {
@@ -127,6 +135,14 @@ struct MeetingDetailView: View {
                     await load()
                 }
             }
+        }
+        .confirmationDialog("Redo the transcript?", isPresented: $confirmingRedoTranscript, titleVisibility: .visible) {
+            if let meeting {
+                Button("Keep my edits") { redo(.transcript, meeting) }
+                Button("Start fresh", role: .destructive) { redo(.transcript, meeting, discardingEdits: true) }
+            }
+        } message: {
+            Text("You've edited lines in this transcript. Keep them, or replace everything with the new transcript?")
         }
         .confirmationDialog("Change speaker", isPresented: .constant(relabelling != nil), titleVisibility: .visible) {
             if let segment = relabelling, let meeting {
@@ -236,9 +252,9 @@ struct MeetingDetailView: View {
         TranscriptPlayback.currentIndex(at: player.currentTime, in: meeting.segments).map { meeting.segments[$0].id }
     }
 
-    private func redo(_ stage: MeetingStore.RedoStage, _ meeting: MeetingSnapshot) {
+    private func redo(_ stage: MeetingStore.RedoStage, _ meeting: MeetingSnapshot, discardingEdits: Bool = false) {
         Task {
-            await model.redo(stage, meetingID: meeting.id, title: meeting.title)
+            await model.redo(stage, meetingID: meeting.id, title: meeting.title, discardingEdits: discardingEdits)
             pollGeneration += 1
         }
     }
