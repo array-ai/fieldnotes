@@ -2,8 +2,8 @@ import FieldnoteKit
 import Foundation
 import Testing
 
-@Suite("Model credits")
-struct ModelCreditTests {
+@Suite("Models used")
+struct ModelsUsedTests {
 
     private func meeting(transcript: String? = nil, speakers: String? = nil, notes: String? = nil) -> MeetingSnapshot {
         var summary = MeetingSummary(overview: "Overview")
@@ -14,19 +14,19 @@ struct ModelCreditTests {
         )
     }
 
-    @Test("The transcript credit names whichever models are known")
-    func transcriptCredit() {
-        #expect(meeting(transcript: "Parakeet TDT v3", speakers: "Nemotron 3").transcriptCredit
-            == "Transcript by Parakeet TDT v3, speakers by Nemotron 3")
-        #expect(meeting(transcript: "Apple speech model").transcriptCredit == "Transcript by Apple speech model")
-        #expect(meeting(speakers: "Nemotron 3").transcriptCredit == "Speakers by Nemotron 3")
-        #expect(meeting().transcriptCredit == nil)
+    @Test("The transcript line names whichever models are known")
+    func transcriptModels() {
+        #expect(meeting(transcript: "Parakeet TDT v3", speakers: "Nemotron 3").transcriptModelsUsed
+            == "Transcript: Parakeet TDT v3 · Speakers: Nemotron 3")
+        #expect(meeting(transcript: "Apple speech model").transcriptModelsUsed == "Transcript: Apple speech model")
+        #expect(meeting(speakers: "Nemotron 3").transcriptModelsUsed == "Speakers: Nemotron 3")
+        #expect(meeting().transcriptModelsUsed == nil)
     }
 
-    @Test("The notes credit comes from the summary, and survives speaker names")
-    func summaryCredit() {
-        #expect(meeting(notes: "MiniCPM5 2B").summaryCredit == "Notes by MiniCPM5 2B")
-        #expect(meeting().summaryCredit == nil)
+    @Test("The notes model comes from the summary, and survives speaker names")
+    func summaryModel() {
+        #expect(meeting(notes: "MiniCPM5 2B").summaryModelUsed == "Notes: MiniCPM5 2B")
+        #expect(meeting().summaryModelUsed == nil)
         #expect(meeting(notes: "LFM2.5 1.2B").summary?.applyingSpeakerNames(["S1": "Priya"]).model == "LFM2.5 1.2B")
     }
 

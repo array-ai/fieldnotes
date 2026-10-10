@@ -449,8 +449,8 @@ struct SummarySections: View {
                 }
             }
             // Debug mode: which model wrote the notes.
-            if showsDetail, let credit = meeting.summaryCredit {
-                Section {} footer: { ModelCredit(text: credit) }
+            if showsDetail, let models = meeting.summaryModelUsed {
+                Section {} footer: { ModelsUsed(text: models) }
             }
         } else {
             Section {
@@ -496,9 +496,9 @@ struct CitedRow: View {
     }
 }
 
-/// The small print at the end of the notes or the transcript naming the model that
-/// wrote them.
-private struct ModelCredit: View {
+/// Debug mode: the models that produced the notes or the transcript, at the end of
+/// each, so a poor result can be traced to the model that made it.
+private struct ModelsUsed: View {
     let text: String
 
     var body: some View {
@@ -568,8 +568,8 @@ struct TranscriptSections: View {
                 }
             }
         } footer: {
-            if showsModels, terms.isEmpty, let credit = meeting.transcriptCredit {
-                ModelCredit(text: credit)
+            if showsModels, terms.isEmpty, let models = meeting.transcriptModelsUsed {
+                ModelsUsed(text: models)
             }
         }
     }

@@ -64,19 +64,15 @@ public struct MeetingSnapshot: Sendable, Identifiable, Hashable {
         self.speakersModel = speakersModel
     }
 
-    /// The small print under the transcript: "Transcript by Parakeet TDT v3, speakers
-    /// by Nemotron 3".
-    public var transcriptCredit: String? {
-        switch (transcriptModel, speakersModel) {
-        case let (transcript?, speakers?): "Transcript by \(transcript), speakers by \(speakers)"
-        case let (transcript?, nil): "Transcript by \(transcript)"
-        case let (nil, speakers?): "Speakers by \(speakers)"
-        case (nil, nil): nil
-        }
+    /// Which models produced the transcript, for troubleshooting in debug mode:
+    /// "Transcript: Parakeet TDT v3 · Speakers: Nemotron 3".
+    public var transcriptModelsUsed: String? {
+        let parts = [transcriptModel.map { "Transcript: \($0)" }, speakersModel.map { "Speakers: \($0)" }].compactMap { $0 }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
-    /// The small print under the notes: "Notes by MiniCPM5 2B".
-    public var summaryCredit: String? {
-        summary?.model.map { "Notes by \($0)" }
+    /// Which model wrote the notes, for troubleshooting in debug mode: "Notes: MiniCPM5 2B".
+    public var summaryModelUsed: String? {
+        summary?.model.map { "Notes: \($0)" }
     }
 }
