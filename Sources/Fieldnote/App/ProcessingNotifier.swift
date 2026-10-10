@@ -70,20 +70,33 @@ public final class ProcessingNotifier: NSObject, UNUserNotificationCenterDelegat
 
     // MARK: - UNUserNotificationCenterDelegate
 
+    // The completion-handler forms, finished on the main thread. The async forms
+    // completed on whatever thread the task ended on, and UIKit, refreshing the app
+    // snapshot as the response finished, asserted it was on the main thread: a crash
+    // when a notification was tapped after iOS had unloaded the app (build 60).
+
     /// Shown as a banner even when the app is open on another screen.
     public func userNotificationCenter(
         _ center: UNUserNotificationCenter,
-        willPresent notification: UNNotification
-    ) async -> UNNotificationPresentationOptions {
-        [.banner, .list, .sound]
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        nonisolated(unsafe) let done = completionHandler
+        DispatchQueue.main.async { done([.banner, .list, .sound]) }
     }
 
     public func userNotificationCenter(
         _ center: UNUserNotificationCenter,
-        didReceive response: UNNotificationResponse
-    ) async {
-        guard let raw = response.notification.request.content.userInfo["meetingID"] as? String,
-              let id = UUID(uuidString: raw) else { return }
-        await MainActor.run { onOpen?(id) }
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        let id = (response.notification.request.content.userInfo["meetingID"] as? String).flatMap(UUID.init(uuidString:))
+        nonisolated(unsafe) let done = completionHandler
+        DispatchQueue.main.async {
+            MainActor.assumeIsolated {
+                if let id { self.onOpen?(id) }
+            }
+            done()
+        }
     }
 }

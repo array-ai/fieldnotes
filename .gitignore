@@ -32,3 +32,7 @@ xcuserdata/
 
 # App Store assets (screenshots and their sources), kept out of the repo
 AppStore/
+
+# TestFlight feedback exports (crash logs, tester details)
+testflight_feedback*.zip
+*.crash
