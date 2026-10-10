@@ -79,7 +79,7 @@ public enum SummaryEngine: String, Codable, CaseIterable, Sendable {
             // usable. Its bracketed labels are parsed since; quality is still unproven.
             ModelCard(
                 title: "LFM2.5 1.2B",
-                summary: "Experimental. Liquid AI's small model. In our test on a long meeting it didn't follow the notes format and was slow; expect thin notes or none.",
+                summary: "Liquid AI's small model. In our test on a long meeting it didn't follow the notes format and was slow; expect thin notes or none.",
                 accuracy: 0.25, speed: 0.4, languages: "English best; several others", runs: "In the app, or while charging")
         }
     }
