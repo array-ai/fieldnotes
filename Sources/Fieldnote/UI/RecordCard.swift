@@ -26,7 +26,11 @@ struct RecordCard: View {
             }
             Toggle("Location", isOn: Bindable(model.settings).locationEnabled)
             Button(action: onStart) {
+                // White on red, as in the design: without this the symbol takes the
+                // app's accent colour (build 59).
                 Label("Start recording", systemImage: "record.circle")
+                    .symbolRenderingMode(.monochrome)
+                    .foregroundStyle(.white)
                     .font(.body.weight(.semibold))
                     .frame(maxWidth: .infinity, minHeight: 34)
             }

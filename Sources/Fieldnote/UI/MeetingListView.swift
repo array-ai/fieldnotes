@@ -84,6 +84,8 @@ struct MeetingListView: View {
                         } label: {
                             Label("Record", systemImage: "record.circle")
                                 .labelStyle(.titleAndIcon)
+                                .symbolRenderingMode(.monochrome)
+                                .foregroundStyle(.white)
                                 .font(.body.weight(.semibold))
                         }
                         .buttonStyle(.borderedProminent)
