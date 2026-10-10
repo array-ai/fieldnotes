@@ -111,4 +111,13 @@ img { max-width: 100%; }
 table { border-collapse: collapse; width: 100%; font-size: 15px; }
 th, td { text-align: left; vertical-align: top; padding: 10px 12px; border-bottom: 1px solid var(--line); }
 th { font-weight: 600; color: var(--muted); font-size: 13px; text-transform: uppercase; letter-spacing: .05em; }
+
 code { font: 14px/1.4 var(--mono); }
+
+/* Screenshots: three phones across, two on a phone screen. */
+.screenshots { margin-block: 8px 48px; }
+.screenshots .section-title { margin-top: 0; }
+.screenshots-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 20px; }
+.screenshots-grid figure { margin: 0; display: grid; gap: 10px; justify-items: center; }
+.screenshots-grid img { width: 100%; max-width: 240px; height: auto; border-radius: 26px; border: 1px solid var(--line); background: #000; box-shadow: 0 6px 20px rgb(18 20 29 / .14); }
+.screenshots-grid figcaption { color: var(--muted); font-size: 14px; text-align: center; }

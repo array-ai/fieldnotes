@@ -26,3 +26,6 @@ xcuserdata/
 *.key
 *.pem
 *.cer
+
+# Photo-manager sidecar notes (e.g. Screenshots/.comments/*.xml)
+.comments/
