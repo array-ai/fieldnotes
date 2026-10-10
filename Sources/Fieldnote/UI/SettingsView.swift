@@ -181,11 +181,10 @@ struct SettingsView: View {
                 } footer: {
                     Text(
                         """
-                        Fieldnote goes online only for model downloads you tap and Apple \
-                        Maps place names if you turn them on. Meeting content leaves only \
-                        when you drive the share sheet yourself, and then it is the \
-                        destination app's business, not Fieldnote's, or when you ask \
-                        Siri for your notes with that setting on.
+                        Fieldnote goes online only to download models you choose, and for \
+                        Apple Maps place names if you turn them on. Meeting content leaves \
+                        the phone only when you share it, or when you ask Siri for your \
+                        notes with that setting on.
                         """
                     )
                 }
