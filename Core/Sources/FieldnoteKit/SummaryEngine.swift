@@ -69,11 +69,11 @@ public enum SummaryEngine: String, Codable, CaseIterable, Sendable {
                 accuracy: 0.7, speed: 0.75, languages: "English and Chinese best", runs: "In the app, or while charging")
         case .qwen3_5_2b:
             // iPhone 16, build 63: 14 points in 3½ min for a 5½-minute meeting (one
-            // point under greedy decoding before); 42½ min for a 68-minute meeting,
-            // with the phone running hot.
+            // point under greedy decoding before); 42½ min for a 68-minute meeting, on
+            // a phone already warm from earlier benchmarks, so possibly throttled.
             ModelCard(
                 title: "Qwen3.5 2B",
-                summary: "Alibaba's small model. Detailed notes on short meetings, but slow: over 40 minutes for an hour-long meeting, and the phone gets hot. A 3 GB download.",
+                summary: "Alibaba's small model. Detailed notes on short meetings, but slow: about 40 minutes for an hour-long meeting in our test. A 3 GB download.",
                 accuracy: 0.55, speed: 0.1, languages: "Many languages", runs: "In the app, or while charging")
         }
     }

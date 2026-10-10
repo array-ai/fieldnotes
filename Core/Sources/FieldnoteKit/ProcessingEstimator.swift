@@ -71,7 +71,8 @@ public struct ProcessingEstimator: Codable, Sendable, Equatable {
         case (.diarizing, _): Rate(fixed: 3, perMinute: 0.2)
         case (.summarising, "minicpm5"): Rate(fixed: 10, perMinute: 1.5)
         case (.summarising, "minicpm5_2b"): Rate(fixed: 15, perMinute: 2.5)
-        // iPhone 16, build 63: 42½ min for a 68-minute meeting, 3½ min for 5½ minutes.
+        // iPhone 16, build 63: 42½ min for a 68-minute meeting (on a phone already warm
+        // from benchmarks), 3½ min for 5½ minutes. The app learns this phone's own rate.
         case (.summarising, "qwen3_5_2b"): Rate(fixed: 15, perMinute: 37)
         case (.summarising, _): Rate(fixed: 10, perMinute: 14)
         }
