@@ -11,7 +11,8 @@ public enum MeetingSearch {
     /// Bump when `indexText` changes, so stored meetings are re-indexed once.
     /// 3: re-index once more, as notes written by processing could be missed (the
     /// index was built before the new summary was linked to its meeting).
-    public static let indexVersion = 3
+    /// 4: action items' owners, so a person's name finds the meetings with their tasks.
+    public static let indexVersion = 4
 
     /// Lowercased, accents removed, typographic quotes made plain.
     public static func normalize(_ text: String) -> String {
@@ -62,6 +63,7 @@ public enum MeetingSearch {
             }
             parts.append(contentsOf: summary.decisions.map(\.statement))
             parts.append(contentsOf: summary.actionItems.map(\.task))
+            parts.append(contentsOf: summary.actionItems.compactMap(\.owner))
             parts.append(contentsOf: summary.openQuestions.map(\.text))
         }
         return normalize(parts.joined(separator: "\n"))

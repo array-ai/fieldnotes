@@ -19,7 +19,7 @@ struct MeetingSearchTests {
         #expect(MeetingSearch.matches(text, terms: MeetingSearch.terms("don't")))
     }
 
-    @Test("Notes are indexed: topics, points, details and open questions")
+    @Test("Notes are indexed: topics, points, details, task owners and open questions")
     func indexesNotes() {
         let segment = UUID()
         let summary = MeetingSummary(
@@ -27,11 +27,11 @@ struct MeetingSearchTests {
             topics: [SummaryTopic(title: "Firewall rollout", summary: "Phased", points: [
                 TopicPoint(text: "Start with the branch offices", details: ["Sydney first"], sourceSegmentID: segment),
             ])],
-            decisions: [], actionItems: [],
+            decisions: [], actionItems: [ActionItem(task: "Order the switch", owner: "Dave", sourceSegmentID: segment)],
             openQuestions: [OpenQuestion(text: "Who owns the licences?", sourceSegmentID: segment)]
         )
         let text = MeetingSearch.indexText(title: "Weekly", placeName: "Melbourne", speakerNames: ["Priya"], segments: [], summary: summary)
-        for query in ["firewall", "branch offices", "sydney", "licences", "melbourne", "priya"] {
+        for query in ["firewall", "branch offices", "sydney", "licences", "melbourne", "priya", "dave"] {
             #expect(MeetingSearch.matches(text, terms: MeetingSearch.terms(query)), "\(query)")
         }
     }
