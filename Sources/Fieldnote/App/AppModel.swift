@@ -88,7 +88,15 @@ public final class AppModel {
 
     public func refresh() async {
         let query = searchQuery
-        meetings = (try? await store.search(query)) ?? []
+        do {
+            let found = try await store.search(query)
+            // A slower search for an older query mustn't replace a newer one's results.
+            guard query == searchQuery else { return }
+            meetings = found
+        } catch {
+            DebugLog.shared.log("search", "the meeting list couldn't be loaded: \(error)")
+            meetings = []
+        }
     }
 
     // MARK: - Recording

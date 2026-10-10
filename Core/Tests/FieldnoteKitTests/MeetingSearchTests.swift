@@ -19,32 +19,24 @@ struct MeetingSearchTests {
         #expect(MeetingSearch.matches(text, terms: MeetingSearch.terms("don't")))
     }
 
-    @Test("Notes are indexed: topics, points, details, task owners and open questions")
-    func indexesNotes() {
+    @Test("The list's search covers the title, place, speakers and the notes under each meeting")
+    func indexesListFields() {
         let segment = UUID()
         let summary = MeetingSummary(
-            overview: "",
-            topics: [SummaryTopic(title: "Firewall rollout", summary: "Phased", points: [
-                TopicPoint(text: "Start with the branch offices", details: ["Sydney first"], sourceSegmentID: segment),
+            overview: "Network upgrade plans",
+            topics: [SummaryTopic(title: "Firewall rollout", summary: "Branch offices first", points: [
+                TopicPoint(text: "Sydney goes live in March", details: ["Needs a change window"], sourceSegmentID: segment),
             ])],
             decisions: [], actionItems: [ActionItem(task: "Order the switch", owner: "Dave", sourceSegmentID: segment)],
             openQuestions: [OpenQuestion(text: "Who owns the licences?", sourceSegmentID: segment)]
         )
-        let text = MeetingSearch.indexText(title: "Weekly", placeName: "Melbourne", speakerNames: ["Priya"], segments: [], summary: summary)
-        for query in ["firewall", "branch offices", "sydney", "licences", "melbourne", "priya", "dave"] {
+        let text = MeetingSearch.indexText(title: "Weekly", placeName: "Melbourne", speakerNames: ["Priya"], summary: summary)
+        for query in ["weekly", "melbourne", "priya", "network upgrade", "firewall", "branch offices", "w"] {
             #expect(MeetingSearch.matches(text, terms: MeetingSearch.terms(query)), "\(query)")
         }
-    }
-
-    @Test("The snippet is the matching transcript line, trimmed around the match")
-    func snippet() {
-        let line = TranscriptSegment(start: 42, end: 45, text: String(repeating: "filler ", count: 30) + "the quarterly budget is tight " + String(repeating: "words ", count: 30))
-        let meeting = MeetingSnapshot(title: "Budget", type: .general, startedAt: Date(), segments: [TranscriptSegment(start: 0, end: 2, text: "Hello"), line])
-        let found = MeetingSearch.snippet(in: meeting, terms: MeetingSearch.terms("Budget"))
-        #expect(found?.segmentID == line.id)
-        #expect(found?.start == 42)
-        #expect(found?.text.contains("quarterly budget") == true)
-        #expect(found?.text.hasPrefix("…") == true)
-        #expect(found?.text.hasSuffix("…") == true)
+        // The rest of the notes are for Find inside the meeting.
+        for query in ["sydney", "change window", "switch", "licences"] {
+            #expect(!MeetingSearch.matches(text, terms: MeetingSearch.terms(query)), "\(query)")
+        }
     }
 }

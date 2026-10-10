@@ -16,7 +16,7 @@ struct MeetingListView: View {
             List {
                 ForEach(model.meetings) { meeting in
                     NavigationLink(value: meeting.id) {
-                        MeetingRow(meeting: meeting, searchTerms: MeetingSearch.terms(model.searchQuery))
+                        MeetingRow(meeting: meeting)
                     }
                     .contextMenu {
                         // Each payload is independently shareable from here as well as
@@ -139,8 +139,6 @@ struct MeetingListView: View {
 
 struct MeetingRow: View {
     let meeting: MeetingSnapshot
-    /// While searching: show where the words were found instead of the topics.
-    var searchTerms: [String] = []
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -183,22 +181,8 @@ struct MeetingRow: View {
                     .lineLimit(1)
             }
 
-            if let snippet = MeetingSearch.snippet(in: meeting, terms: searchTerms) {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    if let start = snippet.start {
-                        Text(Timecode.short(start))
-                            .font(.caption.monospacedDigit())
-                            .foregroundStyle(.secondary)
-                    } else {
-                        Image(systemName: "text.quote").foregroundStyle(.secondary)
-                    }
-                    Text(MeetingSearch.highlighted(snippet.text, terms: searchTerms))
-                        .lineLimit(3)
-                }
-                .font(.subheadline)
-                .padding(.top, 6)
             // The meeting at a glance: the first few sections of its notes.
-            } else if let topics = meeting.summary?.topics, !topics.isEmpty {
+            if let topics = meeting.summary?.topics, !topics.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
                     ForEach(topics.prefix(3)) { topic in
                         HStack(alignment: .firstTextBaseline, spacing: 8) {

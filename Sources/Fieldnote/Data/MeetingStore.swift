@@ -373,17 +373,17 @@ public actor MeetingStore {
         // Every word, in any order. The longest word goes to the database; the
         // rest are checked here (a #Predicate can't take a variable number of terms).
         let terms = MeetingSearch.terms(query)
-        guard let needle = terms.first else { return try recentSnapshots(limit: limit) }
+        guard !terms.isEmpty else { return try recentSnapshots(limit: limit) }
         let started = ContinuousClock.now
-        let descriptor = FetchDescriptor<Meeting>(
-            predicate: #Predicate { $0.searchText.contains(needle) },
-            sortBy: [SortDescriptor(\.startedAt, order: .reverse)]
-        )
-        let candidates = try modelContext.fetch(descriptor)
-        let found = candidates.filter { MeetingSearch.matches($0.searchText, terms: terms) }
+        // Matched here rather than in a #Predicate: with `searchText.contains(term)`
+        // in the fetch, every search came back empty on the phone (build 57), even a
+        // single letter of a title, while the same fetch without it lists every
+        // meeting. The index is a few lines per meeting, so reading them all is cheap.
+        let all = try modelContext.fetch(FetchDescriptor<Meeting>(sortBy: [SortDescriptor(\.startedAt, order: .reverse)]))
+        let found = all.filter { MeetingSearch.matches($0.searchText, terms: terms) }
         DebugLog.shared.log(
             "search",
-            "\(terms.count) word(s): \(candidates.count) meeting(s) contain the longest, \(found.count) contain all, in \(DebugLog.elapsed(since: started))"
+            "\(terms.count) word(s): \(found.count) of \(all.count) meeting(s) match, in \(DebugLog.elapsed(since: started))"
         )
         return found.prefix(limit).map(MeetingSnapshot.init)
     }
@@ -474,22 +474,18 @@ public actor MeetingStore {
     private func rebuildSearchText(for meeting: Meeting, log: Bool) {
         let summary = meeting.summary?.summary
         let names = meeting.speakers.compactMap(\.displayName)
-        let lines = meeting.orderedSegments.map(\.text)
         meeting.searchText = MeetingSearch.indexText(
             title: meeting.title,
             placeName: meeting.placeName,
             speakerNames: names,
-            segments: lines,
             summary: summary
         )
         guard log else { return }
         let topics = summary?.topics ?? []
-        let notes = summary.map { summary in
-            "notes with \(topics.count) topic(s), \(topics.reduce(0) { $0 + $1.points.count }) point(s), \(summary.actionItems.count) task(s), \(summary.decisions.count) decision(s)\(summary.overview.isEmpty ? ", no overview" : "")"
-        } ?? "no notes"
+        let notes = summary.map { "notes with \(topics.count) topic(s)\($0.overview.isEmpty ? ", no overview" : "")" } ?? "no notes"
         DebugLog.shared.log(
             "search",
-            "\(DebugLog.short(meeting.id)): indexed \(meeting.searchText.count) characters: \(lines.count) transcript line(s), \(notes), \(names.count) speaker name(s)\(meeting.placeName == nil ? "" : ", place")"
+            "\(DebugLog.short(meeting.id)): indexed \(meeting.searchText.count) characters: title, \(notes), \(names.count) speaker name(s)\(meeting.placeName == nil ? "" : ", place")"
         )
     }
 

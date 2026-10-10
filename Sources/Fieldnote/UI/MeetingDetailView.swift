@@ -24,9 +24,8 @@ struct MeetingDetailView: View {
     @State private var player = MeetingPlayer()
     /// Keep the playing line in view. Off when the user wants to read elsewhere.
     @State private var follow = true
-    /// Find in this meeting; starts with the list's search, if there was one.
+    /// Find in this meeting.
     @State private var find = ""
-    @State private var findPrefilled = false
 
     enum Tab: String, CaseIterable { case summary, transcript }
 
@@ -46,13 +45,7 @@ struct MeetingDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         #endif
         .searchable(text: $find, prompt: "Find in this meeting")
-        .onAppear {
-            guard !findPrefilled else { return }
-            findPrefilled = true
-            if !model.searchQuery.trimmed().isEmpty { find = model.searchQuery }
-        }
-        // Show the transcript only when it has a matching line: a list search can
-        // match the title or the notes alone.
+        // Switch to the transcript when Find matches a line in it.
         .onChange(of: find) { showTranscriptIfFound() }
         .onChange(of: meeting?.id) { showTranscriptIfFound() }
         .toolbar {
