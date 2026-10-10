@@ -176,7 +176,6 @@ struct SettingsView: View {
                 Section {
                     Label("No accounts, no server, no network unless you choose it", systemImage: "network.slash")
                     Label("Audio, transcripts and summaries stay on this device", systemImage: "iphone")
-                    Label("No meeting content in Spotlight or Siri's search", systemImage: "magnifyingglass")
                 } header: {
                     Text("Privacy")
                 } footer: {
