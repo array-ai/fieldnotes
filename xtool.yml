@@ -15,10 +15,12 @@ entitlementsPath: Config/Fieldnote.entitlements
 # first build (the directory is gitignored). Places holds the offline place-name
 # table, committed and regenerated with Scripts/build-places.py. PrivacyInfo is
 # the privacy manifest, which App Store Connect looks for at the bundle root.
+# Licenses holds the licence texts shown in Settings → Acknowledgements.
 resources:
   - Resources/DiarizationModels
   - Resources/Places
   - Resources/PrivacyInfo.xcprivacy
+  - Resources/Licenses
 
 extensions:
   - product: FieldnoteWidgets

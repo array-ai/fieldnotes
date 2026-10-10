@@ -23,6 +23,21 @@
 	<array>
 		<integer>1</integer>
 	</array>
+	<!-- Apple Intelligence hardware only (iPhone 15 Pro and later), which the app
+	     needs and refuses to run without. There's no capability for Apple
+	     Intelligence itself; the gaming tier covers the same phones. Set before the
+	     first release: the App Store won't let an update add a requirement that drops
+	     phones an earlier version supported. -->
+	<key>UIRequiredDeviceCapabilities</key>
+	<array>
+		<string>arm64</string>
+		<string>microphone</string>
+		<string>iphone-performance-gaming-tier</string>
+	</array>
+	<!-- The gaming tier above would otherwise mark Fieldnote as a game and turn on
+	     Game Mode while it's open. -->
+	<key>LSSupportsGameMode</key>
+	<false/>
 	<!-- Fieldnote's only network use is user-chosen: optional model downloads over
 	     HTTPS (URLSession) and the opt-in Apple Maps place lookup, both through
 	     Apple's own frameworks (exempt encryption). The app has no
@@ -31,7 +46,7 @@
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Fieldnote records meetings on this device. Audio, transcripts and summaries never leave the device unless you share them yourself.</string>
+	<string>Fieldnote records meetings on this device. Audio, transcripts and summaries never leave the device unless you share them, or ask Siri for them with that setting on.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Fieldnote can record where a meeting started, as coordinates only. Off by default, and used only while you are recording.</string>
 	<key>NSRemindersFullAccessUsageDescription</key>
