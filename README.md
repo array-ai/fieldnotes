@@ -70,7 +70,9 @@ two things you choose: optional model downloads, and Apple Maps place names.
   transcript replaces your edits to it, so it asks first.
 
 - **Debug mode** (Settings) adds an activity log of what ran, for how long and what
-  failed, a benchmark that times every on-device model on one of your recordings, and an
+  failed, a benchmark that times every on-device model on one of your recordings, a
+  comparison that writes one meeting's notes with every notes model into one report to
+  share, and an
   editor for the summary prompt (the grounding rules stay attached).
   The log is meant for timings, counts and errors, not meeting content, but an
   error message can include part of a meeting, so read it before sharing it. It stays

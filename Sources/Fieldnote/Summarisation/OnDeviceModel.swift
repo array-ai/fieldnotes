@@ -122,7 +122,24 @@ public enum OnDeviceModel {
 
     /// The summary model chosen in Settings.
     public static var selectedEngine: SummaryEngine {
-        SummaryEngine(storedValue: UserDefaults.standard.string(forKey: SummaryEngine.defaultsKey))
+        engineOverride.withLock { $0 }
+            ?? SummaryEngine(storedValue: UserDefaults.standard.string(forKey: SummaryEngine.defaultsKey))
+    }
+
+    /// Debug mode's notes comparison: a model to use in place of the one chosen in
+    /// Settings, for one run at a time. Nil the rest of the time.
+    private static let engineOverride = Mutex<SummaryEngine?>(nil)
+
+    public static func overrideEngine(_ engine: SummaryEngine?) {
+        engineOverride.withLock { $0 = engine }
+    }
+
+    /// Whether a notes model can run here: Apple's always, a downloadable one once
+    /// it's downloaded.
+    public static func isAvailable(_ engine: SummaryEngine) -> Bool {
+        guard engine.isLocal else { return true }
+        guard let pack = engine.modelPack else { return false }
+        return ModelDownloads.installedDirectory(for: pack) != nil
     }
 
     /// A downloaded model (MiniCPM5 1B or 2B) is chosen and fully downloaded.

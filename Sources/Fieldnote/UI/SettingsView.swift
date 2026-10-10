@@ -160,6 +160,7 @@ struct SettingsView: View {
                     if settings.debugMode {
                         NavigationLink("Activity log") { DebugLogView() }
                         NavigationLink("Benchmark models") { BenchmarkView() }
+                        NavigationLink("Compare notes models") { NotesComparisonView() }
                         NavigationLink("Summary prompt") { SummaryPromptEditor() }
                     }
                 } header: {
@@ -277,6 +278,84 @@ struct DebugLogView: View {
 
     private func reload() {
         (text, truncated) = DebugLog.shared.contents()
+    }
+}
+
+/// Debug mode: one meeting's notes from every notes model, as a report to share.
+struct NotesComparisonView: View {
+    @Environment(AppModel.self) private var model
+    @State private var comparison = NotesComparison()
+    @State private var meetingID: UUID?
+    @State private var includeTranscript = true
+
+    private var busy: Bool {
+        model.meetings.contains { !$0.state.isTerminal && $0.state != .recording } || model.recorder.isActive
+    }
+
+    private var candidates: [MeetingSnapshot] {
+        model.meetings.filter { $0.state == .complete && !$0.segments.isEmpty }
+    }
+
+    var body: some View {
+        Form {
+            Section {
+                Picker("Meeting", selection: $meetingID) {
+                    Text("Choose…").tag(UUID?.none)
+                    ForEach(candidates) { meeting in
+                        Text(meeting.title).tag(UUID?.some(meeting.id))
+                    }
+                }
+                Toggle("Include the transcript", isOn: $includeTranscript)
+                Button {
+                    guard let meeting = candidates.first(where: { $0.id == meetingID }) else { return }
+                    Task { await comparison.run(on: meeting, includeTranscript: includeTranscript) }
+                } label: {
+                    if comparison.isRunning {
+                        HStack {
+                            ProgressView()
+                            Text(comparison.status)
+                        }
+                    } else {
+                        Text("Write notes with every model")
+                    }
+                }
+                .disabled(meetingID == nil || comparison.isRunning || busy)
+            } footer: {
+                Text(
+                    """
+                    \(busy ? "Available once nothing is recording or processing. " : "")Writes this \
+                    meeting's notes with each downloaded model, one after another, the way \
+                    processing does. The meeting keeps its own notes. Takes a few minutes per \
+                    model; keep the app open. The report holds the notes, and the transcript \
+                    if included, which is needed to check them against what was said: share \
+                    it only where you're happy for that to go.
+                    """
+                )
+            }
+
+            if !comparison.results.isEmpty {
+                Section("Results") {
+                    ForEach(comparison.results) { result in
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(result.engine.card.title).font(.subheadline.weight(.semibold))
+                            Text(result.line)
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                            if let ranOn = result.ranOn, ranOn != result.engine.card.title {
+                                Text("Ran on \(ranOn)").font(.caption).foregroundStyle(.orange)
+                            }
+                        }
+                    }
+                    if let url = comparison.reportURL {
+                        ShareLink(item: url) {
+                            Label("Share the report", systemImage: "square.and.arrow.up")
+                        }
+                    }
+                }
+            }
+        }
+        .navigationTitle("Compare notes models")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
