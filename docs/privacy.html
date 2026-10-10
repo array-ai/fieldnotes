@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fieldnote Privacy Policy</title>
+<meta name="description" content="Fieldnote collects no data. What stays on your iPhone, the few things that can go online, and only when you choose them.">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="site-head">
+  <div class="wrap">
+    <a class="brand" href="./"><img src="icon.svg" alt="">Fieldnote</a>
+    <nav class="site-nav">
+      <a href="privacy.html" aria-current="page">Privacy</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/array-ai/fieldnotes">Source</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap doc">
+  <h1>Privacy policy</h1>
+  <p class="effective">Effective 10 October 2026</p>
+
+  <div class="summary-box">
+    <p><strong>Fieldnote collects no data.</strong> The developer receives nothing from the app: no recordings, no transcripts, no notes, no usage statistics and no identifiers. There's no account, no server and no analytics. Everything Fieldnote records and writes stays on your iPhone unless you send it somewhere yourself.</p>
+  </div>
+
+  <h2>What Fieldnote stores on your iPhone</h2>
+  <ul>
+    <li>Audio recordings and audio you import.</li>
+    <li>Transcripts, speaker labels and the names you give speakers.</li>
+    <li>Notes written from each meeting: overviews, topics, action items, decisions and questions.</li>
+    <li>Speaker voice profiles, which are numbers describing a voice, used to tell speakers apart within a meeting.</li>
+    <li>If you turn location on, where a recording started, and the place name worked out from it.</li>
+    <li>Your settings, and an activity log of timings and errors, which never contains what was said.</li>
+  </ul>
+  <p>This data is protected by iOS file encryption and can't be read while your iPhone is locked, except by a recording or processing task already in progress. Like other app data, it is included in your iPhone's backups, to your computer or to iCloud if you use iCloud Backup. Apple's policies apply to those backups.</p>
+  <p>Transcription, speaker identification and note writing all run on the phone, using Apple's on-device models or models you've downloaded. No meeting content is sent to a server to be processed.</p>
+
+  <h2>When Fieldnote goes online</h2>
+  <p>Fieldnote works without a network connection. It connects only for the following, and only when you choose them:</p>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>What</th><th>When</th><th>What is sent</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Model downloads</td>
+          <td>When you tap Download in Settings → Models</td>
+          <td>A request for a fixed version of the model's files to Hugging Face (<code>huggingface.co</code>). Like any download, it reveals your IP address to Hugging Face. Nothing about you or your meetings is sent.</td>
+        </tr>
+        <tr>
+          <td>Apple Maps place names</td>
+          <td>Only if you turn on “Name places with Apple Maps”. Off by default</td>
+          <td>The coordinates where a meeting started, to Apple, to look up a business or building name. Without this setting, places are named from a list built into the app, with no network use.</td>
+        </tr>
+        <tr>
+          <td>Siri</td>
+          <td>When you ask Siri about a meeting</td>
+          <td>Without “Let Siri read meeting notes”, Siri gets no meeting titles or notes. With it on (off by default), Siri gets one short answer, such as the last meeting's action items or summary, only when you ask and only with your iPhone unlocked. Siri may process requests on Apple's servers, under <a href="https://www.apple.com/legal/privacy/">Apple's privacy policy</a>. Meetings are never added to Siri's or Spotlight's search index.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Permissions</h2>
+  <ul>
+    <li><strong>Microphone</strong>: to record meetings.</li>
+    <li><strong>Location</strong> (optional, off by default): to note where a meeting started, only while recording.</li>
+    <li><strong>Reminders</strong> (optional): to add action items to a Reminders list you choose. They're saved by iOS in Reminders, like ones you add yourself.</li>
+    <li><strong>Notifications</strong> (optional): to tell you when a meeting's notes are ready. These are created on the phone, not sent from a server.</li>
+  </ul>
+  <p>You can change any of these in the iPhone's Settings app at any time.</p>
+
+  <h2>Sharing</h2>
+  <p>A meeting leaves your phone when you share it: as Markdown, text, PDF, subtitles or audio, through the iOS share sheet. Where it goes, and what happens to it there, is up to you and the app or person you share it with.</p>
+
+  <h2>Apple</h2>
+  <p>Fieldnote is distributed through the App Store and uses Apple's on-device speech and language models. If you've chosen to share analytics with app developers in your iPhone's settings, Apple may give the developer anonymous crash reports and usage statistics. These never contain meeting content. Apple's handling of data is covered by <a href="https://www.apple.com/legal/privacy/">Apple's privacy policy</a>.</p>
+
+  <h2>Deleting your data</h2>
+  <p>Delete a meeting in the app to remove its audio, transcript and notes. Deleting the app removes everything it stored. Because the developer holds none of your data, there's nothing to request or delete on our side.</p>
+
+  <h2>Recording other people</h2>
+  <p>Many places require everyone's consent before a conversation is recorded. You're responsible for getting it. Fieldnote reminds you before your first recording.</p>
+
+  <h2>Children</h2>
+  <p>Fieldnote isn't directed at children and collects no data from anyone.</p>
+
+  <h2>Changes to this policy</h2>
+  <p>If the app's handling of data changes, this page will be updated and its effective date changed. Every past version is in the <a href="https://github.com/array-ai/fieldnotes/commits/main/docs/privacy.html">project's history on GitHub</a>.</p>
+
+  <h2>Contact</h2>
+  <p>Questions about privacy: open an issue on <a href="https://github.com/array-ai/fieldnotes/issues">GitHub</a>.</p>
+</main>
+
+<footer class="site-foot">
+  <div class="wrap">
+    <span>Fieldnote by publicarray</span>
+    <span><a href="./">Home</a> · <a href="support.html">Support</a></span>
+  </div>
+</footer>
+</body>
+</html>
