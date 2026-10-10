@@ -37,7 +37,10 @@ public final class ModelBenchmark {
         guard !isRunning else { return }
         isRunning = true
         rows = []
+        // A locked phone would stop the models part-way; keep the screen on.
+        ScreenAwake.set(.benchmark, true)
         defer {
+            ScreenAwake.set(.benchmark, false)
             isRunning = false
             status = ""
         }

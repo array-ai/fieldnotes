@@ -9,6 +9,9 @@ enum ScreenAwake {
     enum Reason: Hashable {
         case processing
         case preparingModel
+        /// Debug mode's benchmark and notes comparison: minutes of model work that
+        /// the phone locking would pause.
+        case benchmark
     }
 
     private static var reasons: Set<Reason> = []

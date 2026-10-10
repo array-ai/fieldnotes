@@ -48,8 +48,11 @@ public final class NotesComparison {
         isRunning = true
         results = []
         reportURL = nil
+        // A locked phone would stop the models part-way; keep the screen on.
+        ScreenAwake.set(.benchmark, true)
         defer {
             OnDeviceModel.overrideEngine(nil)
+            ScreenAwake.set(.benchmark, false)
             isRunning = false
             status = ""
         }
