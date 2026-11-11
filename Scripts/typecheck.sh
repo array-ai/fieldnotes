@@ -73,7 +73,10 @@ collect_errors() {
 
 # The base's errors depend on the SDK as well as the commit: a rebuilt SDK (new
 # xtool, new Xcode) changes which macros expand.
-SDK_STAMP=$(cat "$HOME/.swiftpm/swift-sdks/darwin.artifactbundle/darwin-sdk-version.txt" 2>/dev/null || echo unknown)
+# xtool's version line doesn't name the Xcode the SDK came from, so the SDK
+# folder's own name (iPhoneOS27.1.sdk) goes in as well.
+BUNDLE="$HOME/.swiftpm/swift-sdks/darwin.artifactbundle"
+SDK_STAMP="$(cat "$BUNDLE/darwin-sdk-version.txt" 2>/dev/null || echo unknown) $(ls "$BUNDLE/Developer/Platforms/iPhoneOS.platform/Developer/SDKs" 2>/dev/null | tr '\n' ' ')"
 SDK_KEY=$(printf '%s' "$SDK_STAMP" | cksum | cut -d' ' -f1)
 BASE_ERRORS="$CACHE/base-$BASE_SHA-$SDK_KEY.txt"
 if [ ! -f "$BASE_ERRORS" ]; then
