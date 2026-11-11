@@ -85,6 +85,7 @@ jobs:
           cp Config/AppIntentsRoots/App.swift "$X/Fieldnote/AppIntentsRoot.swift"
           cp Config/AppIntentsRoots/Widgets.swift "$X/FieldnoteWidgets/AppIntentsRoot.swift"
           sed -i '' -e 's#lastKnownFileType = sourcecode.c.c; path = empty.c;#lastKnownFileType = sourcecode.swift; path = AppIntentsRoot.swift;#' \
+            -e 's#path = empty.c;#path = AppIntentsRoot.swift;#' \
             -e 's#/\* empty.c \*/#/* AppIntentsRoot.swift */#g' -e 's#/\* empty.c in Sources \*/#/* AppIntentsRoot.swift in Sources */#g' "$PBX"
           grep -q "empty.c" "$PBX" && { echo "empty.c still in the project"; grep -n "empty.c" "$PBX"; exit 1; }
           grep -c "AppIntentsRoot.swift" "$PBX"
