@@ -4,19 +4,23 @@
 #
 # Why this exists
 # ---------------
-# The app can't be fully compiled on Linux: the iOS SDK ships Apple's macros
-# (@State, @Model, @Generable, App Intents) as Mac-only plugins, so every file that
-# uses one fails, with hundreds of follow-on errors ("cannot find '$title' in
-# scope", "'self' is immutable", "unable to type-check this expression"). The only
-# full compile is the release build on a macOS runner, which is slow and billed.
+# The app can't be fully compiled on Linux: the iOS SDK ships Apple's macros as
+# Mac-only plugins. xtool 1.20 and later put open replacements for some of them in
+# the Darwin SDK it builds (OpenAppleMacros: @State, @Generable, @Guide), so views
+# and the summariser compile properly. SwiftData's (@Model, @ModelActor) have no
+# replacement yet, so Models.swift and MeetingStore.swift still fail, with a
+# hundred-odd follow-on errors. The only full compile is the release build on a
+# macOS runner, which is slow and billed.
 #
 # Those errors are the same before and after a change, though. So this compiles the
 # working tree and a clean checkout of a base commit, and reports the errors the
 # working tree has that the base doesn't. Errors are matched by file and message,
 # not line number, so moving code doesn't count as a new error.
 #
-# What it can't see: a mistake inside a view body the compiler already gives up on
-# (those bodies are listed at the end). The release build is still the final check.
+# What it can't see: a mistake in code the compiler already gives up on. That is
+# most of the two SwiftData files, and, with an SDK from xtool before 1.20 (no
+# macro replacements at all), the big view bodies, which are then listed at the
+# end. The release build is still the final check.
 #
 # Usage: Scripts/typecheck.sh [base]
 #        base: the commit to compare against. Default HEAD, i.e. "what did my
@@ -67,7 +71,11 @@ collect_errors() {
   fi
 }
 
-BASE_ERRORS="$CACHE/base-$BASE_SHA.txt"
+# The base's errors depend on the SDK as well as the commit: a rebuilt SDK (new
+# xtool, new Xcode) changes which macros expand.
+SDK_STAMP=$(cat "$HOME/.swiftpm/swift-sdks/darwin.artifactbundle/darwin-sdk-version.txt" 2>/dev/null || echo unknown)
+SDK_KEY=$(printf '%s' "$SDK_STAMP" | cksum | cut -d' ' -f1)
+BASE_ERRORS="$CACHE/base-$BASE_SHA-$SDK_KEY.txt"
 if [ ! -f "$BASE_ERRORS" ]; then
   echo "Building the base ($(git log -1 --format='%h %s' "$BASE_SHA" | cut -c1-70)) once…" >&2
   if [ -e "$WORKTREE/.git" ]; then
@@ -114,14 +122,15 @@ if [ -n "$NEW" ]; then
   echo "$NEW"
   STATUS=1
 else
-  echo "No new errors since $(git rev-parse --short "$BASE_SHA") ($(wc -l < "$NOW_ERRORS") known macro errors, same as the base)."
+  echo "No new errors since $(git rev-parse --short "$BASE_SHA") ($(wc -l < "$NOW_ERRORS") known macro errors in $(sed -E 's/:[0-9]+:[0-9]+: error: .*//' "$NOW_ERRORS" | sort -u | wc -l) files, same as the base)."
   STATUS=0
 fi
 
 if [ -n "$BLIND" ]; then
   echo
   echo "Not checked: the compiler gives up on these view bodies without the macros,"
-  echo "so a mistake inside one only shows in the release build."
+  echo "so a mistake inside one only shows in the release build. An SDK built by"
+  echo "xtool 1.20 or later (xtool sdk install Xcode.xip) expands them."
   for place in $BLIND; do
     file=${place%%:*}
     case " $CHANGED " in
