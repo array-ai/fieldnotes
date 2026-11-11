@@ -101,6 +101,13 @@ public final class RecordingController {
         state = .preparing
         self.meetingID = meetingID
         self.locale = locale
+        // The last recording's lines, clock and level would otherwise show on this
+        // one: its live transcript started under the previous meeting's.
+        segments = []
+        volatileText = ""
+        elapsed = 0
+        level = 0
+        accumulated = 0
         liveSpans = []
         identifiesSpeakersLive = false
         do {
@@ -245,6 +252,12 @@ public final class RecordingController {
     /// pipeline's problem (spec 4.7) — this method must not do minutes of work.
     @discardableResult
     public func stop() async -> RecordingResult? {
+        // Still starting (a model loading, the microphone prompt): wait for it. A
+        // stop that ran alongside the start tore down a recorder the start then
+        // brought up again, recording on with nothing left to stop it.
+        while state == .preparing {
+            try? await Task.sleep(for: .milliseconds(50))
+        }
         guard let meetingID, state != .idle, state != .stopping else { return nil }
         // By state, not engine.isRunning: an engine iOS stopped on its own would
         // otherwise leave the time since the last start uncounted.
@@ -479,13 +492,17 @@ public final class RecordingController {
             // Finalise what is in flight rather than dropping it (spec 4.1). Only
             // while recording: paused time was already counted.
             guard state == .recording else { return }
+            // The state changes now, not after the flushes below: a Stop pressed
+            // while they ran counted this stretch twice and was then marked
+            // interrupted, which let the end of the interruption restart capture
+            // on a recording that had stopped.
+            engine.pause()
+            accumulated += Date().timeIntervalSince(startDate)
+            state = .interrupted
+            DebugLog.shared.log("recording", "interrupted by the system (a call, Siri or another app's audio)")
             Task {
-                engine.pause()
-                accumulated += Date().timeIntervalSince(startDate)
                 try? await writer?.flush()
                 try? await diarizationBuffer?.flush()
-                state = .interrupted
-                DebugLog.shared.log("recording", "interrupted by the system (a call, Siri or another app's audio)")
                 await liveActivity?.update(elapsed: elapsed, level: 0, isPaused: true)
             }
         case .interruptionEnded(let shouldResume):

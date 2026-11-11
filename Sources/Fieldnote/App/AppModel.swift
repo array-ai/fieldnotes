@@ -111,6 +111,9 @@ public final class AppModel {
         client: String? = nil,
         coordinate: (latitude: Double, longitude: Double)?
     ) async throws {
+        // Already recording (a second press, or the Action button during a start):
+        // the recorder would ignore this one, leaving an empty meeting in the list.
+        guard !recorder.isActive else { return }
         let locale = settings.locale
         // Meeting types are gone from the UI; every meeting is stored as `.general`.
         let type = MeetingType.general
