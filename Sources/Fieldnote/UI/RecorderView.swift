@@ -113,7 +113,9 @@ struct RecorderView: View {
                             .foregroundStyle(.secondary)
                     }
                     if recentLines.isEmpty, model.recorder.volatileText.isEmpty {
-                        Text("Listening…")
+                        Text(model.recorder.liveTranscriptUnavailable
+                            ? "No live transcript: the speech model isn't available right now. The meeting is being recorded and will be transcribed after you stop."
+                            : "Listening…")
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -260,7 +262,9 @@ struct RecorderView: View {
     private var recorderNotice: String? {
         switch model.recorder.state {
         case .interrupted:
-            "Recording paused by a call or another app. Tap Resume to carry on."
+            model.recorder.resumeFailed
+                ? "Couldn't resume: a call or another app may still be using the microphone. What was recorded is safe. Tap Resume to try again."
+                : "Recording paused by a call or another app. Tap Resume to carry on."
         case .failed(let message):
             "Recording stopped by a problem. What was recorded is saved; tap Save recording. (\(message))"
         default:

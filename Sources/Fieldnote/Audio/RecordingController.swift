@@ -52,6 +52,12 @@ public final class RecordingController {
     /// by the model's window (about ten seconds).
     public private(set) var liveSpans: [DiarizedSpan] = []
     public private(set) var identifiesSpeakersLive = false
+    /// The speech model couldn't be loaded, so this recording has no live
+    /// transcript. The audio is recorded all the same and transcribed after stop.
+    public private(set) var liveTranscriptUnavailable = false
+    /// The last Resume didn't work (usually a call or another app still has the
+    /// microphone). The recording stays paused, to try again.
+    public private(set) var resumeFailed = false
 
     private let engine = AVAudioEngine()
     #if os(iOS)
@@ -105,6 +111,8 @@ public final class RecordingController {
         // one: its live transcript started under the previous meeting's.
         segments = []
         volatileText = ""
+        liveTranscriptUnavailable = false
+        resumeFailed = false
         elapsed = 0
         level = 0
         accumulated = 0
@@ -151,10 +159,19 @@ public final class RecordingController {
             DebugLog.shared.log("recording", "\(DebugLog.short(meetingID)): live transcript by nemotronStreaming")
         } else {
             let transcription = TranscriptionSession(locale: locale)
-            self.transcription = transcription
             liveTranscriptModel = TranscriptionEngine.apple.card.title
-            try await transcription.start()
-            observe(transcription)
+            do {
+                try await transcription.start()
+                self.transcription = transcription
+                observe(transcription)
+            } catch {
+                // The speech model isn't there (not downloaded yet and no network,
+                // or not for this language). Recording doesn't need it: carry on
+                // without a live transcript, and transcribe the saved audio after.
+                await transcription.cancel()
+                liveTranscriptUnavailable = true
+                DebugLog.shared.log("recording", "\(DebugLog.short(meetingID)): no live transcript, the speech model couldn't start (\(error)); recording anyway, to be transcribed after stop")
+            }
         }
 
         if identifySpeakersLive {
@@ -241,10 +258,18 @@ public final class RecordingController {
             try installTapAndStart()
             startDate = Date()
             state = .recording
+            resumeFailed = false
             DebugLog.shared.log("recording", "resumed")
             await liveActivity?.update(elapsed: elapsed, level: level, isPaused: false)
         } catch {
-            state = .failed(error.localizedDescription)
+            // Usually the call or app that interrupted still has the microphone.
+            // Stay paused so Resume can be tried again, rather than end the
+            // recording over something that passes.
+            engine.inputNode.removeTap(onBus: 0)
+            engine.stop()
+            state = .interrupted
+            resumeFailed = true
+            DebugLog.shared.log("recording", "couldn't resume, still paused: \(error)")
         }
     }
 
