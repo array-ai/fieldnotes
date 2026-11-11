@@ -166,7 +166,10 @@ public final class AppModel {
             try? await checkpoints.saveLiveSpans(spans)
         }
         #if os(iOS)
-        let title = meetings.first { $0.id == result.meetingID }?.title ?? "meeting"
+        // From the store, not the list on screen: a search can filter the meeting
+        // out of that, and the notification then said only "meeting".
+        let title = (try? await store.meetingSnapshot(result.meetingID))?.title
+            ?? meetings.first { $0.id == result.meetingID }?.title ?? "meeting"
         await ProcessingNotifier.shared.requestPermissionIfNeeded()
         await coordinator.submitAfterRecording(title: title)
         #endif
@@ -188,7 +191,11 @@ public final class AppModel {
     /// Imports a recording from another app (Files, share sheet, "Open in"), then
     /// queues it for transcription, speakers and summary like a recording made here.
     public func importRecording(from url: URL) async {
-        guard importProgress == nil else { return }
+        guard importProgress == nil else {
+            // Said, rather than the second file quietly going nowhere.
+            importError = "Another recording is still being imported. Import this one when it has finished."
+            return
+        }
         let scoped = url.startAccessingSecurityScopedResource()
         defer { if scoped { url.stopAccessingSecurityScopedResource() } }
 

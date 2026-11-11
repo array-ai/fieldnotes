@@ -123,13 +123,30 @@ public actor ProcessingPipeline {
         let store = try ProcessingCheckpointStore(meetingID: input.meetingID)
         var checkpoint = await store.load()
 
+        // A recording the app closing cut off: put its last stretch of audio back
+        // from the speaker buffer first, so every stage (and playback) has it.
+        var input = input
+        do {
+            if let restored = try await CutOffRecording.repairIfNeeded(meetingID: input.meetingID) {
+                input.chunks = ChunkedAudioWriter.existingChunks(in: FieldnoteStorage.audioChunkDirectory(for: input.meetingID))
+                debug.log("pipeline", "\(DebugLog.short(input.meetingID)): the recording was cut off; put back its last \(String(format: "%.0f", restored))s of audio from the speaker buffer")
+            }
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            if PhoneLocked.isCause(error) { throw PhoneLocked() }
+            // The transcript still gets that stretch (transcribeCutOffEnd).
+            debug.log("pipeline", "\(DebugLog.short(input.meetingID)): couldn't put back the cut-off end of the recording: \(error)")
+        }
+        let liveCovers = await liveTranscriptCovers(input)
+
         // What actually has work to do, for the time estimate.
         let hasLiveSpeakers = await store.loadLiveSpans() != nil
         let work = ProcessingEstimator.Work(
             transcribes: !checkpoint.isComplete(.transcribing)
                 && (checkpoint.redoTranscript == true
                     || ParakeetTranscriber.isSelected(for: input.locale.identifier)
-                    || !coversRecording(input.liveSegments, duration: input.duration)),
+                    || !liveCovers),
             diarizes: !checkpoint.isComplete(.diarizing) && !hasLiveSpeakers,
             summarises: !checkpoint.isComplete(.summarising)
         )
@@ -169,7 +186,7 @@ public actor ProcessingPipeline {
 
         var stageStart = ContinuousClock.now
         announce(.transcribing)
-        let segments = try await transcribeStage(input, store: store, checkpoint: &checkpoint, progress: progress)
+        let segments = try await transcribeStage(input, liveCovers: liveCovers, store: store, checkpoint: &checkpoint, progress: progress)
         debug.log("pipeline", "\(id): transcribing finished in \(DebugLog.elapsed(since: stageStart)), \(segments.count) lines")
         learn(.transcribing, stageStart)
 
@@ -220,6 +237,7 @@ public actor ProcessingPipeline {
 
     private func transcribeStage(
         _ input: Input,
+        liveCovers: Bool,
         store: ProcessingCheckpointStore,
         checkpoint: inout ProcessingCheckpoint,
         progress: @escaping ProgressHandler
@@ -261,7 +279,7 @@ public actor ProcessingPipeline {
         // Nemotron 3.5 normally wrote the transcript live (reused just below). From
         // disk only when that's missing: an import, a redo, or a live run that failed.
         if NemotronStreamingTranscriber.isSelected(for: input.locale.identifier),
-           redo || !coversRecording(input.liveSegments, duration: input.duration) {
+           redo || !liveCovers {
             do {
                 let segments = try await NemotronStreamingTranscriber.transcribe(
                     meetingID: input.meetingID,
@@ -287,7 +305,7 @@ public actor ProcessingPipeline {
         // The live transcript is the normal case: it was produced while the meeting
         // was happening and there is nothing to redo. The file path exists for the
         // abnormal one — app killed, transcription started late, audio imported.
-        if !redo, coversRecording(input.liveSegments, duration: input.duration) {
+        if !redo, liveCovers {
             debug.log("pipeline", "\(DebugLog.short(input.meetingID)): live transcript covers the recording, reusing it")
             try await store.saveSegments(input.liveSegments)
             try await store.markComplete(.transcribing, in: &checkpoint)
@@ -300,22 +318,29 @@ public actor ProcessingPipeline {
             "pipeline",
             "\(DebugLog.short(input.meetingID)): \(redo ? "redo requested" : "live transcript ends early"); transcribing \(input.chunks.count) audio chunk(s) from disk"
         )
+        // One chunk at a time, saved as each finishes: a run that is stopped (a
+        // background task running out on a long import) carries on from the next
+        // chunk instead of starting the recording again.
         let resumeFrom = checkpoint.lastTranscribedChunkIndex.map { $0 + 1 } ?? 0
-        var recovered = await store.loadSegments() ?? []
-
-        let fresh = try await transcriber.transcribe(
-            chunks: input.chunks,
-            fromChunkIndex: resumeFrom
-        ) { fraction, _ in
-            progress(.transcribing, fraction)
+        var recovered = resumeFrom > 0 ? await store.loadSegments() ?? [] : []
+        let pending = input.chunks.filter { $0.index >= resumeFrom }
+        if resumeFrom > 0 {
+            debug.log("pipeline", "\(DebugLog.short(input.meetingID)): \(input.chunks.count - pending.count) chunk(s) already transcribed, carrying on from chunk \(resumeFrom + 1)")
+        }
+        for (position, chunk) in pending.enumerated() {
+            let fresh = try await transcriber.transcribe(chunks: [chunk], total: input.chunks.count) { fraction, _ in
+                progress(.transcribing, (Double(position) + fraction) / Double(pending.count))
+            }
+            recovered.append(contentsOf: fresh)
+            try await store.saveSegments(recovered)
+            checkpoint.lastTranscribedChunkIndex = chunk.index
+            try await store.save(checkpoint)
         }
 
-        recovered.append(contentsOf: fresh)
         recovered.append(contentsOf: try await transcribeCutOffEnd(input))
         recovered.sort { $0.start < $1.start }
 
         try await store.saveSegments(recovered)
-        checkpoint.lastTranscribedChunkIndex = input.chunks.last?.index
         checkpoint.transcriptModel = TranscriptionEngine.apple.card.title
         try await store.markComplete(.transcribing, in: &checkpoint)
         progress(.transcribing, 1.0)
@@ -344,10 +369,35 @@ public actor ProcessingPipeline {
     }
 
     /// Treats a live transcript as complete when it reaches near the end of the
-    /// audio. A recording that was killed leaves a transcript that stops early.
-    private func coversRecording(_ segments: [TranscriptSegment], duration: TimeInterval) -> Bool {
-        guard let last = segments.last, duration > 0 else { return false }
-        return last.end >= duration - 15
+    /// audio, or when nothing audible follows its last line. One that stops early
+    /// with talk still going (the live model failed part-way) is redone from disk;
+    /// a meeting that only ends in silence isn't, which it used to be.
+    private func liveTranscriptCovers(_ input: Input) async -> Bool {
+        guard let end = input.liveSegments.map(\.end).max(), input.duration > 0 else { return false }
+        if end >= input.duration - 15 { return true }
+        guard isQuiet(meetingID: input.meetingID, after: end) else { return false }
+        debug.log("pipeline", "\(DebugLog.short(input.meetingID)): the live transcript ends \(String(format: "%.0f", input.duration - end))s before the recording does, with only quiet after it; counted as complete")
+        return true
+    }
+
+    /// Whether the speaker buffer holds nothing above room noise from a second
+    /// after `time` to the end. Deliberately strict (about -48 dBFS over any one
+    /// second): a wrong "quiet" would lose speech, a wrong "not quiet" only costs
+    /// a transcription from disk.
+    private func isQuiet(meetingID: UUID, after time: TimeInterval) -> Bool {
+        guard let audio = try? AudioSamples(meetingID: meetingID) else { return false }
+        let rate = Int(AudioFormats.diarization.sampleRate)
+        var position = Int(time * Double(rate)) + rate
+        // No buffer to judge by: assume there was speech.
+        guard audio.count > 0, position < audio.count else { return false }
+        while position < audio.count {
+            guard let window = try? audio.slice(position..<min(position + rate, audio.count)), !window.isEmpty else { return false }
+            var sum: Float = 0
+            for sample in window { sum += sample * sample }
+            if (sum / Float(window.count)).squareRoot() > 0.004 { return false }
+            position += window.count
+        }
+        return true
     }
 
     // MARK: - Stage 2: diarize

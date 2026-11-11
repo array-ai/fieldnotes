@@ -24,6 +24,8 @@ public final class MeetingPlayer {
     private var player: AVPlayer?
     private var timeObserver: Any?
     private var endObserver: NSObjectProtocol?
+    /// Whether this player took the audio session, and so should give it back.
+    private var tookAudioSession = false
 
     public static let rates: [Float] = [1, 1.5, 2]
 
@@ -78,6 +80,7 @@ public final class MeetingPlayer {
         // Plain playback: the recorder sets its own session when it starts.
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio)
         try? AVAudioSession.sharedInstance().setActive(true)
+        tookAudioSession = true
         #endif
         if duration > 0, currentTime >= duration - 0.25 { seek(to: 0) }
         player.playImmediately(atRate: rate)
@@ -112,8 +115,17 @@ public final class MeetingPlayer {
     }
 
     /// Call when the screen goes away.
-    public func stop() {
+    /// - Parameter releasingAudioSession: false while a recording is running, which
+    ///   has the session now; giving it up here would stop the recording's audio.
+    public func stop(releasingAudioSession: Bool = true) {
         player?.pause()
+        #if os(iOS)
+        // So music or a podcast this playback paused can pick up again.
+        if tookAudioSession, releasingAudioSession {
+            try? AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation])
+        }
+        tookAudioSession = false
+        #endif
         if let timeObserver { player?.removeTimeObserver(timeObserver) }
         if let endObserver { NotificationCenter.default.removeObserver(endObserver) }
         timeObserver = nil

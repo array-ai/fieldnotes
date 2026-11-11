@@ -41,7 +41,7 @@ struct MeetingDetailView: View {
         }
         .task(id: pollGeneration) { await loadAndPollWhileProcessing() }
         .task { await player.load(meetingID: meetingID) }
-        .onDisappear { player.stop() }
+        .onDisappear { player.stop(releasingAudioSession: !model.recorder.isActive) }
         // A recording started from the Action button with this screen open: the
         // playback would carry on over the speaker and into the recording.
         .onChange(of: model.recorder.isActive) { _, recording in

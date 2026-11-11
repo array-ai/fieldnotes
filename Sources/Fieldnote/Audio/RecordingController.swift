@@ -161,17 +161,23 @@ public final class RecordingController {
         } else {
             let transcription = TranscriptionSession(locale: locale)
             liveTranscriptModel = TranscriptionEngine.apple.card.title
-            do {
-                try await transcription.start()
+            switch await Self.start(transcription, within: .seconds(8)) {
+            case .ready:
                 self.transcription = transcription
                 observe(transcription)
-            } catch {
+            case .failed(let reason):
                 // The speech model isn't there (not downloaded yet and no network,
                 // or not for this language). Recording doesn't need it: carry on
                 // without a live transcript, and transcribe the saved audio after.
                 await transcription.cancel()
                 liveTranscriptUnavailable = true
-                DebugLog.shared.log("recording", "\(DebugLog.short(meetingID)): no live transcript, the speech model couldn't start (\(error)); recording anyway, to be transcribed after stop")
+                DebugLog.shared.log("recording", "\(DebugLog.short(meetingID)): no live transcript, the speech model couldn't start (\(reason)); recording anyway, to be transcribed after stop")
+            case .slow:
+                // Most likely the model downloading (first use, or a new language).
+                // Record now rather than wait on it. The download carries on, so
+                // the model is there to transcribe the saved audio after stop.
+                liveTranscriptUnavailable = true
+                DebugLog.shared.log("recording", "\(DebugLog.short(meetingID)): no live transcript, the speech model wasn't ready in 8 s (downloading?); recording anyway, to be transcribed after stop")
             }
         }
 
@@ -193,6 +199,42 @@ public final class RecordingController {
 
         liveActivity = RecordingActivityController(meetingID: meetingID, title: title, type: type)
         await liveActivity?.start(startedAt: startDate)
+    }
+
+    private enum LiveTranscriptStart: Sendable {
+        case ready
+        case failed(String)
+        case slow
+    }
+
+    /// Starts the live transcript, giving up waiting after `limit`. A start that
+    /// finishes after that is closed again, since nothing will feed it.
+    private nonisolated static func start(_ transcription: TranscriptionSession, within limit: Duration) async -> LiveTranscriptStart {
+        let (outcomes, continuation) = AsyncStream<LiveTranscriptStart>.makeStream()
+        let gate = FirstOutcome()
+        Task {
+            do {
+                try await transcription.start()
+                if gate.claim() {
+                    continuation.yield(.ready)
+                } else {
+                    await transcription.cancel()
+                    DebugLog.shared.log("recording", "the speech model became ready after the recording had started without it")
+                }
+            } catch {
+                if gate.claim() { continuation.yield(.failed(String(describing: error))) }
+            }
+            continuation.finish()
+        }
+        Task {
+            try? await Task.sleep(for: limit)
+            if gate.claim() {
+                continuation.yield(.slow)
+                continuation.finish()
+            }
+        }
+        for await outcome in outcomes { return outcome }
+        return .slow
     }
 
     private func abandonStart() async {
@@ -576,7 +618,22 @@ public final class RecordingController {
         DebugLog.shared.log("recording", "audio input changed; restarting capture")
         engine.inputNode.removeTap(onBus: 0)
         engine.stop()
-        do { try installTapAndStart() } catch { recordFailure(error) }
+        do {
+            try installTapAndStart()
+        } catch {
+            // The new input isn't usable yet (a headset still connecting). Paused,
+            // with Resume to try again, rather than the recording ending.
+            engine.inputNode.removeTap(onBus: 0)
+            engine.stop()
+            accumulated += Date().timeIntervalSince(startDate)
+            state = .interrupted
+            resumeFailed = true
+            DebugLog.shared.log("recording", "couldn't restart capture on the new input, paused: \(error)")
+            Task {
+                try? await writer?.flush()
+                await liveActivity?.update(elapsed: elapsed, level: 0, isPaused: true)
+            }
+        }
     }
 
     /// Stops the microphone and keeps what's saved. The recorder screen then offers
@@ -592,6 +649,16 @@ public final class RecordingController {
         state = .failed(message)
         DebugLog.shared.log("recording", "stopped by an error; the audio so far is saved: \(message)")
         Task { await liveActivity?.update(elapsed: elapsed, level: 0, isPaused: true) }
+    }
+}
+
+/// Lets the first of two racing tasks through, and only the first.
+private final class FirstOutcome: Sendable {
+    private let decided = Atomic<Bool>(false)
+
+    /// True for the first caller only.
+    func claim() -> Bool {
+        decided.compareExchange(expected: false, desired: true, ordering: .relaxed).exchanged
     }
 }
 

@@ -26,10 +26,13 @@ public actor FileTranscriptionService {
     public func transcribe(
         chunks: [ChunkedAudioWriter.Chunk],
         fromChunkIndex: Int = 0,
+        total: Int? = nil,
         progress: @Sendable (Double, Int) -> Void = { _, _ in }
     ) async throws -> [TranscriptSegment] {
         let pending = chunks.filter { $0.index >= fromChunkIndex }
         guard !pending.isEmpty else { return [] }
+        // For the log, when the caller passes the recording a chunk at a time.
+        let total = total ?? chunks.count
 
         var all: [TranscriptSegment] = []
         for (position, chunk) in pending.enumerated() {
@@ -44,10 +47,10 @@ public actor FileTranscriptionService {
                 // unlock rather than save a transcript with a hole in it.
                 let unlocked = await PowerState.isProtectedDataAvailable()
                 if PhoneLocked.isCause(error) || !unlocked {
-                    DebugLog.shared.log("transcript", "audio chunk \(chunk.index + 1) of \(chunks.count) is sealed (phone locked); stopping until it's unlocked")
+                    DebugLog.shared.log("transcript", "audio chunk \(chunk.index + 1) of \(total) is sealed (phone locked); stopping until it's unlocked")
                     throw PhoneLocked()
                 }
-                DebugLog.shared.log("transcript", "audio chunk \(chunk.index + 1) of \(chunks.count) can't be read; skipping it (\(error.localizedDescription))")
+                DebugLog.shared.log("transcript", "audio chunk \(chunk.index + 1) of \(total) can't be read; skipping it (\(error.localizedDescription))")
                 progress(Double(position + 1) / Double(pending.count), chunk.index)
                 continue
             }
@@ -60,7 +63,7 @@ public actor FileTranscriptionService {
                 throw CancellationError()
             } catch {
                 // A chunk that breaks part-way: keep what was heard up to there.
-                DebugLog.shared.log("transcript", "audio chunk \(chunk.index + 1) of \(chunks.count) stopped part-way; keeping what was read (\(error.localizedDescription))")
+                DebugLog.shared.log("transcript", "audio chunk \(chunk.index + 1) of \(total) stopped part-way; keeping what was read (\(error.localizedDescription))")
             }
             let segments = try await session.finish()
             all.append(contentsOf: segments)

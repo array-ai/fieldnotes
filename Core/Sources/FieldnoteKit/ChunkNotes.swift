@@ -129,7 +129,13 @@ public struct NoteClaim: Codable, Sendable, Hashable {
 extension TranscriptChunk {
     /// Identifies a chunk's exact lines, so a saved summary part is only reused for
     /// the same excerpt (budgets can change between runs, and with them chunk bounds).
+    /// The first and last lines' own IDs are part of it: line numbers alone are the
+    /// same for different lines when what's left out changes between runs ("Skip
+    /// small talk" turned on or off), and the part's citations would then point at
+    /// the wrong lines.
     public var partKey: String {
-        "\(lineNumbers.first ?? 0)-\(lineNumbers.last ?? 0)-\(segments.count)"
+        let first = segments.first.map { String($0.id.uuidString.prefix(8)) } ?? ""
+        let last = segments.last.map { String($0.id.uuidString.prefix(8)) } ?? ""
+        return "\(lineNumbers.first ?? 0)-\(lineNumbers.last ?? 0)-\(segments.count)-\(first)-\(last)"
     }
 }
