@@ -25,7 +25,7 @@ struct RecorderView: View {
             .padding(.horizontal, 20)
             .padding(.bottom, 8)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color(uiColor: .systemGroupedBackground))
+            .background(Theme.ground.ignoresSafeArea())
             // A swipe down mustn't leave a recording running with no way back to Stop.
             .interactiveDismissDisabled(model.recorder.isActive)
             .navigationBarTitleDisplayMode(.inline)
@@ -68,12 +68,13 @@ struct RecorderView: View {
     private var activeRecording: some View {
         VStack(spacing: 12) {
             Text(Timecode.short(model.recorder.elapsed))
-                .font(.system(size: 60, weight: .light, design: .rounded).monospacedDigit())
+                .font(.system(size: 64, weight: .thin, design: .rounded).monospacedDigit())
                 .contentTransition(.numericText())
                 .accessibilityLabel("Recorded \(Timecode.short(model.recorder.elapsed))")
 
-            LevelMeter(level: model.recorder.level)
-                .frame(height: 12)
+            // The icon's waveform, drawn from the room.
+            LiveWaveform(isLive: model.recorder.state == .recording)
+                .frame(height: 56)
                 .accessibilityHidden(true)
 
             if let notice = recorderNotice {
@@ -87,7 +88,9 @@ struct RecorderView: View {
                 .padding(.top, 6)
 
             Text("Live transcript")
-                .font(.footnote.weight(.semibold))
+                .font(.caption.weight(.semibold))
+                .textCase(.uppercase)
+                .kerning(0.6)
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.top, 6)
@@ -95,11 +98,11 @@ struct RecorderView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
                     ForEach(recentLines) { segment in
-                        VStack(alignment: .leading, spacing: 1) {
+                        VStack(alignment: .leading, spacing: 2) {
                             if let speaker = segment.speakerID {
                                 Text(SpeakerLabel.display(speaker))
                                     .font(.caption.weight(.semibold))
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(speakerColour(speaker))
                             }
                             Text(segment.text)
                         }
@@ -137,6 +140,8 @@ struct RecorderView: View {
                         .frame(maxWidth: .infinity, minHeight: 34)
                     }
                     .buttonStyle(.bordered)
+                    // Neutral, so Stop is the only colour in the row.
+                    .tint(.primary)
                     .disabled(model.recorder.state == .preparing || model.recorder.state == .stopping)
                 }
 
@@ -195,7 +200,7 @@ struct RecorderView: View {
                 .frame(minHeight: 44)
             }
         }
-        .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
+        .background(Theme.surface, in: Theme.cardShape)
     }
 
     /// The meeting being recorded, as the list last read it (with its place name,
@@ -235,6 +240,13 @@ struct RecorderView: View {
         }
     }
 
+    /// The speaker's colour, the same one the finished transcript gives them.
+    private func speakerColour(_ label: String) -> Color {
+        let labels = Array(Set(model.recorder.liveSpans.map(\.speakerID) + recentLines.compactMap(\.speakerID)))
+        let rgb = SpeakerPalette.colours[SpeakerPalette.index(for: label, among: labels)]
+        return Color(red: rgb.red, green: rgb.green, blue: rgb.blue)
+    }
+
     private var canResume: Bool {
         model.recorder.state == .paused || model.recorder.state == .interrupted
     }
@@ -265,18 +277,53 @@ struct RecorderView: View {
     }
 }
 
-struct LevelMeter: View {
-    let level: Double
+/// The last few seconds of the microphone's level as a row of bars, newest on the
+/// right: the waveform from the app icon, live. Holds still and dims while paused.
+struct LiveWaveform: View {
+    @Environment(AppModel.self) private var model
+    var isLive: Bool
+
+    @State private var history: [Double] = []
+
+    private static let barWidth: CGFloat = 3
+    private static let gap: CGFloat = 3
+    private static let keep = 240
 
     var body: some View {
-        GeometryReader { proxy in
-            ZStack(alignment: .leading) {
-                Capsule().fill(.quaternary)
-                Capsule()
-                    .fill(level > 0.9 ? Color.orange : Color.accentColor)
-                    .frame(width: proxy.size.width * min(1, max(0.02, level)))
+        Canvas { context, size in
+            let step = Self.barWidth + Self.gap
+            let count = max(1, Int((size.width + Self.gap) / step))
+            let inset = (size.width - (CGFloat(count) * step - Self.gap)) / 2
+            let recent = Array(history.suffix(count))
+            let lead = count - recent.count
+            for index in 0..<count {
+                let value = index >= lead ? recent[index - lead] : 0
+                let height = max(Self.barWidth, size.height * value)
+                let bar = CGRect(
+                    x: inset + CGFloat(index) * step,
+                    y: (size.height - height) / 2,
+                    width: Self.barWidth,
+                    height: height
+                )
+                // Older bars fade towards the left edge.
+                let age = Double(index) / Double(max(1, count - 1))
+                let colour = value > 0.92 ? Color.red : Theme.accent
+                context.fill(
+                    Path(roundedRect: bar, cornerRadius: Self.barWidth / 2),
+                    with: .color(colour.opacity(0.2 + 0.8 * age))
+                )
             }
         }
-        .animation(.linear(duration: 0.1), value: level)
+        .opacity(isLive ? 1 : 0.4)
+        .animation(.easeInOut(duration: 0.25), value: isLive)
+        .task(id: isLive) {
+            guard isLive else { return }
+            while !Task.isCancelled {
+                // Speech sits low on a linear scale; the curve lets it fill the height.
+                history.append(pow(min(1, max(0, model.recorder.level)), 0.6))
+                if history.count > Self.keep { history.removeFirst(history.count - Self.keep) }
+                try? await Task.sleep(for: .milliseconds(70))
+            }
+        }
     }
 }

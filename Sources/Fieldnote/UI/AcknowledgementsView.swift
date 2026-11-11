@@ -6,23 +6,27 @@ import SwiftUI
 struct AcknowledgementsView: View {
     var body: some View {
         List {
-            ForEach(Acknowledgement.Kind.allCases, id: \.self) { kind in
-                Section(kind.rawValue) {
-                    ForEach(Acknowledgement.all.filter { $0.kind == kind }) { entry in
-                        NavigationLink {
-                            AcknowledgementDetail(entry: entry)
-                        } label: {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(entry.name)
-                                Text(entry.licence)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+            Group {
+                ForEach(Acknowledgement.Kind.allCases, id: \.self) { kind in
+                    Section(kind.rawValue) {
+                        ForEach(Acknowledgement.all.filter { $0.kind == kind }) { entry in
+                            NavigationLink {
+                                AcknowledgementDetail(entry: entry)
+                            } label: {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(entry.name)
+                                    Text(entry.licence)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
                             }
                         }
                     }
                 }
             }
+            .themedRows()
         }
+        .themedGround()
         .navigationTitle("Acknowledgements")
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -33,20 +37,24 @@ private struct AcknowledgementDetail: View {
 
     var body: some View {
         List {
-            Section {
-                Text(entry.credit)
-                LabeledContent("Licence", value: entry.licence)
-                Link(destination: entry.source) {
-                    Label(entry.source.host() ?? "Source", systemImage: "arrow.up.right.square")
+            Group {
+                Section {
+                    Text(entry.credit)
+                    LabeledContent("Licence", value: entry.licence)
+                    Link(destination: entry.source) {
+                        Label(entry.source.host() ?? "Source", systemImage: "arrow.up.right.square")
+                    }
+                }
+                if let notice = entry.noticeFile.flatMap(Self.text) {
+                    Section("Notice") { licenceText(notice) }
+                }
+                Section("Licence") {
+                    licenceText(Self.text(entry.licenceFile) ?? "The licence text is missing from this build.")
                 }
             }
-            if let notice = entry.noticeFile.flatMap(Self.text) {
-                Section("Notice") { licenceText(notice) }
-            }
-            Section("Licence") {
-                licenceText(Self.text(entry.licenceFile) ?? "The licence text is missing from this build.")
-            }
+            .themedRows()
         }
+        .themedGround()
         .navigationTitle(entry.name)
         .navigationBarTitleDisplayMode(.inline)
     }

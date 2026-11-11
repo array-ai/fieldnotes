@@ -87,6 +87,8 @@ struct RootView: View {
                 }
             }
         }
+        // The icon's amber, on every control, link and timestamp.
+        .tint(Theme.accent)
     }
 }
 

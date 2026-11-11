@@ -68,7 +68,9 @@ struct MeetingListView: View {
                 } header: {
                     if !model.meetings.isEmpty, showsCard { Text("Meetings") }
                 }
+                .themedRows()
             }
+            .themedGround()
             .navigationTitle("Fieldnote")
             .navigationDestination(for: UUID.self) { id in
                 MeetingDetailView(meetingID: id)
@@ -121,8 +123,8 @@ struct MeetingListView: View {
                         Text("Importing recording…").font(.footnote)
                         ProgressView(value: progress)
                     }
-                    .padding(12)
-                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+                    .padding(14)
+                    .background(.regularMaterial, in: Theme.cardShape)
                     .padding()
                 }
             }
@@ -215,23 +217,73 @@ struct MeetingListView: View {
 
 struct MeetingRow: View {
     let meeting: MeetingSnapshot
+    /// The meeting type's tile, growing with the text beside it.
+    @ScaledMetric(relativeTo: .headline) private var tile: CGFloat = 36
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Label(meeting.title, systemImage: meeting.type.symbolName)
-                    .font(.headline)
-                    .lineLimit(1)
-                Spacer()
-                if meeting.duration > 0 {
-                    Text(Timecode.short(meeting.duration))
-                        .font(.caption.monospacedDigit())
-                        .foregroundStyle(.secondary)
+            // The type's symbol on a tile, with the title and details beside it on
+            // one text edge.
+            HStack(alignment: .center, spacing: 12) {
+                Image(systemName: meeting.type.symbolName)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(Theme.accent)
+                    .frame(width: tile, height: tile)
+                    .background(Theme.accentWash, in: RoundedRectangle(cornerRadius: tile * 0.28, style: .continuous))
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(meeting.title)
+                            .font(.headline)
+                            .lineLimit(1)
+                        Spacer(minLength: 8)
+                        if meeting.duration > 0 {
+                            Text(Timecode.short(meeting.duration))
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    details
                 }
             }
-            // One line of details: who (the client), when (short, no year this year),
-            // where, folder.
-            // The place gives way first when space runs out.
+
+            // Status on its own line, only while there is one.
+            if meeting.state != .complete {
+                ProcessingBadge(state: meeting.state, message: meeting.failureMessage, finish: meeting.estimatedCompletion)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .padding(.top, 4)
+            }
+
+            // The meeting at a glance: the first few sections of its notes.
+            if let topics = meeting.summary?.topics, !topics.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(topics.prefix(3)) { topic in
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
+                            Text(topic.displayEmoji ?? "•")
+                            Text("\(Text(topic.title).fontWeight(.semibold).foregroundStyle(.primary))\(topic.summary.isEmpty ? "" : ": \(topic.summary)")")
+                                .foregroundStyle(.secondary)
+                                .lineLimit(2)
+                        }
+                    }
+                }
+                .font(.subheadline)
+                .padding(.top, 8)
+            } else if let overview = meeting.summary?.overview, !overview.isEmpty {
+                Text(overview)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(3)
+                    .padding(.top, 8)
+            }
+        }
+        .padding(.vertical, 6)
+    }
+
+    /// One line of details: who (the client), when (short, no year this year),
+    /// where, folder. The place gives way first when space runs out.
+    private var details: some View {
             HStack(spacing: 4) {
                 if let client = meeting.client {
                     Text(client)
@@ -255,36 +307,6 @@ struct MeetingRow: View {
             .lineLimit(1)
             .font(.caption)
             .foregroundStyle(.secondary)
-
-            // Status on its own line, only while there is one.
-            if meeting.state != .complete {
-                ProcessingBadge(state: meeting.state, message: meeting.failureMessage, finish: meeting.estimatedCompletion)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-
-            // The meeting at a glance: the first few sections of its notes.
-            if let topics = meeting.summary?.topics, !topics.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
-                    ForEach(topics.prefix(3)) { topic in
-                        HStack(alignment: .firstTextBaseline, spacing: 8) {
-                            Text(topic.displayEmoji ?? "•")
-                            Text("\(Text(topic.title).bold())\(topic.summary.isEmpty ? "" : ": \(topic.summary)")")
-                                .lineLimit(3)
-                        }
-                    }
-                }
-                .font(.subheadline)
-                .padding(.top, 6)
-            } else if let overview = meeting.summary?.overview, !overview.isEmpty {
-                Text(overview)
-                    .font(.subheadline)
-                    .lineLimit(3)
-                    .padding(.top, 4)
-            }
-        }
-        .padding(.vertical, 2)
     }
 
     /// "6 Oct, 12:39 am"; the year only when it isn't this year.

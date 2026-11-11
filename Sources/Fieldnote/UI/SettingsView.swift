@@ -32,175 +32,179 @@ struct SettingsView: View {
         @Bindable var settings = model.settings
         NavigationStack {
             Form {
-                // Section takes a title string *or* a footer, not both: with a
-                // trailing footer the content closure has to be the labelled one.
-                Section {
-                    Picker("Language", selection: $settings.localeIdentifier) {
-                        ForEach(locales, id: \.identifier) { locale in
-                            Text(locale.localizedString(forIdentifier: locale.identifier) ?? locale.identifier)
-                                .tag(locale.identifier)
-                        }
-                    }
-                    NavigationLink {
-                        ModelsView(kind: .transcription)
-                    } label: {
-                        LabeledContent("Model", value: settings.transcriptionEngine.card.title)
-                    }
-                    NavigationLink {
-                        CustomWordsView()
-                    } label: {
-                        LabeledContent("Custom words", value: settings.customWords.isEmpty ? "None" : "\(settings.customWords.count)")
-                    }
-                } header: {
-                    Text("Transcription")
-                } footer: {
-                    Text(transcriptionFooter(settings))
-                }
-
-                Section {
-                    NavigationLink {
-                        ModelsView(kind: .speakers)
-                    } label: {
-                        LabeledContent("Model", value: settings.diarizationMethod.card.title)
-                    }
-                    if settings.diarizationMethod == .nemotron3 {
-                        Toggle("Identify while recording", isOn: $settings.liveSpeakers)
-                    }
-                } header: {
-                    Text("Speaker identification")
-                } footer: {
-                    Text(
-                        """
-                        \(settings.diarizationMethod.summary) Runs on this device. \
-                        \(settings.diarizationMethod.isInstalled ? "" : "Not downloaded yet, so Nemotron 3 is used until it is. ")\
-                        \(settings.identifiesSpeakersLive ? "Speakers are labelled about ten seconds behind the conversation, and are ready when you stop. " : "")\
-                        Changing this affects the next meeting, not existing ones.
-                        """
-                    )
-                }
-
-                Section {
-                    NavigationLink {
-                        ModelsView(kind: .summary)
-                    } label: {
-                        LabeledContent("Notes model", value: settings.summaryEngine.card.title)
-                    }
-                    Toggle("Notify when notes are ready", isOn: $settings.notifyWhenProcessed)
-                    Toggle("Finish notes while charging", isOn: $settings.summariseWhileCharging)
-                    Toggle("Keep screen on while writing notes", isOn: $settings.keepAwakeWhileProcessing)
-                    Toggle("Skip small talk in notes", isOn: $settings.skipSmallTalk)
-                } header: {
-                    Text("Processing")
-                } footer: {
-                    Text(
-                        (settings.summaryEngine == .apple
-                            ? "For clearer notes, try MiniCPM5 2B as the notes model (a 2.6 GB download): on an iPhone 16 it wrote a 68-minute meeting's notes in 3 minutes. "
-                            : "") +
-                        """
-                        Apple's on-device model won't write notes in the background on \
-                        battery. Transcripts and speakers always finish in the background; \
-                        notes are written with Fieldnote open, or — with "Finish notes while \
-                        charging" — whenever the phone is plugged in, even with the app \
-                        closed (iOS picks the moment, often overnight). Notifications show \
-                        the meeting title and first topic, which can appear on the lock screen.
-                        """
-                    )
-                }
-
-                Section {
-                    Toggle("Send tasks to Reminders", isOn: $settings.remindersEnabled)
-                    if settings.remindersEnabled {
-                        Picker("List", selection: $settings.remindersListID) {
-                            Text("Default").tag(String?.none)
-                            ForEach(reminderLists, id: \.id) { list in
-                                Text(list.title).tag(String?.some(list.id))
+                Group {
+                    // Section takes a title string *or* a footer, not both: with a
+                    // trailing footer the content closure has to be the labelled one.
+                    Section {
+                        Picker("Language", selection: $settings.localeIdentifier) {
+                            ForEach(locales, id: \.identifier) { locale in
+                                Text(locale.localizedString(forIdentifier: locale.identifier) ?? locale.identifier)
+                                    .tag(locale.identifier)
                             }
                         }
+                        NavigationLink {
+                            ModelsView(kind: .transcription)
+                        } label: {
+                            LabeledContent("Model", value: settings.transcriptionEngine.card.title)
+                        }
+                        NavigationLink {
+                            CustomWordsView()
+                        } label: {
+                            LabeledContent("Custom words", value: settings.customWords.isEmpty ? "None" : "\(settings.customWords.count)")
+                        }
+                    } header: {
+                        Text("Transcription")
+                    } footer: {
+                        Text(transcriptionFooter(settings))
                     }
-                } header: {
-                    Text("Tasks")
-                } footer: {
-                    Text("Reminders stay on this device and in your own iCloud, if you use it. Fieldnote never sends them anywhere.")
-                }
 
-                Section {
-                    Toggle("Name places with Apple Maps", isOn: $settings.appleMapsPlaceNames)
-                } header: {
-                    Text("Location")
-                } footer: {
-                    Text(
-                        """
-                        Meetings recorded with location get the nearest suburb or town \
-                        from a list built into the app, without going online. Turn this \
-                        on to also look up the business, building or street with Apple \
-                        Maps: that sends the meeting's coordinates to Apple, and nothing \
-                        else.
-                        """
-                    )
-                }
-
-                Section {
-                    Toggle("Let Siri read meeting notes", isOn: $settings.siriReadsNotes)
-                } header: {
-                    Text("Siri")
-                } footer: {
-                    Text(
-                        """
-                        Ask Siri for the action items or a summary of your last meeting. \
-                        Siri gets only that answer, only when you ask, and only with the \
-                        phone unlocked; nothing is added to Siri's or Spotlight's index. \
-                        Siri may process requests off this device. To turn Siri off for \
-                        Fieldnote completely, go to Settings → Apps → Fieldnote → Siri.
-                        """
-                    )
-                }
-
-                Section {
-                    Toggle("Debug mode", isOn: $settings.debugMode)
-                    if settings.debugMode {
-                        NavigationLink("Activity log") { DebugLogView() }
-                        NavigationLink("Benchmark models") { BenchmarkView() }
-                        NavigationLink("Compare notes models") { NotesComparisonView() }
-                        NavigationLink("Summary prompt") { SummaryPromptEditor() }
+                    Section {
+                        NavigationLink {
+                            ModelsView(kind: .speakers)
+                        } label: {
+                            LabeledContent("Model", value: settings.diarizationMethod.card.title)
+                        }
+                        if settings.diarizationMethod == .nemotron3 {
+                            Toggle("Identify while recording", isOn: $settings.liveSpeakers)
+                        }
+                    } header: {
+                        Text("Speaker identification")
+                    } footer: {
+                        Text(
+                            """
+                            \(settings.diarizationMethod.summary) Runs on this device. \
+                            \(settings.diarizationMethod.isInstalled ? "" : "Not downloaded yet, so Nemotron 3 is used until it is. ")\
+                            \(settings.identifiesSpeakersLive ? "Speakers are labelled about ten seconds behind the conversation, and are ready when you stop. " : "")\
+                            Changing this affects the next meeting, not existing ones.
+                            """
+                        )
                     }
-                } header: {
-                    Text("Debug")
-                } footer: {
-                    Text(
-                        """
-                        Shows a log of what ran, how long it took and what failed. It \
-                        avoids meeting content, but an error message can include part \
-                        of one, so read it before you share it.
-                        """
-                    )
-                }
 
-                Section {
-                    Label("No accounts, no server, no network unless you choose it", systemImage: "network.slash")
-                    Label("Audio, transcripts and summaries stay on this device", systemImage: "iphone")
-                } header: {
-                    Text("Privacy")
-                } footer: {
-                    Text(
-                        """
-                        Fieldnote goes online only to download models you choose, and for \
-                        Apple Maps place names if you turn them on. Meeting content leaves \
-                        the phone only when you share it, or when you ask Siri for your \
-                        notes with that setting on.
-                        """
-                    )
-                }
+                    Section {
+                        NavigationLink {
+                            ModelsView(kind: .summary)
+                        } label: {
+                            LabeledContent("Notes model", value: settings.summaryEngine.card.title)
+                        }
+                        Toggle("Notify when notes are ready", isOn: $settings.notifyWhenProcessed)
+                        Toggle("Finish notes while charging", isOn: $settings.summariseWhileCharging)
+                        Toggle("Keep screen on while writing notes", isOn: $settings.keepAwakeWhileProcessing)
+                        Toggle("Skip small talk in notes", isOn: $settings.skipSmallTalk)
+                    } header: {
+                        Text("Processing")
+                    } footer: {
+                        Text(
+                            (settings.summaryEngine == .apple
+                                ? "For clearer notes, try MiniCPM5 2B as the notes model (a 2.6 GB download): on an iPhone 16 it wrote a 68-minute meeting's notes in 3 minutes. "
+                                : "") +
+                            """
+                            Apple's on-device model won't write notes in the background on \
+                            battery. Transcripts and speakers always finish in the background; \
+                            notes are written with Fieldnote open, or — with "Finish notes while \
+                            charging" — whenever the phone is plugged in, even with the app \
+                            closed (iOS picks the moment, often overnight). Notifications show \
+                            the meeting title and first topic, which can appear on the lock screen.
+                            """
+                        )
+                    }
 
-                // The last line: version, build and commit, as in the Activity log,
-                // under the credits for the models and libraries.
-                Section {
-                    NavigationLink("Acknowledgements") { AcknowledgementsView() }
-                } footer: {
-                    Text("Fieldnote \(DebugLog.appVersion)")
-                        .frame(maxWidth: .infinity)
-                        .textSelection(.enabled)
+                    Section {
+                        Toggle("Send tasks to Reminders", isOn: $settings.remindersEnabled)
+                        if settings.remindersEnabled {
+                            Picker("List", selection: $settings.remindersListID) {
+                                Text("Default").tag(String?.none)
+                                ForEach(reminderLists, id: \.id) { list in
+                                    Text(list.title).tag(String?.some(list.id))
+                                }
+                            }
+                        }
+                    } header: {
+                        Text("Tasks")
+                    } footer: {
+                        Text("Reminders stay on this device and in your own iCloud, if you use it. Fieldnote never sends them anywhere.")
+                    }
+
+                    Section {
+                        Toggle("Name places with Apple Maps", isOn: $settings.appleMapsPlaceNames)
+                    } header: {
+                        Text("Location")
+                    } footer: {
+                        Text(
+                            """
+                            Meetings recorded with location get the nearest suburb or town \
+                            from a list built into the app, without going online. Turn this \
+                            on to also look up the business, building or street with Apple \
+                            Maps: that sends the meeting's coordinates to Apple, and nothing \
+                            else.
+                            """
+                        )
+                    }
+
+                    Section {
+                        Toggle("Let Siri read meeting notes", isOn: $settings.siriReadsNotes)
+                    } header: {
+                        Text("Siri")
+                    } footer: {
+                        Text(
+                            """
+                            Ask Siri for the action items or a summary of your last meeting. \
+                            Siri gets only that answer, only when you ask, and only with the \
+                            phone unlocked; nothing is added to Siri's or Spotlight's index. \
+                            Siri may process requests off this device. To turn Siri off for \
+                            Fieldnote completely, go to Settings → Apps → Fieldnote → Siri.
+                            """
+                        )
+                    }
+
+                    Section {
+                        Toggle("Debug mode", isOn: $settings.debugMode)
+                        if settings.debugMode {
+                            NavigationLink("Activity log") { DebugLogView() }
+                            NavigationLink("Benchmark models") { BenchmarkView() }
+                            NavigationLink("Compare notes models") { NotesComparisonView() }
+                            NavigationLink("Summary prompt") { SummaryPromptEditor() }
+                        }
+                    } header: {
+                        Text("Debug")
+                    } footer: {
+                        Text(
+                            """
+                            Shows a log of what ran, how long it took and what failed. It \
+                            avoids meeting content, but an error message can include part \
+                            of one, so read it before you share it.
+                            """
+                        )
+                    }
+
+                    Section {
+                        Label("No accounts, no server, no network unless you choose it", systemImage: "network.slash")
+                        Label("Audio, transcripts and summaries stay on this device", systemImage: "iphone")
+                    } header: {
+                        Text("Privacy")
+                    } footer: {
+                        Text(
+                            """
+                            Fieldnote goes online only to download models you choose, and for \
+                            Apple Maps place names if you turn them on. Meeting content leaves \
+                            the phone only when you share it, or when you ask Siri for your \
+                            notes with that setting on.
+                            """
+                        )
+                    }
+
+                    // The last line: version, build and commit, as in the Activity log,
+                    // under the credits for the models and libraries.
+                    Section {
+                        NavigationLink("Acknowledgements") { AcknowledgementsView() }
+                    } footer: {
+                        Text("Fieldnote \(DebugLog.appVersion)")
+                            .frame(maxWidth: .infinity)
+                            .textSelection(.enabled)
+                    }
                 }
+                .themedRows()
             }
+            .themedGround()
             .navigationTitle("Settings")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
@@ -257,6 +261,7 @@ struct DebugLogView: View {
             }
             .onChange(of: text) { _, _ in proxy.scrollTo("end", anchor: .bottom) }
         }
+        .background(Theme.ground.ignoresSafeArea())
         .navigationTitle("Activity log")
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
@@ -298,65 +303,69 @@ struct NotesComparisonView: View {
 
     var body: some View {
         Form {
-            Section {
-                Picker("Meeting", selection: $meetingID) {
-                    Text("Choose…").tag(UUID?.none)
-                    ForEach(candidates) { meeting in
-                        Text(meeting.title).tag(UUID?.some(meeting.id))
-                    }
-                }
-                Toggle("Include the transcript", isOn: $includeTranscript)
-                Button {
-                    guard let meeting = candidates.first(where: { $0.id == meetingID }) else { return }
-                    Task { await comparison.run(on: meeting, includeTranscript: includeTranscript) }
-                } label: {
-                    if comparison.isRunning {
-                        HStack {
-                            ProgressView()
-                            Text(comparison.status)
+            Group {
+                Section {
+                    Picker("Meeting", selection: $meetingID) {
+                        Text("Choose…").tag(UUID?.none)
+                        ForEach(candidates) { meeting in
+                            Text(meeting.title).tag(UUID?.some(meeting.id))
                         }
-                    } else {
-                        Text("Write notes with every model")
                     }
+                    Toggle("Include the transcript", isOn: $includeTranscript)
+                    Button {
+                        guard let meeting = candidates.first(where: { $0.id == meetingID }) else { return }
+                        Task { await comparison.run(on: meeting, includeTranscript: includeTranscript) }
+                    } label: {
+                        if comparison.isRunning {
+                            HStack {
+                                ProgressView()
+                                Text(comparison.status)
+                            }
+                        } else {
+                            Text("Write notes with every model")
+                        }
+                    }
+                    .disabled(meetingID == nil || comparison.isRunning || busy)
+                } footer: {
+                    Text(
+                        """
+                        \(busy ? "Available once nothing is recording or processing. " : "")Writes this \
+                        meeting's notes with each downloaded model, one after another, the way \
+                        processing does. The meeting keeps its own notes. Takes a few minutes per \
+                        model; keep the app open. The report holds the notes, and the transcript \
+                        if included, which is needed to check them against what was said: share \
+                        it only where you're happy for that to go.
+                        """
+                    )
                 }
-                .disabled(meetingID == nil || comparison.isRunning || busy)
-            } footer: {
-                Text(
-                    """
-                    \(busy ? "Available once nothing is recording or processing. " : "")Writes this \
-                    meeting's notes with each downloaded model, one after another, the way \
-                    processing does. The meeting keeps its own notes. Takes a few minutes per \
-                    model; keep the app open. The report holds the notes, and the transcript \
-                    if included, which is needed to check them against what was said: share \
-                    it only where you're happy for that to go.
-                    """
-                )
-            }
 
-            if !comparison.results.isEmpty {
-                Section("Results") {
-                    ForEach(comparison.results) { result in
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(result.engine.card.title).font(.subheadline.weight(.semibold))
-                            Text(result.line)
-                                .font(.caption.monospacedDigit())
-                                .foregroundStyle(.secondary)
-                            if !result.thermal.isEmpty {
-                                Text("Thermal state: \(result.thermal)").font(.caption).foregroundStyle(.secondary)
-                            }
-                            if let ranOn = result.ranOn, ranOn != result.engine.card.title {
-                                Text("Ran on \(ranOn)").font(.caption).foregroundStyle(.orange)
+                if !comparison.results.isEmpty {
+                    Section("Results") {
+                        ForEach(comparison.results) { result in
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(result.engine.card.title).font(.subheadline.weight(.semibold))
+                                Text(result.line)
+                                    .font(.caption.monospacedDigit())
+                                    .foregroundStyle(.secondary)
+                                if !result.thermal.isEmpty {
+                                    Text("Thermal state: \(result.thermal)").font(.caption).foregroundStyle(.secondary)
+                                }
+                                if let ranOn = result.ranOn, ranOn != result.engine.card.title {
+                                    Text("Ran on \(ranOn)").font(.caption).foregroundStyle(.orange)
+                                }
                             }
                         }
-                    }
-                    if let url = comparison.reportURL {
-                        ShareLink(item: url) {
-                            Label("Share the report", systemImage: "square.and.arrow.up")
+                        if let url = comparison.reportURL {
+                            ShareLink(item: url) {
+                                Label("Share the report", systemImage: "square.and.arrow.up")
+                            }
                         }
                     }
                 }
             }
+            .themedRows()
         }
+        .themedGround()
         .navigationTitle("Compare notes models")
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -379,52 +388,56 @@ struct BenchmarkView: View {
 
     var body: some View {
         Form {
-            Section {
-                Picker("Recording", selection: $meetingID) {
-                    Text("Choose…").tag(UUID?.none)
-                    ForEach(candidates) { meeting in
-                        Text(meeting.title).tag(UUID?.some(meeting.id))
-                    }
-                }
-                Button {
-                    guard let meeting = candidates.first(where: { $0.id == meetingID }) else { return }
-                    Task { await benchmark.run(on: meeting, locale: model.settings.locale) }
-                } label: {
-                    if benchmark.isRunning {
-                        HStack {
-                            ProgressView()
-                            Text(benchmark.status)
+            Group {
+                Section {
+                    Picker("Recording", selection: $meetingID) {
+                        Text("Choose…").tag(UUID?.none)
+                        ForEach(candidates) { meeting in
+                            Text(meeting.title).tag(UUID?.some(meeting.id))
                         }
-                    } else {
-                        Text("Run benchmark")
                     }
+                    Button {
+                        guard let meeting = candidates.first(where: { $0.id == meetingID }) else { return }
+                        Task { await benchmark.run(on: meeting, locale: model.settings.locale) }
+                    } label: {
+                        if benchmark.isRunning {
+                            HStack {
+                                ProgressView()
+                                Text(benchmark.status)
+                            }
+                        } else {
+                            Text("Run benchmark")
+                        }
+                    }
+                    .disabled(meetingID == nil || benchmark.isRunning || model.recorder.isActive || processing)
+                } footer: {
+                    Text(
+                        """
+                        \(processing ? "Available once meetings finish processing. " : "")Times each speaker model (cold and warm load, then up to five \
+                        minutes of the recording), Apple's speech model on the first five \
+                        minutes, and the summary model on one excerpt. Takes a minute or \
+                        two and warms the phone. Results also go to the Activity log.
+                        """
+                    )
                 }
-                .disabled(meetingID == nil || benchmark.isRunning || model.recorder.isActive || processing)
-            } footer: {
-                Text(
-                    """
-                    \(processing ? "Available once meetings finish processing. " : "")Times each speaker model (cold and warm load, then up to five \
-                    minutes of the recording), Apple's speech model on the first five \
-                    minutes, and the summary model on one excerpt. Takes a minute or \
-                    two and warms the phone. Results also go to the Activity log.
-                    """
-                )
-            }
 
-            ForEach(sections, id: \.self) { section in
-                Section(section) {
-                    ForEach(benchmark.rows.filter { $0.section == section }) { row in
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(row.name).font(.subheadline.weight(.semibold))
-                            Text(row.value)
-                                .font(.caption.monospacedDigit())
-                                .foregroundStyle(.secondary)
-                                .textSelection(.enabled)
+                ForEach(sections, id: \.self) { section in
+                    Section(section) {
+                        ForEach(benchmark.rows.filter { $0.section == section }) { row in
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(row.name).font(.subheadline.weight(.semibold))
+                                Text(row.value)
+                                    .font(.caption.monospacedDigit())
+                                    .foregroundStyle(.secondary)
+                                    .textSelection(.enabled)
+                            }
                         }
                     }
                 }
             }
+            .themedRows()
         }
+        .themedGround()
         .navigationTitle("Benchmark")
         .toolbar {
             if !benchmark.rows.isEmpty, !benchmark.isRunning {
@@ -451,39 +464,43 @@ struct SummaryPromptEditor: View {
 
     var body: some View {
         Form {
-            Section {
-                TextEditor(text: $prompt.preamble).frame(minHeight: 100)
-            } header: {
-                Text("Instructions")
-            } footer: {
-                Text("The system prompt: who the model is and what the notes are for.")
-            }
-            Section {
-                TextEditor(text: $prompt.request).frame(minHeight: 140)
-            } header: {
-                Text("Request for each excerpt")
-            } footer: {
-                Text("Sent with every part of the transcript. Ask for what you want pulled out; the topics, decisions, tasks and questions it fills in are fixed.")
-            }
-            Section {
-                Text(PromptTemplates.groundingRules)
-                    .font(.caption.monospaced())
-                    .foregroundStyle(.secondary)
-            } header: {
-                Text("Always added")
-            } footer: {
-                Text("These rules make points cite the transcript, which is how they get timestamps and how made-up points are dropped. They can't be edited.")
-            }
-            Section {
-                Button("Restore built-in prompt", role: .destructive) {
-                    prompt = .builtIn
-                    save()
+            Group {
+                Section {
+                    TextEditor(text: $prompt.preamble).frame(minHeight: 100)
+                } header: {
+                    Text("Instructions")
+                } footer: {
+                    Text("The system prompt: who the model is and what the notes are for.")
                 }
-                .disabled(prompt.isBuiltIn)
-            } footer: {
-                Text("Changes apply to the next summary. Use Redo summary on a meeting to compare. Smaller on-device models follow short, plain instructions best.")
+                Section {
+                    TextEditor(text: $prompt.request).frame(minHeight: 140)
+                } header: {
+                    Text("Request for each excerpt")
+                } footer: {
+                    Text("Sent with every part of the transcript. Ask for what you want pulled out; the topics, decisions, tasks and questions it fills in are fixed.")
+                }
+                Section {
+                    Text(PromptTemplates.groundingRules)
+                        .font(.caption.monospaced())
+                        .foregroundStyle(.secondary)
+                } header: {
+                    Text("Always added")
+                } footer: {
+                    Text("These rules make points cite the transcript, which is how they get timestamps and how made-up points are dropped. They can't be edited.")
+                }
+                Section {
+                    Button("Restore built-in prompt", role: .destructive) {
+                        prompt = .builtIn
+                        save()
+                    }
+                    .disabled(prompt.isBuiltIn)
+                } footer: {
+                    Text("Changes apply to the next summary. Use Redo summary on a meeting to compare. Smaller on-device models follow short, plain instructions best.")
+                }
             }
+            .themedRows()
         }
+        .themedGround()
         .navigationTitle("Summary prompt")
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
@@ -547,6 +564,7 @@ struct ModelsView: View {
             }
             .padding()
         }
+        .themedGround()
         .navigationTitle(title)
     }
 
@@ -610,54 +628,58 @@ struct CustomWordsView: View {
     var body: some View {
         @Bindable var settings = model.settings
         Form {
-            Section {
-                HStack {
-                    TextField("Add a word or name", text: $newWord)
-                        .autocorrectionDisabled()
-                        .onSubmit(add)
-                    Button("Add", action: add)
-                        .disabled(newWord.trimmingCharacters(in: .whitespaces).isEmpty)
+            Group {
+                Section {
+                    HStack {
+                        TextField("Add a word or name", text: $newWord)
+                            .autocorrectionDisabled()
+                            .onSubmit(add)
+                        Button("Add", action: add)
+                            .disabled(newWord.trimmingCharacters(in: .whitespaces).isEmpty)
+                    }
+                    ForEach(settings.customWords, id: \.self) { Text($0) }
+                        .onDelete { settings.customWords.remove(atOffsets: $0) }
+                } footer: {
+                    Text("Spell them as the transcript should: products, people, places. They add to the built-in list below and apply to the next transcript, or a redone one.")
                 }
-                ForEach(settings.customWords, id: \.self) { Text($0) }
-                    .onDelete { settings.customWords.remove(atOffsets: $0) }
-            } footer: {
-                Text("Spell them as the transcript should: products, people, places. They add to the built-in list below and apply to the next transcript, or a redone one.")
-            }
 
-            Section {
-                Toggle("Clean up with the notes model", isOn: $settings.cleanUpCustomWords)
-            } footer: {
-                Text(
-                    """
-                    Before writing notes, the notes model reads the lines with a word close \
-                    to one of these and fixes the ones that clearly mean it, judging by \
-                    context: "sync row" in a line about tickets becomes Syncro, "the team" \
-                    stays a team. Works with any transcription model; adds a minute or two \
-                    to a long meeting.
-                    """
-                )
-            }
+                Section {
+                    Toggle("Clean up with the notes model", isOn: $settings.cleanUpCustomWords)
+                } footer: {
+                    Text(
+                        """
+                        Before writing notes, the notes model reads the lines with a word close \
+                        to one of these and fixes the ones that clearly mean it, judging by \
+                        context: "sync row" in a line about tickets becomes Syncro, "the team" \
+                        stays a team. Works with any transcription model; adds a minute or two \
+                        to a long meeting.
+                        """
+                    )
+                }
 
-            Section {
-                fixer
-            } header: {
-                Text("Parakeet")
-            } footer: {
-                Text(
-                    """
-                    Parakeet can't be told words in advance. With this download, a small \
-                    model listens again after Parakeet and swaps a misheard word only when \
-                    the audio supports yours. Apple's model gets the words directly.
-                    """
-                )
-            }
+                Section {
+                    fixer
+                } header: {
+                    Text("Parakeet")
+                } footer: {
+                    Text(
+                        """
+                        Parakeet can't be told words in advance. With this download, a small \
+                        model listens again after Parakeet and swaps a misheard word only when \
+                        the audio supports yours. Apple's model gets the words directly.
+                        """
+                    )
+                }
 
-            Section("Built in") {
-                Text(MSPVocabulary.contextualStrings.joined(separator: ", "))
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+                Section("Built in") {
+                    Text(MSPVocabulary.contextualStrings.joined(separator: ", "))
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
             }
+            .themedRows()
         }
+        .themedGround()
         .navigationTitle("Custom words")
     }
 
@@ -704,7 +726,8 @@ struct ModelCardView: View {
                                 .font(.caption.weight(.semibold))
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 2)
-                                .background(Color.accentColor.opacity(0.2), in: Capsule())
+                                .foregroundStyle(Theme.accent)
+                                .background(Theme.accentWash, in: Capsule())
                         }
                     }
                     Text(card.summary)
@@ -753,12 +776,13 @@ struct ModelCardView: View {
             .labelStyle(.titleAndIcon)
         }
         .padding()
-        .background(.background.secondary, in: RoundedRectangle(cornerRadius: 14))
+        .background(Theme.surface, in: Theme.cardShape)
         .overlay(
-            RoundedRectangle(cornerRadius: 14)
-                .strokeBorder(isActive ? Color.accentColor : Color.clear, lineWidth: 2)
+            Theme.cardShape
+                .strokeBorder(isActive ? Theme.accent : Color.clear, lineWidth: 1.5)
         )
-        .contentShape(RoundedRectangle(cornerRadius: 14))
+        .contentShape(Theme.cardShape)
+        .animation(.easeInOut(duration: 0.2), value: isActive)
         .onTapGesture(perform: onSelect)
     }
 
@@ -793,7 +817,7 @@ struct RatingBar: View {
                 .foregroundStyle(.secondary)
             ZStack(alignment: .leading) {
                 Capsule().fill(.quaternary)
-                Capsule().fill(Color.accentColor).frame(width: 64 * min(1, max(0, value)))
+                Capsule().fill(Theme.accent).frame(width: 64 * min(1, max(0, value)))
             }
             .frame(width: 64, height: 5)
         }

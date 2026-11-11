@@ -161,11 +161,13 @@ struct ComposedShareView: View {
                     Toggle("Open questions", isOn: $questions)
                     Toggle("Full transcript", isOn: $transcript)
                 }
+                .themedRows()
                 Section {
                     Toggle("Attach audio", isOn: $includeAudio)
                 } footer: {
                     Text("Audio resets to off every time. It is the rawest form of client data.")
                 }
+                .themedRows()
                 Section("Format") {
                     Picker("Format", selection: $formatRaw) {
                         Text("Markdown").tag(ShareFormat.markdown.rawValue)
@@ -175,7 +177,9 @@ struct ComposedShareView: View {
                     }
                     .pickerStyle(.segmented)
                 }
+                .themedRows()
             }
+            .themedGround()
             .navigationTitle("Share meeting")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

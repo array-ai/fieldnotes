@@ -225,6 +225,7 @@ struct MeetingDetailView: View {
                                 player.play(from: line.start)
                             }
                         }
+                        .themedRows()
                     case .transcript:
                         TranscriptSections(
                             meeting: meeting,
@@ -248,6 +249,7 @@ struct MeetingDetailView: View {
                         )
                     }
                 }
+                .themedGround()
                 .onChange(of: scrollTarget) { _, target in
                     guard let target else { return }
                     withAnimation { proxy.scrollTo(target, anchor: .center) }
@@ -259,6 +261,7 @@ struct MeetingDetailView: View {
                 }
             }
         }
+        .background(Theme.ground.ignoresSafeArea())
     }
 
     private func playingSegmentID(_ meeting: MeetingSnapshot) -> UUID? {
@@ -345,9 +348,11 @@ struct ProcessingStatusBanner: View {
             }
         }
         .font(.footnote)
-        .padding(12)
-        .background(.quaternary, in: RoundedRectangle(cornerRadius: 10))
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(Theme.surface, in: Theme.cardShape)
         .padding(.horizontal)
+        .padding(.bottom, 10)
     }
 
     private var statusText: String {
@@ -401,7 +406,9 @@ struct SummarySections: View {
                 Section("Action items") {
                     ForEach(ActionItem.groupedByOwner(summary.actionItems), id: \.owner) { group in
                         Text(group.owner)
-                            .font(.subheadline.weight(.semibold))
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(Theme.accent)
+                            .listRowSeparator(.hidden, edges: .bottom)
                         ForEach(group.items) { item in
                             Button { onCitation(item.sourceSegmentID) } label: {
                                 VStack(alignment: .leading, spacing: 4) {
@@ -501,9 +508,13 @@ struct CitedRow: View {
             Text(text)
             Spacer(minLength: 8)
             if let time {
+                // The way to the line it came from, as a chip.
                 Text(time)
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.tint)
+                    .font(.caption2.monospacedDigit().weight(.medium))
+                    .foregroundStyle(Theme.accent)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3)
+                    .background(Theme.accentWash, in: Capsule())
             }
         }
     }
@@ -545,9 +556,10 @@ struct TranscriptSections: View {
                 Text(lines.isEmpty ? "No lines match." : lines.count == 1 ? "1 line matches. Tap it to see it in place." : "\(lines.count) lines match. Tap one to see it in place.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
+                    .themedRows()
             }
             ForEach(lines) { segment in
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 6) {
                         Text(speakerName(segment))
                             .font(.caption.weight(.semibold))
@@ -569,7 +581,7 @@ struct TranscriptSections: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
                 .onTapGesture { onPlay(segment) }
-                .listRowBackground(segment.id == playingID ? Color.accentColor.opacity(0.15) : nil)
+                .listRowBackground(Theme.surface.overlay(segment.id == playingID ? Theme.accentWash : Color.clear))
                 .id(segment.id)
                 .contextMenu {
                     Button("Play from here", systemImage: "play") { onPlay(segment) }
@@ -660,10 +672,13 @@ struct PlayerBar: View {
                 Spacer()
                 Button { player.skip(by: -15) } label: { Image(systemName: "gobackward.15") }
                 Button { player.togglePlay() } label: {
-                    Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
-                        .font(.title2)
-                        .frame(width: 44)
+                    Image(systemName: player.isPlaying ? "pause.circle.fill" : "play.circle.fill")
+                        .font(.system(size: 38))
+                        .symbolRenderingMode(.hierarchical)
+                        .contentTransition(.symbolEffect(.replace))
+                        .frame(width: 52)
                 }
+                .accessibilityLabel(player.isPlaying ? "Pause" : "Play")
                 Button { player.skip(by: 15) } label: { Image(systemName: "goforward.15") }
                 Spacer()
                 Button { player.cycleRate() } label: {
@@ -680,8 +695,12 @@ struct PlayerBar: View {
             }
             .buttonStyle(.borderless)
         }
+        .padding(.horizontal, 14)
+        .padding(.top, 6)
+        .padding(.bottom, 10)
+        .background(Theme.surface, in: Theme.cardShape)
         .padding(.horizontal)
-        .padding(.vertical, 6)
+        .padding(.top, 10)
     }
 }
 

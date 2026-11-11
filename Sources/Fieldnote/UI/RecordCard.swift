@@ -48,6 +48,7 @@ struct RecordCard: View {
             // gate are v2 (spec 11.5).
             Text(Self.consentNotice)
         }
+        .themedRows()
     }
 
     static let consentNotice = """
@@ -84,6 +85,7 @@ struct RecordingInProgressRow: View {
             .foregroundStyle(.primary)
             .accessibilityHint("Opens the recording")
         }
+        .themedRows()
     }
 }
 
