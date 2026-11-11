@@ -70,17 +70,7 @@ jobs:
       - name: Build the .app with Xcode
         run: |
           set -euo pipefail
-          # xtool at a fixed version, checked against its published checksum: the
-          # steps below edit the project it generates, and 1.24 changed that
-          # project (no file type on empty.c, no SWIFT_VERSION on its targets),
-          # which broke this build. 1.21.0 built the last good release.
-          curl -fsSL -o /tmp/xtool.zip https://github.com/xtool-org/xtool/releases/download/1.21.0/xtool.app.zip
-          echo "33bb2ef12de3f2acfb5eb8385fca0de9df3a982862ec067185a59e8ae18b64e8  /tmp/xtool.zip" | shasum -a 256 -c -
-          unzip -q /tmp/xtool.zip -d /tmp/xtool
-          XTOOL=$(find /tmp/xtool -type f -name xtool -perm -u+x | head -1)
-          [ -n "$XTOOL" ] || { echo "no xtool binary in the download"; find /tmp/xtool -maxdepth 4 | head -30; exit 1; }
-          mkdir -p /tmp/xtool-bin && ln -sf "$XTOOL" /tmp/xtool-bin/xtool
-          export PATH="/tmp/xtool-bin:$PATH"
+          brew install xtool-org/tap/xtool
           xtool --version
           ./Scripts/generate-xcode-project.sh
           # xtool's app and extension targets each compile one empty C file. A Swift
@@ -100,6 +90,16 @@ jobs:
             -e 's#/\* empty.c \*/#/* AppIntentsRoot.swift */#g' -e 's#/\* empty.c in Sources \*/#/* AppIntentsRoot.swift in Sources */#g' "$PBX"
           grep -q "empty.c" "$PBX" && { echo "empty.c still in the project"; grep -n "empty.c" "$PBX"; exit 1; }
           grep -c "AppIntentsRoot.swift" "$PBX"
+          # xtool 1.22 and later write their own project file and leave the Swift
+          # version off the app and extension targets (XcodeGen, which earlier
+          # versions used, set 5.0), so Xcode refuses the Swift file just put in.
+          # The same 5.0 here: it covers only AppIntentsRoot.swift, as the packages
+          # set their own.
+          grep -q "SWIFT_VERSION" "$PBX" \
+            || perl -pi -e 's/^(\s*)(PRODUCT_BUNDLE_IDENTIFIER = )/$1SWIFT_VERSION = 5.0;\n$1$2/' "$PBX"
+          grep -q "SWIFT_VERSION" "$PBX" \
+            || { echo "couldn't set SWIFT_VERSION: no PRODUCT_BUNDLE_IDENTIFIER in the project"; grep -n -A12 "buildSettings" "$PBX" | head -80; exit 1; }
+          grep -c "SWIFT_VERSION" "$PBX"
           # The app target is xtool's "Fieldnote-App"; "Fieldnote" is the SwiftPM library.
           xcodebuild -list -workspace xtool/Fieldnote.xcworkspace
           xcodebuild build \
