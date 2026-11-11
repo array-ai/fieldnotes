@@ -327,27 +327,38 @@ public final class BackgroundProcessingCoordinator: @unchecked Sendable {
             defer { setCurrent(nil) }
             reporter.reset()
             let pipeline = pipelineFactory(job.locale)
+            // The stage updates are saved from their own tasks. They are waited for
+            // before the run's result is saved: one landing after it put a finished
+            // meeting back to "Summarising…", and the next launch processed it again.
+            let stageUpdates = StageUpdates()
             do {
-                let output = try await pipeline.run(
-                    job,
-                    inBackgroundTask: inBackgroundTask,
-                    progress: { stage, fraction in
-                        // Reported on every fractional update, not once per stage: the
-                        // system prioritises killing tasks that report little progress.
-                        reporter.report(stage, fraction: fraction)
-                    },
-                    estimate: { [provider] stage, finish in
-                        // Surface the stage and the estimate in the meeting list and
-                        // the Live Activity, so both say the same thing.
-                        reporter.setEstimate(finish, for: stage)
-                        Task { await provider.markStage(stage, meetingID: job.meetingID, estimatedCompletion: finish) }
-                    },
-                    transcriptReady: { [provider] segments, embeddings, replacesEdited, models in
-                        await provider.applyTranscript(
-                            segments, embeddings: embeddings, replacesEditedSegments: replacesEdited, models: models, to: job.meetingID
-                        )
-                    }
-                )
+                let result: Result<ProcessingPipeline.Output, any Error>
+                do {
+                    result = .success(try await pipeline.run(
+                        job,
+                        inBackgroundTask: inBackgroundTask,
+                        progress: { stage, fraction in
+                            // Reported on every fractional update, not once per stage: the
+                            // system prioritises killing tasks that report little progress.
+                            reporter.report(stage, fraction: fraction)
+                        },
+                        estimate: { [provider] stage, finish in
+                            // Surface the stage and the estimate in the meeting list and
+                            // the Live Activity, so both say the same thing.
+                            reporter.setEstimate(finish, for: stage)
+                            stageUpdates.add(Task { await provider.markStage(stage, meetingID: job.meetingID, estimatedCompletion: finish) })
+                        },
+                        transcriptReady: { [provider] segments, embeddings, replacesEdited, models in
+                            await provider.applyTranscript(
+                                segments, embeddings: embeddings, replacesEditedSegments: replacesEdited, models: models, to: job.meetingID
+                            )
+                        }
+                    ))
+                } catch {
+                    result = .failure(error)
+                }
+                await stageUpdates.wait()
+                let output = try result.get()
                 await provider.apply(output, to: job.meetingID)
                 await ProcessingNotifier.shared.notifyFinished(
                     meetingID: job.meetingID,
@@ -390,6 +401,25 @@ public final class BackgroundProcessingCoordinator: @unchecked Sendable {
                 await ProcessingNotifier.shared.notifyFailed(meetingID: job.meetingID, title: job.title)
             }
         }
+    }
+}
+
+/// The tasks saving a run's stage changes to the store, so the run's result can be
+/// saved after all of them.
+private final class StageUpdates: @unchecked Sendable {
+    private let lock = NSLock()
+    private var tasks: [Task<Void, Never>] = []
+
+    func add(_ task: Task<Void, Never>) {
+        lock.withLock { tasks.append(task) }
+    }
+
+    func wait() async {
+        let pending = lock.withLock {
+            defer { tasks = [] }
+            return tasks
+        }
+        for task in pending { await task.value }
     }
 }
 
