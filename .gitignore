@@ -36,3 +36,6 @@ AppStore/
 # TestFlight feedback exports (crash logs, tester details)
 testflight_feedback*.zip
 *.crash
+
+# Xcode downloads, for building the Darwin SDK with xtool.
+*.xip
