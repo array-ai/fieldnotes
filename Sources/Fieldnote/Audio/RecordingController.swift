@@ -77,6 +77,7 @@ public final class RecordingController {
     private var updates: Task<Void, Never>?
     private var bufferContinuation: AsyncStream<CapturedAudio>.Continuation?
     private var liveActivity: RecordingActivityController?
+    private var lastActivityUpdate = Date.distantPast
     private var startDate = Date()
     private var accumulated: TimeInterval = 0
     private var locale: Locale = Locale(identifier: "en_AU")
@@ -482,6 +483,13 @@ public final class RecordingController {
         // Smooth the meter so it reads as a level, not a strobe.
         level = level * 0.7 + peak * 0.3
         elapsed = currentElapsed
+        // The Lock Screen and Dynamic Island, about once a second. Without this they
+        // only heard about pauses: the island's clock sat at 0:00 and its meter flat.
+        if state == .recording, Date().timeIntervalSince(lastActivityUpdate) >= 1 {
+            lastActivityUpdate = Date()
+            let (elapsed, level) = (elapsed, level)
+            Task { await liveActivity?.update(elapsed: elapsed, level: level, isPaused: false) }
+        }
     }
 
     private func observe(_ session: TranscriptionSession) {

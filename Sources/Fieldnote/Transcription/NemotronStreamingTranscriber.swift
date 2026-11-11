@@ -36,6 +36,7 @@ actor NemotronStreamingTranscriber {
     private var failed = false
     private var pending: [Float] = []
     private var draining = false
+    private var lastPublished = ContinuousClock.now - .seconds(60)
 
     init(onLines: @escaping @Sendable ([TranscriptSegment]) -> Void = { _ in }) {
         self.onLines = onLines
@@ -83,7 +84,13 @@ actor NemotronStreamingTranscriber {
             pending = []
             do {
                 _ = try await manager.process(samples: batch)
-                onLines(await currentLines())
+                // At most once a second: the lines are rebuilt from every word so
+                // far, and at the audio's pace (a dozen times a second) that work,
+                // and redrawing the whole transcript, grew with the meeting.
+                if lastPublished.duration(to: .now) >= .seconds(1) {
+                    lastPublished = .now
+                    onLines(await currentLines())
+                }
             } catch {
                 failed = true
                 DebugLog.shared.log("transcript", "nemotronStreaming: stopped while recording (\(error)); the recording will be transcribed after stop")

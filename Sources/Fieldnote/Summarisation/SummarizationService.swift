@@ -71,6 +71,20 @@ public actor SummarizationService {
 
     public static let skipSmallTalkKey = "skipSmallTalk"
 
+    /// "Skip small talk" (Settings, on by default): lines like "Okay." and "Give us
+    /// a second." are left out of what the model reads. On a 68-minute meeting this
+    /// cut 10% of the lines.
+    static var skipsSmallTalk: Bool {
+        UserDefaults.standard.object(forKey: skipSmallTalkKey) as? Bool ?? true
+    }
+
+    /// The lines the model is asked about. Empty means there is nothing to write
+    /// notes from (silence, or only small talk), which is not the model failing.
+    public static func linesToSummarise(_ segments: [TranscriptSegment]) -> [TranscriptSegment] {
+        let spoken = segments.filter { $0.isFinalized && !$0.text.trimmed().isEmpty }
+        return skipsSmallTalk ? spoken.filter { !NoteQuality.isFiller($0.text) } : spoken
+    }
+
     /// The local model writes plain labelled lines (`PlainNotes`) instead of filling
     /// the structured schema, which it doesn't follow. Set per run.
     private var plain = false
@@ -110,11 +124,8 @@ public actor SummarizationService {
         self.allowDeferral = allowDeferral
         var segments = segments
         var spoken = segments.filter { $0.isFinalized && !$0.text.trimmed().isEmpty }
-        // "Skip small talk" (Settings, on by default): lines like "Okay." and "Give
-        // us a second." are left out of what the model reads. On a 68-minute meeting
-        // this cut 10% of the lines.
-        let skipSmallTalk = UserDefaults.standard.object(forKey: Self.skipSmallTalkKey) as? Bool ?? true
-        var finalized = skipSmallTalk ? spoken.filter { !NoteQuality.isFiller($0.text) } : spoken
+        let skipSmallTalk = Self.skipsSmallTalk
+        var finalized = Self.linesToSummarise(segments)
         if skipSmallTalk, finalized.count < spoken.count {
             debug.log("summary", "\(DebugLog.short(meeting.id)): skipping \(spoken.count - finalized.count) small-talk line(s) of \(spoken.count)")
         }

@@ -484,7 +484,10 @@ public actor ProcessingPipeline {
         // Empty notes would replace the meeting's current ones (a summary redo kept
         // none of a 68-minute meeting's 20 topics, build 57). Fail instead: the old
         // notes stay, and the message says what to do.
-        if summary.isEmpty, !segments.isEmpty {
+        // Only when the model was asked something: a recording of silence or small
+        // talk alone has nothing to write, and finishes with empty notes rather
+        // than failing with advice to change model.
+        if summary.isEmpty, !SummarizationService.linesToSummarise(segments).isEmpty {
             debug.log("pipeline", "\(DebugLog.short(input.meetingID)): \(engine?.card.title ?? "the notes model") wrote nothing usable; keeping the meeting's current notes")
             throw NothingUsable(model: engine?.card.title)
         }

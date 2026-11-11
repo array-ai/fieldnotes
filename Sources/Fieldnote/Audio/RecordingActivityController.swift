@@ -59,7 +59,9 @@ public final class RecordingActivityController {
         guard isPaused || Date().timeIntervalSince(lastUpdate) >= 1 else { return }
         lastUpdate = Date()
         let state = RecordingActivityAttributes.ContentState(
-            startedAt: startedAt,
+            // When the recording would have started had it never paused, so a
+            // clock counting from here shows recorded time, not time since Record.
+            startedAt: Date().addingTimeInterval(-elapsed),
             elapsed: elapsed,
             level: level,
             isPaused: isPaused

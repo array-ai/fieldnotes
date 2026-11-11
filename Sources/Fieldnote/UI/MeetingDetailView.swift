@@ -42,6 +42,11 @@ struct MeetingDetailView: View {
         .task(id: pollGeneration) { await loadAndPollWhileProcessing() }
         .task { await player.load(meetingID: meetingID) }
         .onDisappear { player.stop() }
+        // A recording started from the Action button with this screen open: the
+        // playback would carry on over the speaker and into the recording.
+        .onChange(of: model.recorder.isActive) { _, recording in
+            if recording { player.pause() }
+        }
         .navigationTitle(meeting?.title ?? "Meeting")
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)

@@ -23,8 +23,9 @@ struct RecordingLiveActivity: Widget {
                         .font(.caption)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    Text(timerText(context))
+                    RecordedTime(state: context.state)
                         .font(.caption.monospacedDigit())
+                        .frame(maxWidth: 64, alignment: .trailing)
                 }
                 DynamicIslandExpandedRegion(.center) {
                     Text(context.attributes.title).font(.headline).lineLimit(1)
@@ -38,16 +39,29 @@ struct RecordingLiveActivity: Widget {
                     // `.red` is a Color, so the ternary has no common type.
                     .foregroundStyle(context.state.isPaused ? Color.secondary : Color.red)
             } compactTrailing: {
-                Text(timerText(context)).font(.caption2.monospacedDigit())
+                RecordedTime(state: context.state)
+                    .font(.caption2.monospacedDigit())
+                    .frame(maxWidth: 48, alignment: .trailing)
             } minimal: {
                 Image(systemName: "record.circle").foregroundStyle(.red)
             }
         }
     }
 
-    private func timerText(_ context: ActivityViewContext<RecordingActivityAttributes>) -> String {
-        let total = Int(context.state.elapsed)
-        return String(format: "%d:%02d", total / 60, total % 60)
+}
+
+/// Recorded time: a clock that runs by itself while recording, so it stays right
+/// between the app's updates, and the time it stopped at while paused.
+struct RecordedTime: View {
+    let state: RecordingActivityAttributes.ContentState
+
+    var body: some View {
+        if state.isPaused {
+            Text(Timecode.short(state.elapsed))
+        } else {
+            Text(state.startedAt, style: .timer)
+                .multilineTextAlignment(.trailing)
+        }
     }
 }
 
@@ -61,7 +75,7 @@ struct LockScreenView: View {
                     .font(.headline)
                     .lineLimit(1)
                 Spacer()
-                Text(context.state.startedAt, style: .timer)
+                RecordedTime(state: context.state)
                     .font(.headline.monospacedDigit())
                     .frame(maxWidth: 80, alignment: .trailing)
             }
