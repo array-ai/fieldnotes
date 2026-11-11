@@ -70,6 +70,42 @@ public actor FileTranscriptionService {
         return all.sorted { $0.start < $1.start }
     }
 
+    /// Transcribes the end of a recording from its 16 kHz speaker buffer, from
+    /// `start` seconds on. For a recording cut off by the app closing: the audio
+    /// chunk being written then can't be opened (up to five minutes), but the
+    /// speaker buffer holds the same audio.
+    public func transcribeTail(meetingID: UUID, from start: TimeInterval) async throws -> [TranscriptSegment] {
+        let rate = AudioFormats.diarization.sampleRate
+        let audio = try AudioSamples(meetingID: meetingID)
+        var position = max(0, Int(start * rate))
+        guard position < audio.count else { return [] }
+
+        let session = TranscriptionSession(locale: locale, timeOffset: start)
+        try await session.start()
+        do {
+            // Four seconds at a time, so the buffer is never in memory whole.
+            let piece = Int(rate) * 4
+            while position < audio.count {
+                try Task.checkCancellation()
+                let samples = try audio.slice(position..<min(position + piece, audio.count))
+                guard !samples.isEmpty else { break }
+                await session.append(CapturedAudio(samples: samples, sampleRate: rate))
+                position += samples.count
+            }
+        } catch is CancellationError {
+            await session.cancel()
+            throw CancellationError()
+        } catch {
+            let unlocked = await PowerState.isProtectedDataAvailable()
+            if PhoneLocked.isCause(error) || !unlocked {
+                await session.cancel()
+                throw PhoneLocked()
+            }
+            DebugLog.shared.log("transcript", "the speaker buffer stopped part-way; keeping what was read (\(error.localizedDescription))")
+        }
+        return try await session.finish()
+    }
+
     private func feed(_ file: AVAudioFile, into session: TranscriptionSession) async throws {
         let format = file.processingFormat
         let frameCapacity: AVAudioFrameCount = 8192

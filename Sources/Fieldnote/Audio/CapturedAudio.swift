@@ -46,6 +46,12 @@ public struct CapturedAudio: Sendable {
         self.sampleRate = buffer.format.sampleRate
     }
 
+    /// Mono samples already in hand, e.g. read back from the speaker buffer.
+    public init(samples: [Float], sampleRate: Double) {
+        self.channels = [samples]
+        self.sampleRate = sampleRate
+    }
+
     /// Rebuilds a buffer for the frameworks that need one. Each consumer does this in
     /// its own isolation region, from values, so nothing is shared.
     public func makeBuffer() -> AVAudioPCMBuffer? {

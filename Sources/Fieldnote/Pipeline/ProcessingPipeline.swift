@@ -311,6 +311,7 @@ public actor ProcessingPipeline {
         }
 
         recovered.append(contentsOf: fresh)
+        recovered.append(contentsOf: try await transcribeCutOffEnd(input))
         recovered.sort { $0.start < $1.start }
 
         try await store.saveSegments(recovered)
@@ -319,6 +320,27 @@ public actor ProcessingPipeline {
         try await store.markComplete(.transcribing, in: &checkpoint)
         progress(.transcribing, 1.0)
         return recovered
+    }
+
+    /// The end of a recording that the app closing cut off. The audio chunk being
+    /// written then can't be opened, so the chunks stop short of the recording (by
+    /// up to five minutes, or all of a shorter one); the 16 kHz speaker buffer has
+    /// that audio, and the end is transcribed from it.
+    private func transcribeCutOffEnd(_ input: Input) async throws -> [TranscriptSegment] {
+        // Only the last chunk can be the cut-off one. An unreadable chunk earlier
+        // would shift the chunks' timeline, and the buffer's wouldn't line up.
+        guard !input.chunks.dropLast().contains(where: { $0.duration <= 0 }),
+              let audio = try? AudioSamples(meetingID: input.meetingID) else { return [] }
+        let chunkEnd = input.chunks.reduce(0) { $0 + $1.duration }
+        let buffered = Double(audio.count) / AudioFormats.diarization.sampleRate
+        // The two are written from the same audio and agree to well under a second;
+        // ten leaves room for rounding over many chunks.
+        guard buffered - chunkEnd > 10 else { return [] }
+        debug.log(
+            "pipeline",
+            "\(DebugLog.short(input.meetingID)): the audio chunks end at \(String(format: "%.0f", chunkEnd))s of \(String(format: "%.0f", buffered))s recorded; transcribing the rest from the speaker buffer"
+        )
+        return try await transcriber.transcribeTail(meetingID: input.meetingID, from: chunkEnd)
     }
 
     /// Treats a live transcript as complete when it reaches near the end of the
