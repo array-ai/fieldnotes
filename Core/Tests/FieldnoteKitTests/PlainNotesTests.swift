@@ -95,6 +95,15 @@ struct PlainNotesTests {
         #expect(notes.decisions.first?.statement == "Prove the technical side next")
     }
 
+    @Test("HTML comments go, closed either way or not at all")
+    func comments() {
+        #expect(PlainNotes.removingComments(from: "A point <!-- 11 --> here") == "A point  here")
+        #expect(PlainNotes.removingComments(from: "One <!-- 1 --> two <!-- 2 --!> three") == "One  two  three")
+        #expect(PlainNotes.removingComments(from: "Cut off <!-- 247, 24") == "Cut off ")
+        #expect(PlainNotes.removingComments(from: "Nested <!-- <!-- 3 --> end") == "Nested  end")
+        #expect(PlainNotes.removingComments(from: "No comment --> here") == "No comment --> here")
+    }
+
     @Test("Echoed transcript lines, line ranges and comment debris are dropped")
     func echoesAndDebris() {
         let text = """

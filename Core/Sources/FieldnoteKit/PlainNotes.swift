@@ -360,7 +360,7 @@ public enum PlainNotes {
         // Other debris small models leave: a line range after a bar ("| 1-33"),
         // HTML comments ("<!-- 247, 248 -->") and stray citation pieces (", , ]").
         body = body.replacingOccurrences(of: #"\s*\|\s*\d+\s*[-–]\s*\d+(?=\s*$)"#, with: "", options: .regularExpression)
-        body = body.replacingOccurrences(of: #"<!--.*?-->"#, with: "", options: .regularExpression)
+        body = removingComments(from: body)
         body = body.replacingOccurrences(of: #"(\s*,)+\s*\]"#, with: "", options: .regularExpression)
         body = body.replacingOccurrences(of: #"(\s*,\s*\d+)+\s*$"#, with: "", options: .regularExpression)
         // Who said it, in brackets: "[Dan]", "[Speaker A]" (LFM2.5 1.2B, build 62).
@@ -373,6 +373,21 @@ public enum PlainNotes {
         // "point | [9:23]": the separator left behind once the citation is gone.
         body = body.trimmingCharacters(in: CharacterSet(charactersIn: " .;,:–-|")).trimmingCharacters(in: .whitespaces)
         return (body, Array(Set(lines)).sorted())
+    }
+
+    /// The text without HTML comments: "<!-- 247, 248 -->". Found by searching, not
+    /// a pattern, so one the model never closed (its line ran out), or closed the
+    /// other way HTML allows ("--!>"), goes too rather than staying in the note.
+    static func removingComments(from text: String) -> String {
+        var result = text
+        while let open = result.range(of: "<!--") {
+            let rest = open.upperBound..<result.endIndex
+            let close = [result.range(of: "-->", range: rest), result.range(of: "--!>", range: rest)]
+                .compactMap { $0 }
+                .min { $0.lowerBound < $1.lowerBound }
+            result.removeSubrange(open.lowerBound..<(close?.upperBound ?? result.endIndex))
+        }
+        return result
     }
 
     static func numbers(in text: String) -> [Int] {
